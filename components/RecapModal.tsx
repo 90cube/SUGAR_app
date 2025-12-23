@@ -1,0 +1,149 @@
+
+import React, { useState } from 'react';
+import { useApp } from '../state/AppContext';
+
+export const RecapModal: React.FC = () => {
+  const { isRecapModalOpen, closeRecapModal, calculateRecap, recapStats, isRecapLoading } = useApp();
+  
+  const getTodayKST = () => {
+    const now = new Date();
+    const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+    const kst = new Date(utc + (9 * 60 * 60 * 1000)); 
+    return kst.toISOString().split('T')[0];
+  };
+
+  const [selectedDate, setSelectedDate] = useState(getTodayKST());
+
+  if (!isRecapModalOpen) return null;
+
+  const handleAnalyze = () => {
+    calculateRecap(selectedDate);
+  };
+
+  const StatBox = ({ label, value, compareValue, suffix = '' }: { label: string, value: number, compareValue?: number, suffix?: string }) => {
+    const diff = compareValue !== undefined ? value - compareValue : 0;
+    const isPositive = diff >= 0;
+    
+    return (
+        <div className="bg-white/60 backdrop-blur-md p-3 rounded-2xl border border-white/60 text-center flex flex-col items-center justify-center h-full shadow-sm hover:shadow-md transition-shadow">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">{label}</span>
+            <span className="text-xl font-black text-slate-900 mt-1">{value}{suffix}</span>
+            {compareValue !== undefined && (
+                 <span className={`text-[10px] font-bold mt-1 ${isPositive ? 'text-blue-500' : 'text-red-500'}`}>
+                    {isPositive ? '▲' : '▼'} {Math.abs(diff).toFixed(1)}{suffix}
+                 </span>
+            )}
+        </div>
+    );
+  };
+
+  return (
+    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in duration-300" onClick={closeRecapModal}>
+      <div 
+        className="w-full max-w-md bg-white/90 backdrop-blur-2xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in slide-in-from-bottom-5 duration-500 border border-white/50"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="bg-slate-900/95 p-6 text-white text-center flex-shrink-0 backdrop-blur-xl relative overflow-hidden">
+             <div className="absolute top-[-50%] left-[-20%] w-[200px] h-[200px] bg-blue-500/20 rounded-full blur-3xl"></div>
+             <div className="absolute bottom-[-50%] right-[-20%] w-[200px] h-[200px] bg-purple-500/20 rounded-full blur-3xl"></div>
+            
+            <h2 className="text-xl font-black uppercase tracking-tight relative z-10">Today's Recap</h2>
+            <p className="text-sm text-slate-400 mt-1 relative z-10">Analyze your daily performance vs. history</p>
+        </div>
+
+        <div className="p-6 overflow-y-auto space-y-6 overscroll-contain">
+            
+            {/* Controls */}
+            <div className="flex gap-2">
+                <input 
+                    type="date" 
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    className="flex-1 px-4 py-3 bg-white/50 border border-slate-200/50 rounded-xl font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/20"
+                />
+                <button 
+                    onClick={handleAnalyze}
+                    disabled={isRecapLoading}
+                    className="px-6 py-3 bg-yellow-400 hover:bg-yellow-300 text-slate-900 font-bold rounded-xl shadow-[0_0_15px_rgba(250,204,21,0.4)] disabled:opacity-50 transition-all active:scale-95"
+                >
+                    {isRecapLoading ? '...' : 'Analyze'}
+                </button>
+            </div>
+
+            {/* Results */}
+            {recapStats ? (
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                    
+                    <div className="text-center bg-slate-50/50 p-4 rounded-2xl border border-white/50">
+                        <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Matches Played</span>
+                        <div className="text-5xl font-black text-slate-900 mt-1 drop-shadow-sm">{recapStats.totalMatches}</div>
+                        <div className="text-xs text-slate-500 mt-1 font-medium">{recapStats.date}</div>
+                    </div>
+
+                    {recapStats.totalMatches > 0 ? (
+                        <>
+                            {/* Comparison Section */}
+                            <div>
+                                <h3 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
+                                    <span className="w-1.5 h-1.5 bg-blue-500 rounded-full shadow-[0_0_5px_rgba(59,130,246,0.5)]"></span>
+                                    vs. Lifetime Average
+                                </h3>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <StatBox 
+                                        label="Win Rate" 
+                                        value={recapStats.winRate} 
+                                        compareValue={recapStats.comparison.restWinRate} 
+                                        suffix="%" 
+                                    />
+                                    <StatBox 
+                                        label="K/D Ratio" 
+                                        value={recapStats.kd} 
+                                        compareValue={recapStats.comparison.restKd} 
+                                        suffix="%" 
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <h3 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
+                                    <span className="w-1.5 h-1.5 bg-purple-500 rounded-full shadow-[0_0_5px_rgba(168,85,247,0.5)]"></span>
+                                    vs. Ranked Average
+                                </h3>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <StatBox 
+                                        label="Win Rate" 
+                                        value={recapStats.winRate} 
+                                        compareValue={recapStats.comparison.rankedWinRate} 
+                                        suffix="%" 
+                                    />
+                                    <StatBox 
+                                        label="K/D Ratio" 
+                                        value={recapStats.kd} 
+                                        compareValue={recapStats.comparison.rankedKd} 
+                                        suffix="%" 
+                                    />
+                                </div>
+                            </div>
+                        </>
+                    ) : (
+                        <div className="p-6 bg-slate-50/50 rounded-2xl text-center text-slate-500 text-sm border border-slate-100/50">
+                            No matches found for this date.
+                        </div>
+                    )}
+                </div>
+            ) : (
+                <div className="text-center py-12 text-slate-400 text-sm bg-slate-50/30 rounded-2xl border border-dashed border-slate-200">
+                    Select a date and click Analyze to generate your report.
+                </div>
+            )}
+        </div>
+
+        <div className="p-4 border-t border-slate-100/50 bg-white/50 backdrop-blur-md flex-shrink-0">
+             <button onClick={closeRecapModal} className="w-full py-4 bg-white/80 border border-white text-slate-700 font-bold rounded-xl hover:bg-white transition-colors shadow-sm active:scale-98">
+                Close
+             </button>
+        </div>
+      </div>
+    </div>
+  );
+};
