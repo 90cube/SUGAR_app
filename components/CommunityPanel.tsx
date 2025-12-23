@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../state/AppContext';
 import { communityService } from '../services/communityService';
@@ -7,7 +6,7 @@ import { CommunityPost, BoardType } from '../types';
 type TabType = 'balance' | 'keuk' | 'stream';
 
 export const CommunityPanel: React.FC = () => {
-  const { isCommunityOpen, closeCommunity, isLoggedIn, openAuthModal, userProfile } = useApp();
+  const { isCommunityOpen, closeCommunity, isLoggedIn, openAuthModal, userProfile, openVirtualMatchingModal } = useApp();
   
   // Navigation State
   const [activeTab, setActiveTab] = useState<TabType>('balance');
@@ -74,7 +73,7 @@ export const CommunityPanel: React.FC = () => {
         closeCommunity();
         openAuthModal();
     } else {
-        alert("Virtual Matching feature is coming soon!");
+        openVirtualMatchingModal();
     }
   };
 

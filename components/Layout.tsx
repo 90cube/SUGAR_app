@@ -1,6 +1,9 @@
+
 import React, { ReactNode } from 'react';
 import { Header } from './Header';
 import { CommunityPanel } from './CommunityPanel';
+import { VirtualMatchingModal } from './VirtualMatchingModal';
+import { DirectMessageModal } from './DirectMessageModal';
 
 interface LayoutProps {
   children: ReactNode;
@@ -21,8 +24,12 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         {children}
       </main>
       
-      {/* Community Panel Overlay */}
+      {/* Community Panel Overlay (z-160) */}
       <CommunityPanel />
+
+      {/* Global Modals (z-200) - Rendered as siblings to ensure they are on top */}
+      <VirtualMatchingModal />
+      <DirectMessageModal />
     </div>
   );
 };

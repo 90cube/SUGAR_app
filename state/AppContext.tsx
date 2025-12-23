@@ -48,6 +48,17 @@ interface AppContextType {
   isCommunityOpen: boolean;
   openCommunity: () => void;
   closeCommunity: () => void;
+
+  // Virtual Matching Logic
+  isVirtualMatchingModalOpen: boolean;
+  openVirtualMatchingModal: () => void;
+  closeVirtualMatchingModal: () => void;
+
+  // Direct Message Logic
+  isDMModalOpen: boolean;
+  openDMModal: (username: string) => void;
+  closeDMModal: () => void;
+  activeDMUser: string | null;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -80,6 +91,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // Community State
   const [isCommunityOpen, setIsCommunityOpen] = useState(false);
 
+  // Virtual Matching State
+  const [isVirtualMatchingModalOpen, setIsVirtualMatchingModalOpen] = useState(false);
+
+  // Direct Message State
+  const [isDMModalOpen, setIsDMModalOpen] = useState(false);
+  const [activeDMUser, setActiveDMUser] = useState<string | null>(null);
+
   const login = () => {
     setIsLoggedIn(true);
     setIsAuthModalOpen(false);
@@ -109,6 +127,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const openCommunity = () => setIsCommunityOpen(true);
   const closeCommunity = () => setIsCommunityOpen(false);
+
+  const openVirtualMatchingModal = () => setIsVirtualMatchingModalOpen(true);
+  const closeVirtualMatchingModal = () => setIsVirtualMatchingModalOpen(false);
+
+  const openDMModal = (username: string) => {
+    setActiveDMUser(username);
+    setIsDMModalOpen(true);
+  };
+  const closeDMModal = () => {
+    setIsDMModalOpen(false);
+    setActiveDMUser(null);
+  };
 
   const openMatchDetail = async (match: Match) => {
     setActiveMatch(match);
@@ -293,7 +323,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // Scroll Lock Effect
   useEffect(() => {
-    const anyModalOpen = isAuthModalOpen || !!activeMatch || isRecapModalOpen || isAnalysisModalOpen || isCommunityOpen;
+    const anyModalOpen = isAuthModalOpen || !!activeMatch || isRecapModalOpen || isAnalysisModalOpen || isCommunityOpen || isVirtualMatchingModalOpen || isDMModalOpen;
     if (anyModalOpen) {
       document.body.style.overflow = 'hidden';
     } else {
@@ -302,7 +332,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return () => {
       document.body.style.overflow = '';
     };
-  }, [isAuthModalOpen, activeMatch, isRecapModalOpen, isAnalysisModalOpen, isCommunityOpen]);
+  }, [isAuthModalOpen, activeMatch, isRecapModalOpen, isAnalysisModalOpen, isCommunityOpen, isVirtualMatchingModalOpen, isDMModalOpen]);
 
   return (
     <AppContext.Provider value={{ 
@@ -315,7 +345,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       isRecapModalOpen, openRecapModal, closeRecapModal, recapStats, calculateRecap, isRecapLoading,
       isAnalysisModalOpen, openAnalysisModal, closeAnalysisModal,
       performAnomalyCheck, anomalyReport, isAnomalyLoading,
-      isCommunityOpen, openCommunity, closeCommunity
+      isCommunityOpen, openCommunity, closeCommunity,
+      isVirtualMatchingModalOpen, openVirtualMatchingModal, closeVirtualMatchingModal,
+      isDMModalOpen, openDMModal, closeDMModal, activeDMUser
     }}>
       {children}
     </AppContext.Provider>
