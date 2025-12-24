@@ -25,17 +25,17 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({ profile }) => {
         <div className="grid grid-cols-2 gap-4">
           {/* Overall Grade Info */}
           <div className="bg-white/50 p-3 rounded-xl border border-white/60 text-center shadow-sm">
-            <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Overall Grade</span>
+            <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">통합 계급 (Grade)</span>
             <div className="font-bold text-slate-800 text-sm truncate">{profile.overallGrade}</div>
-            <div className="text-xs text-slate-500 mt-0.5">#{profile.overallRanking.toLocaleString()}</div>
+            <div className="text-xs text-slate-500 mt-0.5">#{profile.overallRanking.toLocaleString()}위</div>
           </div>
 
           {/* Season Grade Info */}
           <div className="bg-yellow-50/50 p-3 rounded-xl border border-yellow-100/60 text-center shadow-sm relative overflow-hidden">
              <div className="absolute inset-0 bg-yellow-400/5 blur-md"></div>
-            <span className="block text-[10px] font-bold text-yellow-600 uppercase tracking-wider mb-1 relative z-10">Season Grade</span>
+            <span className="block text-[10px] font-bold text-yellow-600 uppercase tracking-wider mb-1 relative z-10">시즌 계급 (Season)</span>
             <div className="font-bold text-slate-800 text-sm truncate relative z-10">{profile.seasonGrade}</div>
-            <div className="text-xs text-slate-500 mt-0.5 relative z-10">#{profile.seasonRanking.toLocaleString()}</div>
+            <div className="text-xs text-slate-500 mt-0.5 relative z-10">#{profile.seasonRanking.toLocaleString()}위</div>
           </div>
         </div>
       </div>

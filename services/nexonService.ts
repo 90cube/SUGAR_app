@@ -7,16 +7,16 @@ const API_PROXY = "https://corsproxy.io/?";
 const STATIC_PROXY = "https://api.allorigins.win/raw?url=";
 
 const ERROR_CODES: Record<string, string> = {
-  "OPENAPI00001": "Server Internal Error (500)",
-  "OPENAPI00002": "API 키 권한이 없거나 만료되었습니다.", // Updated per instructions
-  "OPENAPI00003": "Invalid Identifier (400)",
-  "OPENAPI00004": "Invalid Parameter (400)",
-  "OPENAPI00005": "Invalid API Key (400)",
-  "OPENAPI00006": "Invalid Game or API Path (400)",
-  "OPENAPI00007": "Too Many Requests (429)",
-  "OPENAPI00009": "Data Preparing (400)",
-  "OPENAPI00010": "Game Maintenance (400)",
-  "OPENAPI00011": "API Maintenance (503)"
+  "OPENAPI00001": "서버 내부 오류 (500)",
+  "OPENAPI00002": "API 키 권한이 없거나 만료되었습니다.", 
+  "OPENAPI00003": "잘못된 식별자입니다 (400)",
+  "OPENAPI00004": "잘못된 파라미터입니다 (400)",
+  "OPENAPI00005": "유효하지 않은 API 키입니다 (400)",
+  "OPENAPI00006": "지원하지 않는 게임 또는 경로입니다 (400)",
+  "OPENAPI00007": "API 호출 한도를 초과했습니다 (429)",
+  "OPENAPI00009": "데이터 준비 중입니다 (400)",
+  "OPENAPI00010": "게임 점검 중입니다 (400)",
+  "OPENAPI00011": "API 점검 중입니다 (503)"
 };
 
 interface TierMeta {
@@ -74,27 +74,27 @@ class NexonService {
           const errorMessage = data.error.message;
           
           if (errorCode === "OPENAPI00004") {
-             throw new Error("Invalid Parameter");
+             throw new Error("잘못된 파라미터");
           }
           if (errorCode === "OPENAPI00007") {
-             throw new Error("Too Many Requests");
+             throw new Error("요청 한도 초과");
           }
 
-          const mappedError = ERROR_CODES[errorCode] || errorMessage || "Unknown API Error";
+          const mappedError = ERROR_CODES[errorCode] || errorMessage || "알 수 없는 API 오류";
           console.error(`[NexonService] API Error: ${errorCode} - ${errorMessage}`);
           throw new Error(mappedError);
         }
         
-        if (response.status === 403) throw new Error("Access Denied (403)");
-        if (response.status === 404) throw new Error("Resource not found (404)");
-        if (response.status === 429) throw new Error("Too Many Requests (429)");
+        if (response.status === 403) throw new Error("접근 권한이 없습니다 (403)");
+        if (response.status === 404) throw new Error("리소스를 찾을 수 없습니다 (404)");
+        if (response.status === 429) throw new Error("요청이 너무 많습니다 (429)");
         
-        throw new Error(`HTTP Error: ${response.status}`);
+        throw new Error(`HTTP 오류: ${response.status}`);
       }
 
       return data;
     } catch (error: any) {
-      if (error.message !== "Invalid Parameter") {
+      if (error.message !== "잘못된 파라미터") {
         console.error(`[NexonService] API Request failed for ${endpoint}:`, error.message);
       }
       throw error;
@@ -247,7 +247,7 @@ class NexonService {
           allMatches.push(...processed);
         } catch (e: any) {
           // Ignore invalid parameter errors (no data for mode)
-          if (e.message !== "Invalid Parameter") {
+          if (e.message !== "잘못된 파라미터") {
              console.warn(`[NexonService] Failed to fetch matches for mode ${mode}:`, e.message);
           }
         }
@@ -354,7 +354,7 @@ class NexonService {
             suspicion_score: 0,
             deviation_level: 0,
             message: "이전 기록이 부족하여 분석할 수 없습니다.",
-            reasons: ["Insufficient history"],
+            reasons: ["기록 부족 (Insufficient history)"],
             evidence: {
                 last10_kd: parseFloat(last10_kd_val.toFixed(2)),
                 today_kd: 0,
@@ -395,10 +395,10 @@ class NexonService {
       if (todayMatches.length > 0) {
         if (kd_z > 3.0) {
             suspicion_score += 40;
-            reasons.push(`Today's K/D is ${(kd_z).toFixed(1)}σ above average`);
+            reasons.push(`오늘 K/D가 평소보다 매우 높음 (${(kd_z).toFixed(1)}σ)`);
         } else if (kd_z > 2.0) {
             suspicion_score += 20;
-            reasons.push(`High performance deviation`);
+            reasons.push(`높은 퍼포먼스 편차 감지`);
         }
       }
 
@@ -407,7 +407,7 @@ class NexonService {
       const high_matches = last10.filter(m => calcMatchKD(m) > (mean + 1.5 * std));
       if (high_matches.length >= 8) {
           suspicion_score += 30;
-          reasons.push("Unusually consistent high performance");
+          reasons.push("비정상적으로 일정한 고득점");
       }
 
       // C. Recent Info Trend Shift (if available)
@@ -418,7 +418,7 @@ class NexonService {
           // If today's KD is vastly higher than "recent" trend
           if (today_kd_agg > recent_kd_ratio * 2.0 && todayMatches.length > 3) {
               suspicion_score += 20;
-              reasons.push("Performance spike vs recent trend");
+              reasons.push("최근 동향 대비 급격한 실력 상승");
           }
       }
 
@@ -437,7 +437,7 @@ class NexonService {
           label,
           suspicion_score,
           deviation_level,
-          message: label === "Suspicious" ? "Anomalous patterns detected." : "No significant anomalies found.",
+          message: label === "Suspicious" ? "비정상적인 패턴이 감지되었습니다." : "특이사항이 발견되지 않았습니다.",
           reasons: reasons.slice(0, 3), // Top 3
           evidence: {
               last10_kd: parseFloat(last10_kd_val.toFixed(2)),
@@ -456,7 +456,7 @@ class NexonService {
              label: "Normal",
              suspicion_score: 0,
              deviation_level: 0,
-             message: e.message || "Unknown Error",
+             message: e.message || "알 수 없는 오류",
              reasons: [],
              evidence: { 
                  last10_kd: 0, today_kd: 0, baseline_kd_mean: 0, baseline_kd_std: 0, today_match_count: 0 

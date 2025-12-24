@@ -1,19 +1,55 @@
+
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { AppStatus, UserProfile, MatchDetail, Match, RecapStats, MatchResult, AnomalyReport } from '../types';
+import { AppStatus, UserProfile, MatchDetail, Match, RecapStats, MatchResult, AnomalyReport, PageContent, AuthUser, CommunityUserProfile } from '../types';
 import { nexonService } from '../services/nexonService';
+import { cloudStorageService } from '../services/cloudStorageService';
+import { geminiService } from '../services/geminiService';
+import { authService } from '../services/authService';
+import { UI_STRINGS } from '../constants';
+import { jwtDecode } from "jwt-decode";
+import { communityService } from '../services/communityService';
 
 interface AppContextType {
   status: AppStatus;
   setStatus: (status: AppStatus) => void;
   isLoggedIn: boolean;
-  login: () => void;
+  
+  // Login Methods
+  authUser: AuthUser | null;
+  handleGoogleLoginSuccess: (credential: string) => void;
+  login: (id: string, pw: string) => Promise<boolean>; // Updated signature
+  register: (data: { email: string; pw: string; nickname: string; phone: string }) => Promise<boolean>; // New
   logout: () => void;
+  isAdminUser: boolean; 
+  
   isAuthModalOpen: boolean;
   openAuthModal: () => void;
   closeAuthModal: () => void;
+  
   userProfile: UserProfile | null;
   searchUser: (nickname: string) => Promise<void>;
   
+  // Content / CMS State
+  pageContent: PageContent;
+  updatePageContent: (newContent: PageContent) => Promise<void>;
+  isAdminEditorOpen: boolean;
+  openAdminEditor: () => void;
+  closeAdminEditor: () => void;
+  isSavingContent: boolean;
+
+  // Admin Specific Modals
+  isAdminHiddenBoardOpen: boolean;
+  openAdminHiddenBoard: () => void;
+  closeAdminHiddenBoard: () => void;
+  isAdminGuillotineOpen: boolean;
+  openAdminGuillotine: () => void;
+  closeAdminGuillotine: () => void;
+
+  // Community User Profile
+  selectedCommunityUser: CommunityUserProfile | null;
+  openCommunityUserProfile: (nickname: string) => void;
+  closeCommunityUserProfile: () => void;
+
   // Match List & Pagination Logic
   visibleMatchCount: number;
   loadMoreMatches: () => Promise<void>;
@@ -66,8 +102,23 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [status, setStatus] = useState<AppStatus>(AppStatus.IDLE);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const [isAdminUser, setIsAdminUser] = useState(false);
+  
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+
+  // Content State
+  const [pageContent, setPageContent] = useState<PageContent>(cloudStorageService.getDefaultContent());
+  const [isAdminEditorOpen, setIsAdminEditorOpen] = useState(false);
+  const [isSavingContent, setIsSavingContent] = useState(false);
+
+  // Admin Modals State
+  const [isAdminHiddenBoardOpen, setIsAdminHiddenBoardOpen] = useState(false);
+  const [isAdminGuillotineOpen, setIsAdminGuillotineOpen] = useState(false);
+
+  // Community User Profile State
+  const [selectedCommunityUser, setSelectedCommunityUser] = useState<CommunityUserProfile | null>(null);
 
   // Pagination State
   const [visibleMatchCount, setVisibleMatchCount] = useState(10);
@@ -98,31 +149,110 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [isDMModalOpen, setIsDMModalOpen] = useState(false);
   const [activeDMUser, setActiveDMUser] = useState<string | null>(null);
 
-  const login = () => {
-    setIsLoggedIn(true);
-    setIsAuthModalOpen(false);
+  // Load Content on Mount
+  useEffect(() => {
+     cloudStorageService.fetchContentConfig().then(setPageContent);
+  }, []);
+
+  // --- Login Logic ---
+
+  const handleGoogleLoginSuccess = (credential: string) => {
+    try {
+      const decoded: any = jwtDecode(credential);
+      const user: AuthUser = {
+        id: decoded.sub,
+        name: decoded.name,
+        email: decoded.email,
+        picture: decoded.picture,
+        role: 'user',
+        isEmailVerified: true
+      };
+      setAuthUser(user);
+      setIsLoggedIn(true);
+      setIsAuthModalOpen(false);
+    } catch (e) {
+      console.error("Failed to decode Google Credential", e);
+      alert("Failed to verify Google Login.");
+    }
+  };
+
+  const login = async (id: string, pw: string) => {
+      try {
+          const user = await authService.login(id, pw);
+          setAuthUser(user);
+          setIsLoggedIn(true);
+          setIsAdminUser(user.role === 'admin');
+          setIsAuthModalOpen(false);
+          return true;
+      } catch (e: any) {
+          throw e; // Pass error to UI
+      }
+  };
+
+  const register = async (data: { email: string; pw: string; nickname: string; phone: string }) => {
+      try {
+          const user = await authService.register(data);
+          setAuthUser(user);
+          setIsLoggedIn(true);
+          setIsAdminUser(false);
+          setIsAuthModalOpen(false);
+          return true;
+      } catch (e: any) {
+          throw e;
+      }
   };
 
   const logout = () => {
     setIsLoggedIn(false);
-    setUserProfile(null);
+    setIsAdminUser(false);
+    setAuthUser(null);
     setStatus(AppStatus.IDLE);
-    setIsCommunityOpen(false); // Close community on logout
+    setIsCommunityOpen(false);
+    setIsAdminHiddenBoardOpen(false);
+    setIsAdminGuillotineOpen(false);
   };
 
   const openAuthModal = () => setIsAuthModalOpen(true);
   const closeAuthModal = () => setIsAuthModalOpen(false);
+
+  // --- CMS & Admin Logic ---
+  const openAdminEditor = () => setIsAdminEditorOpen(true);
+  const closeAdminEditor = () => setIsAdminEditorOpen(false);
+  
+  const updatePageContent = async (newContent: PageContent) => {
+      setIsSavingContent(true);
+      const success = await cloudStorageService.saveContentConfig(newContent);
+      if (success) {
+          setPageContent(newContent);
+      }
+      setIsSavingContent(false);
+  };
+
+  const openAdminHiddenBoard = () => setIsAdminHiddenBoardOpen(true);
+  const closeAdminHiddenBoard = () => setIsAdminHiddenBoardOpen(false);
+
+  const openAdminGuillotine = () => setIsAdminGuillotineOpen(true);
+  const closeAdminGuillotine = () => setIsAdminGuillotineOpen(false);
+
+  // --- Community User Profile ---
+  const openCommunityUserProfile = async (nickname: string) => {
+      const profile = await communityService.getCommunityUserProfile(nickname);
+      setSelectedCommunityUser(profile);
+  };
+  const closeCommunityUserProfile = () => setSelectedCommunityUser(null);
+
+  // --- Existing Logic ---
   
   const openRecapModal = () => setIsRecapModalOpen(true);
   const closeRecapModal = () => {
     setIsRecapModalOpen(false);
-    setRecapStats(null); // Reset on close
+    setRecapStats(null); 
   };
 
   const openAnalysisModal = () => setIsAnalysisModalOpen(true);
   const closeAnalysisModal = () => {
     setIsAnalysisModalOpen(false);
-    setAnomalyReport(null); // Reset on close
+    setAnomalyReport(null); 
   };
 
   const openCommunity = () => setIsCommunityOpen(true);
@@ -143,19 +273,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const openMatchDetail = async (match: Match) => {
     setActiveMatch(match);
     setIsMatchDetailLoading(true);
-    setActiveMatchDetail(null); // Reset prev
-
+    setActiveMatchDetail(null); 
     try {
       const detailData = await nexonService.getMatchDetail(match.id);
-      // Combine list info with detail info
-      const fullDetail: MatchDetail = {
-        ...match,
-        RawData: detailData
-      };
+      const fullDetail: MatchDetail = { ...match, RawData: detailData };
       setActiveMatchDetail(fullDetail);
     } catch (e) {
       console.error("Error fetching match detail", e);
-      // Fallback: just show what we have
       setActiveMatchDetail({ ...match }); 
     } finally {
       setIsMatchDetailLoading(false);
@@ -167,20 +291,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setActiveMatchDetail(null);
   };
 
-  // Helper utility for artificial delay
   const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
   const searchUser = async (nickname: string) => {
     setStatus(AppStatus.LOADING);
-    setVisibleMatchCount(10); // Reset pagination on new search
+    setVisibleMatchCount(10); 
     setAnomalyReport(null);
-    
     try {
       const profile = await nexonService.fetchFullProfile(nickname);
-      
-      // Artificial Delay for search (300-600ms)
       await wait(600);
-
       if (profile) {
         setUserProfile(profile);
         setStatus(AppStatus.SUCCESS);
@@ -197,11 +316,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const loadMoreMatches = async () => {
     if (!userProfile) return;
     if (visibleMatchCount >= userProfile.recentMatches.length) return;
-
     setIsLoadingMore(true);
-    // Artificial delay for loading more
     await wait(500);
-    
     setVisibleMatchCount(prev => prev + 10);
     setIsLoadingMore(false);
   };
@@ -210,52 +326,42 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (!userProfile) return;
     setIsRecapLoading(true);
     setRecapStats(null);
-
+    
     try {
-      // 1. Groups Logic
       const G_today = userProfile.recentMatches.filter(m => m.rawDate.startsWith(date));
       const G_rest = userProfile.recentMatches.filter(m => !m.rawDate.startsWith(date));
       const G_ranked = userProfile.recentMatches.filter(m => 
         m.matchType.includes("랭크") || m.matchMode.includes("랭크")
       );
+      
+      const stats: RecapStats = {
+          date,
+          totalMatches: G_today.length,
+          winRate: calculateWinRate(G_today),
+          kd: calculateKD(G_today),
+          topWeapon: "N/A (API Limit)",
+          comparison: {
+              restWinRate: calculateWinRate(G_rest),
+              restKd: calculateKD(G_rest),
+              rankedWinRate: calculateWinRate(G_ranked),
+              rankedKd: calculateKD(G_ranked)
+          }
+      };
 
-      if (G_today.length === 0) {
-        setIsRecapLoading(false);
-        setRecapStats({
-            date,
-            totalMatches: 0,
-            winRate: 0,
-            kd: 0,
-            topWeapon: "N/A",
-            comparison: {
-                restWinRate: calculateWinRate(G_rest),
-                restKd: calculateKD(G_rest),
-                rankedWinRate: calculateWinRate(G_ranked),
-                rankedKd: calculateKD(G_ranked)
-            }
-        });
-        return;
+      if (G_today.length > 0) {
+          // Send summarized stats to Gemini for qualitative analysis
+          try {
+             const analysis = await geminiService.analyzeDailyRecap(stats);
+             stats.aiAnalysis = analysis;
+          } catch (aiErr) {
+             console.error("AI Analysis Failed", aiErr);
+             stats.aiAnalysis = "AI Analysis unavailable.";
+          }
+      } else {
+          stats.aiAnalysis = "No matches played on this date.";
       }
-
-      const detailPromises = G_today.map(m => nexonService.getMatchDetail(m.id));
-      await Promise.all(detailPromises);
       
-      const todayWinRate = calculateWinRate(G_today);
-      const todayKD = calculateKD(G_today);
-      
-      setRecapStats({
-        date,
-        totalMatches: G_today.length,
-        winRate: todayWinRate,
-        kd: todayKD,
-        topWeapon: "N/A (API Limit)", 
-        comparison: {
-            restWinRate: calculateWinRate(G_rest),
-            restKd: calculateKD(G_rest),
-            rankedWinRate: calculateWinRate(G_ranked),
-            rankedKd: calculateKD(G_ranked)
-        }
-      });
+      setRecapStats(stats);
 
     } catch (e) {
       console.error("Recap failed", e);
@@ -269,35 +375,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setIsAnomalyLoading(true);
     setAnomalyReport(null);
     openAnalysisModal(); 
-
     try {
         await wait(1500);
-
         let selectedDateKST = new Date().toISOString().split('T')[0];
         if (userProfile.recentMatches.length > 0) {
             selectedDateKST = userProfile.recentMatches[0].rawDate.split('T')[0];
         }
-
         const report = await nexonService.runAnomalyDetection(
-            userProfile.nickname,
-            selectedDateKST,
-            userProfile.recentMatches
+            userProfile.nickname, selectedDateKST, userProfile.recentMatches
         );
-        
         setAnomalyReport(report);
-
     } catch (e) {
         console.error("Anomaly Check Error", e);
         setAnomalyReport({
-            status: "ERROR",
-            label: "Normal",
-            suspicion_score: 0,
-            deviation_level: 0,
-            message: "An unexpected error occurred.",
-            reasons: [],
-            evidence: { 
-                 last10_kd: 0, today_kd: 0, baseline_kd_mean: 0, baseline_kd_std: 0, today_match_count: 0 
-             }
+            status: "ERROR", label: "Normal", suspicion_score: 0, deviation_level: 0,
+            message: "An unexpected error occurred.", reasons: [],
+            evidence: { last10_kd: 0, today_kd: 0, baseline_kd_mean: 0, baseline_kd_std: 0, today_match_count: 0 }
         });
     } finally {
         setIsAnomalyLoading(false);
@@ -311,19 +404,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const calculateKD = (matches: Match[]) => {
-    let kills = 0;
-    let deaths = 0;
-    matches.forEach(m => {
-        kills += m.kill;
-        deaths += m.death;
-    });
+    let kills = 0; let deaths = 0;
+    matches.forEach(m => { kills += m.kill; deaths += m.death; });
     if (deaths === 0) return kills > 0 ? 100 : 0;
     return parseFloat(((kills / deaths) * 100).toFixed(1));
   };
 
-  // Scroll Lock Effect
   useEffect(() => {
-    const anyModalOpen = isAuthModalOpen || !!activeMatch || isRecapModalOpen || isAnalysisModalOpen || isCommunityOpen || isVirtualMatchingModalOpen || isDMModalOpen;
+    const anyModalOpen = isAuthModalOpen || !!activeMatch || isRecapModalOpen || isAnalysisModalOpen || isCommunityOpen || isVirtualMatchingModalOpen || isDMModalOpen || isAdminEditorOpen || isAdminHiddenBoardOpen || isAdminGuillotineOpen || !!selectedCommunityUser;
     if (anyModalOpen) {
       document.body.style.overflow = 'hidden';
     } else {
@@ -332,12 +420,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return () => {
       document.body.style.overflow = '';
     };
-  }, [isAuthModalOpen, activeMatch, isRecapModalOpen, isAnalysisModalOpen, isCommunityOpen, isVirtualMatchingModalOpen, isDMModalOpen]);
+  }, [isAuthModalOpen, activeMatch, isRecapModalOpen, isAnalysisModalOpen, isCommunityOpen, isVirtualMatchingModalOpen, isDMModalOpen, isAdminEditorOpen, isAdminHiddenBoardOpen, isAdminGuillotineOpen, selectedCommunityUser]);
 
   return (
     <AppContext.Provider value={{ 
       status, setStatus, 
-      isLoggedIn, login, logout,
+      isLoggedIn, authUser, handleGoogleLoginSuccess, login, register, logout, isAdminUser,
       isAuthModalOpen, openAuthModal, closeAuthModal,
       userProfile, searchUser,
       activeMatch, activeMatchDetail, isMatchDetailLoading, openMatchDetail, closeMatchDetail,
@@ -347,7 +435,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       performAnomalyCheck, anomalyReport, isAnomalyLoading,
       isCommunityOpen, openCommunity, closeCommunity,
       isVirtualMatchingModalOpen, openVirtualMatchingModal, closeVirtualMatchingModal,
-      isDMModalOpen, openDMModal, closeDMModal, activeDMUser
+      isDMModalOpen, openDMModal, closeDMModal, activeDMUser,
+      pageContent, updatePageContent, isAdminEditorOpen, openAdminEditor, closeAdminEditor, isSavingContent,
+      isAdminHiddenBoardOpen, openAdminHiddenBoard, closeAdminHiddenBoard,
+      isAdminGuillotineOpen, openAdminGuillotine, closeAdminGuillotine,
+      selectedCommunityUser, openCommunityUserProfile, closeCommunityUserProfile
     }}>
       {children}
     </AppContext.Provider>

@@ -1,7 +1,6 @@
 
 import React, { useState } from 'react';
 import { useApp } from '../state/AppContext';
-import { UI_STRINGS } from '../constants';
 import { AppStatus } from '../types';
 import { ProfileCard } from '../components/ProfileCard';
 import { TierCard } from '../components/TierCard';
@@ -11,9 +10,13 @@ import { AuthModal } from '../components/AuthModal';
 import { MatchDetailModal } from '../components/MatchDetailModal';
 import { RecapModal } from '../components/RecapModal';
 import { AnalysisModal } from '../components/AnalysisModal';
+import { AdminEditor } from '../components/AdminEditor';
+import { AdminHiddenBoardModal } from '../components/AdminHiddenBoardModal';
+import { AdminGuillotineModal } from '../components/AdminGuillotineModal';
+import { CommunityUserProfileModal } from '../components/CommunityUserProfileModal';
 
 export const Home: React.FC = () => {
-  const { status, userProfile, searchUser, isLoggedIn, openAuthModal, performAnomalyCheck } = useApp();
+  const { status, userProfile, searchUser, isLoggedIn, openAuthModal, performAnomalyCheck, pageContent, isAdminUser, openAdminEditor } = useApp();
   const [nickname, setNickname] = useState('');
 
   const handleSearch = (e: React.FormEvent) => {
@@ -31,16 +34,31 @@ export const Home: React.FC = () => {
   };
 
   return (
-    <div className="w-full max-w-md mx-auto space-y-6 pb-24">
+    <div className="w-full max-w-md mx-auto space-y-6 pb-24 relative">
       <AuthModal />
       <MatchDetailModal />
       <RecapModal />
       <AnalysisModal />
+      <AdminEditor />
+      <AdminHiddenBoardModal />
+      <AdminGuillotineModal />
+      <CommunityUserProfileModal />
+
+      {/* Admin Floating Action Button */}
+      {isAdminUser && (
+          <button 
+            onClick={openAdminEditor}
+            className="fixed bottom-24 right-4 z-50 w-12 h-12 bg-slate-900 text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 transition-transform active:scale-90 border-2 border-yellow-400"
+            title="Edit Page Content"
+          >
+             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+          </button>
+      )}
       
       {/* Section 0: Search Panel */}
       <section className="space-y-5 pt-8 animate-in fade-in slide-in-from-bottom-8 duration-700">
         <h1 className="text-3xl font-black text-slate-800 text-center uppercase tracking-tighter drop-shadow-sm">
-          {UI_STRINGS.welcome}
+          {pageContent.welcomeTitle}
         </h1>
         
         <form onSubmit={handleSearch} className="space-y-4">
@@ -63,8 +81,8 @@ export const Home: React.FC = () => {
                 onClick={handleAnomalyClick}
                 disabled={!userProfile}
                 className="relative h-14 w-14 bg-white/70 backdrop-blur-md text-red-500 border border-red-100 font-bold rounded-xl active:scale-95 transition-all shadow-sm hover:shadow-red-500/20 flex items-center justify-center disabled:opacity-50 disabled:grayscale"
-                aria-label={UI_STRINGS.anomaly}
-                title={UI_STRINGS.anomaly}
+                aria-label={pageContent.anomalyButtonText}
+                title={pageContent.anomalyButtonText}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
@@ -81,9 +99,9 @@ export const Home: React.FC = () => {
             {status === AppStatus.LOADING ? (
                <div className="flex items-center gap-2">
                  <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                 <span className="animate-pulse">Searching...</span>
+                 <span className="animate-pulse">{pageContent.loadingText}</span>
                </div>
-            ) : UI_STRINGS.search}
+            ) : pageContent.searchButtonText}
           </button>
         </form>
       </section>
@@ -118,7 +136,7 @@ export const Home: React.FC = () => {
 
       {status === AppStatus.ERROR && (
         <div className="animate-in fade-in zoom-in-95 duration-500 p-6 bg-red-50/80 backdrop-blur-md text-red-600 rounded-2xl text-center text-sm font-bold border border-red-100 shadow-lg shadow-red-500/5">
-          {UI_STRINGS.error}
+          {pageContent.errorText}
         </div>
       )}
     </div>

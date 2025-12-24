@@ -1,3 +1,4 @@
+
 // Global constants
 
 export const APP_NAME = "SUGAR";
@@ -13,15 +14,18 @@ export const NEXON_API_BASE_URL = "https://open.api.nexon.com/suddenattack/v1";
 export const NEXON_SA_LOGO_URL = "https://rs.nxfs.nexon.com/common/logo/logo_suddenattack.png"; 
 
 // Default model for Gemini Service
-export const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash-latest";
+export const DEFAULT_GEMINI_MODEL = "gemini-3-flash-preview";
+
+// Google Client ID
+export const GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID_HERE";
 
 export const UI_STRINGS = {
-  loading: "Searching combat records...",
-  error: "Player not found. Please check the nickname.",
-  welcome: "SEARCH",
-  community: "Community",
-  loginTitle: "Login to SUGAR",
-  anomaly: "Anomaly",
-  search: "Search",
-  todayRecap: "Today Recap"
+  loading: "병영수첩 조회 중...",
+  error: "플레이어를 찾을 수 없습니다. 닉네임을 확인해주세요.",
+  welcome: "전적 검색",
+  community: "커뮤니티",
+  loginTitle: "SUGAR 로그인",
+  anomaly: "어뷰징 탐지",
+  search: "검색",
+  todayRecap: "오늘의 요약"
 };

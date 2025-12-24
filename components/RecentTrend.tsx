@@ -10,11 +10,11 @@ export const RecentTrend: React.FC<RecentTrendProps> = ({ stats }) => {
   if (!stats) return null;
 
   const items = [
-    { label: 'Win', value: stats.winRate, color: 'text-blue-600 drop-shadow-sm' },
+    { label: '승률', value: stats.winRate, color: 'text-blue-600 drop-shadow-sm' },
     { label: 'K/D', value: stats.kd, color: 'text-slate-900' },
-    { label: 'Assault', value: stats.assaultRate, color: 'text-slate-500' },
-    { label: 'Sniper', value: stats.sniperRate, color: 'text-slate-500' },
-    { label: 'Special', value: stats.specialRate, color: 'text-slate-500' },
+    { label: '돌격', value: stats.assaultRate, color: 'text-slate-500' },
+    { label: '저격', value: stats.sniperRate, color: 'text-slate-500' },
+    { label: '특수', value: stats.specialRate, color: 'text-slate-500' },
   ];
 
   return (

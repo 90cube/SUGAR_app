@@ -49,10 +49,10 @@ export const RecentMatches: React.FC<RecentMatchesProps> = ({ matches }) => {
     return (
        <div className="space-y-4">
         <div className="flex items-center justify-between px-1">
-          <h3 className="text-lg font-bold text-slate-900 drop-shadow-sm">Recent Matches</h3>
+          <h3 className="text-lg font-bold text-slate-900 drop-shadow-sm">최근 전적</h3>
         </div>
         <div className="p-8 text-center bg-white/40 backdrop-blur-md rounded-xl border border-white/50 border-dashed text-slate-400 shadow-sm">
-          No recent match history available.
+          최근 플레이 기록이 없습니다.
         </div>
       </div>
     );
@@ -61,7 +61,7 @@ export const RecentMatches: React.FC<RecentMatchesProps> = ({ matches }) => {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between px-1">
-        <h3 className="text-lg font-bold text-slate-900 drop-shadow-sm">Recent Matches ({matches.length})</h3>
+        <h3 className="text-lg font-bold text-slate-900 drop-shadow-sm">최근 전적 ({matches.length})</h3>
         <button 
           onClick={handleRecapClick}
           className="text-xs font-bold bg-slate-900/90 backdrop-blur-md text-white px-3 py-1.5 rounded-full active:scale-95 transition-all shadow-lg hover:shadow-slate-500/30 hover:bg-slate-800 flex items-center gap-1 border border-white/10"
@@ -109,10 +109,10 @@ export const RecentMatches: React.FC<RecentMatchesProps> = ({ matches }) => {
             {isLoadingMore ? (
                  <div className="flex items-center gap-2">
                     <span className="w-4 h-4 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin" />
-                    Loading matches...
+                    기록 불러오는 중...
                  </div>
             ) : (
-                `Load More Matches (${matches.length - displayedMatches.length} remaining)`
+                `더 보기 (${matches.length - displayedMatches.length}개 남음)`
             )}
         </button>
       )}

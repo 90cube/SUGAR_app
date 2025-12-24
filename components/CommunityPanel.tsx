@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../state/AppContext';
 import { communityService } from '../services/communityService';
@@ -6,7 +7,7 @@ import { CommunityPost, BoardType } from '../types';
 type TabType = 'balance' | 'keuk' | 'stream';
 
 export const CommunityPanel: React.FC = () => {
-  const { isCommunityOpen, closeCommunity, isLoggedIn, openAuthModal, userProfile, openVirtualMatchingModal } = useApp();
+  const { isCommunityOpen, closeCommunity, isLoggedIn, openAuthModal, userProfile, openVirtualMatchingModal, isAdminUser, openCommunityUserProfile } = useApp();
   
   // Navigation State
   const [activeTab, setActiveTab] = useState<TabType>('balance');
@@ -21,14 +22,17 @@ export const CommunityPanel: React.FC = () => {
   // View State for Updates
   const [isUpdatesExpanded, setIsUpdatesExpanded] = useState(false);
 
+  // Write Form State (Stream is separate)
+  const [isWriteFormOpen, setIsWriteFormOpen] = useState(false);
+  const [writeTitle, setWriteTitle] = useState('');
+  const [writeContent, setWriteContent] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   // Stream Form State
   const [isStreamFormOpen, setIsStreamFormOpen] = useState(false);
   const [streamTitle, setStreamTitle] = useState('');
   const [streamDesc, setStreamDesc] = useState('');
   const [isSubmittingStream, setIsSubmittingStream] = useState(false);
-
-  // Check Admin Role (Mock: checks if nickname is 'sugar' or starts with 'GM')
-  const isAdmin = isLoggedIn && userProfile && (userProfile.nickname === 'sugar' || userProfile.nickname.startsWith('GM'));
 
   // Fetch Data when open or tab changes
   useEffect(() => {
@@ -69,21 +73,48 @@ export const CommunityPanel: React.FC = () => {
   };
 
   const handleVirtualMatching = () => {
-    if (!isLoggedIn) {
-        closeCommunity();
-        openAuthModal();
-    } else {
-        openVirtualMatchingModal();
-    }
+    openVirtualMatchingModal();
   };
 
-  const handleRegisterStream = () => {
+  const handleLoginClick = () => {
+    openAuthModal();
+  };
+
+  // --- Writing Logic ---
+
+  const handleWriteClick = () => {
       if (!isLoggedIn) {
-          closeCommunity();
           openAuthModal();
           return;
       }
-      setIsStreamFormOpen(true);
+      if (activeTab === 'stream') {
+          setIsStreamFormOpen(true);
+      } else {
+          setIsWriteFormOpen(true);
+      }
+  };
+
+  const submitPost = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!userProfile) return;
+      if (!writeTitle.trim()) return;
+
+      setIsSubmitting(true);
+      let boardType: BoardType = 'balance';
+      if (activeTab === 'keuk') boardType = 'fun';
+
+      await communityService.createPost({
+          title: writeTitle,
+          content: writeContent,
+          author: userProfile.nickname,
+          boardType: boardType
+      });
+
+      setIsSubmitting(false);
+      setIsWriteFormOpen(false);
+      setWriteTitle('');
+      setWriteContent('');
+      fetchTabContent(activeTab);
   };
 
   const submitStreamRequest = async (e: React.FormEvent) => {
@@ -105,7 +136,7 @@ export const CommunityPanel: React.FC = () => {
       setStreamTitle('');
       setStreamDesc('');
       fetchTabContent('stream'); // Refresh list to show pending post
-      alert("Stream request submitted! It will be reviewed by an admin.");
+      alert("스트리머 신청이 완료되었습니다. 관리자 승인 후 게시됩니다.");
   };
 
   const formatTime = (isoString: string) => {
@@ -116,16 +147,16 @@ export const CommunityPanel: React.FC = () => {
     const diffHours = Math.floor(diffMins / 60);
     const diffDays = Math.floor(diffHours / 24);
 
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    return `${diffDays}d ago`;
+    if (diffMins < 60) return `${diffMins}분 전`;
+    if (diffHours < 24) return `${diffHours}시간 전`;
+    return `${diffDays}일 전`;
   };
 
   const HeadshotCounter = ({ count, type }: { count: number, type: 'head' | 'half' }) => {
      const isHead = type === 'head';
      return (
          <div className={`flex items-center gap-1 text-[10px] font-bold ${isHead ? 'text-orange-600 bg-orange-50' : 'text-slate-500 bg-slate-100'} px-1.5 py-0.5 rounded`}>
-             {isHead ? '🎯 Head' : '🛡️ Half'}
+             {isHead ? '🎯 헤드' : '🛡️ 반샷'}
              <span>{count > 999 ? (count/1000).toFixed(1)+'k' : count}</span>
          </div>
      );
@@ -134,7 +165,58 @@ export const CommunityPanel: React.FC = () => {
   // --- Sub-Components for this Panel ---
 
   const DetailView = () => {
+    // Local State for Voting
+    const [heads, setHeads] = useState(0);
+    const [halfs, setHalfs] = useState(0);
+    const [myVote, setMyVote] = useState<'head' | 'half' | null>(null);
+    const [isReporting, setIsReporting] = useState(false);
+
+    useEffect(() => {
+        if (selectedPost) {
+            setHeads(selectedPost.heads);
+            setHalfs(selectedPost.halfshots);
+            setMyVote(null); // Reset first
+
+            // If logged in, check if I voted
+            if (isLoggedIn && userProfile) {
+                communityService.getUserVote(selectedPost.id, userProfile.nickname)
+                    .then(vote => setMyVote(vote));
+            }
+        }
+    }, [selectedPost, isLoggedIn, userProfile]);
+
+    const handleVote = async (type: 'head' | 'half') => {
+        if (!selectedPost) return;
+        if (!isLoggedIn || !userProfile) {
+            openAuthModal();
+            return;
+        }
+
+        // Optimistic UI updates could go here, but since service mimics async, we'll wait for result
+        const result = await communityService.toggleVote(selectedPost.id, userProfile.nickname, type);
+        setHeads(result.heads);
+        setHalfs(result.halfshots);
+        setMyVote(result.userVote);
+    };
+
+    const handleReport = async () => {
+        if (!selectedPost) return;
+        if (!isLoggedIn || !userProfile) {
+            openAuthModal();
+            return;
+        }
+        if (!window.confirm("정말 이 게시물을 길로틴(신고) 시스템에 회부하시겠습니까? 허위 신고 시 불이익이 있을 수 있습니다.")) {
+            return;
+        }
+        
+        setIsReporting(true);
+        await communityService.reportPost(selectedPost.id, userProfile.nickname);
+        setIsReporting(false);
+        alert("신고가 접수되었습니다. 운영진 검토 후 처리됩니다.");
+    };
+
     if (!selectedPost) return null;
+
     return (
       <div className="absolute inset-0 bg-white z-[170] flex flex-col animate-in slide-in-from-right duration-300">
         {/* Detail Header */}
@@ -163,16 +245,16 @@ export const CommunityPanel: React.FC = () => {
            <div className="p-6">
               {/* Meta */}
               <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                      <span className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-500">
+                  <div className="flex items-center gap-2" onClick={() => openCommunityUserProfile(selectedPost.author)}>
+                      <span className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-500 cursor-pointer hover:bg-slate-300">
                           {selectedPost.author[0].toUpperCase()}
                       </span>
-                      <div className="flex flex-col">
-                          <span className="text-xs font-bold text-slate-900">{selectedPost.author}</span>
+                      <div className="flex flex-col cursor-pointer">
+                          <span className="text-xs font-bold text-slate-900 hover:underline">{selectedPost.author}</span>
                           <span className="text-[10px] text-slate-500">{selectedPost.createdAt.split('T')[0]}</span>
                       </div>
                   </div>
-                  <HeadshotCounter count={selectedPost.heads} type="head" />
+                  <HeadshotCounter count={heads} type="head" />
               </div>
 
               {/* Title */}
@@ -192,20 +274,49 @@ export const CommunityPanel: React.FC = () => {
            </div>
         </div>
 
-        {/* Detail Footer CTA */}
-        <div className="p-4 border-t border-slate-100 bg-white sticky bottom-0 z-10 flex justify-between items-center">
-             <div className="flex gap-2">
-                 <button className="flex items-center gap-1.5 px-4 py-2 bg-orange-50 text-orange-600 font-bold text-xs rounded-xl active:scale-95 transition-transform">
-                    <span>🎯 Headshot</span>
-                 </button>
-                 <button className="flex items-center gap-1.5 px-4 py-2 bg-slate-100 text-slate-500 font-bold text-xs rounded-xl active:scale-95 transition-transform">
-                    <span>🛡️ Halfshot</span>
-                 </button>
-             </div>
-             <button className="p-2 text-slate-400">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+        {/* Detail Footer CTA (Interactions) */}
+        <div className="p-4 border-t border-slate-100 bg-white sticky bottom-0 z-10 flex justify-end items-center gap-2">
+             
+             {/* Headshot (Like) */}
+             <button 
+                onClick={() => handleVote('head')}
+                className={`flex items-center gap-1.5 px-4 py-2.5 font-bold text-xs rounded-xl active:scale-95 transition-all border ${
+                    myVote === 'head' 
+                    ? 'bg-orange-100 border-orange-200 text-orange-700' 
+                    : 'bg-orange-50 border-orange-100 text-orange-600 hover:bg-orange-100'
+                }`}
+             >
+                <span>🎯 헤드샷</span>
+                <span className="bg-white/50 px-1.5 rounded text-[10px]">{heads}</span>
+             </button>
+
+             {/* Halfshot (Dislike) */}
+             <button 
+                onClick={() => handleVote('half')}
+                className={`flex items-center gap-1.5 px-4 py-2.5 font-bold text-xs rounded-xl active:scale-95 transition-all border ${
+                    myVote === 'half'
+                    ? 'bg-slate-200 border-slate-300 text-slate-800'
+                    : 'bg-slate-100 border-slate-200 text-slate-500 hover:bg-slate-200'
+                }`}
+             >
+                <span>🛡️ 반샷</span>
+                <span className="bg-white/50 px-1.5 rounded text-[10px]">{halfs}</span>
+             </button>
+
+             <div className="w-px h-6 bg-slate-200 mx-1"></div>
+
+             {/* Guillotine (Report) */}
+             <button 
+                onClick={handleReport}
+                disabled={isReporting}
+                className="flex items-center justify-center p-2.5 bg-red-50 text-red-500 border border-red-100 rounded-xl active:scale-95 transition-all hover:bg-red-100 hover:text-red-600 disabled:opacity-50"
+                title="길로틴 (신고)"
+             >
+                 {/* Scale Icon */}
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
                 </svg>
+                <span className="sr-only">길로틴</span>
              </button>
         </div>
       </div>
@@ -224,11 +335,11 @@ export const CommunityPanel: React.FC = () => {
       <div 
         className={`fixed inset-0 z-[160] flex flex-col bg-slate-50/95 transition-transform duration-500 cubic-bezier(0.16, 1, 0.3, 1) ${isCommunityOpen ? 'translate-y-0' : '-translate-y-full'}`}
       >
-        {/* Main View Header (Hidden if Detail is open, but simple z-index handling works too) */}
+        {/* Main View Header */}
         <div className="flex-shrink-0 h-16 bg-white/80 backdrop-blur-xl border-b border-slate-200 flex items-center justify-between px-4 shadow-sm z-30 relative">
            <h2 className="text-xl font-black text-slate-800 tracking-tight flex items-center gap-2">
              <span className="text-yellow-500 text-2xl">●</span> 
-             COMMUNITY
+             커뮤니티 (COMMUNITY)
            </h2>
            <button 
              onClick={closeCommunity}
@@ -243,34 +354,21 @@ export const CommunityPanel: React.FC = () => {
         {/* Main Content Area */}
         <div className="flex-1 overflow-y-auto overscroll-contain p-5 pb-32 space-y-6">
            
-           {/* 2. Sudden Attack Update News */}
+           {/* 2. Sudden Attack Update News (Admin Only Write) */}
            <section>
               <div className="flex items-center justify-between mb-3 px-1">
-                 <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Official Updates</h3>
+                 <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">공지사항 (Updates)</h3>
                  
                  <div className="flex items-center gap-2">
-                     {/* ADMIN WRITE BUTTON for Update Board */}
-                     {isAdmin && (
-                        <button className="text-[10px] font-bold text-white bg-slate-900 px-3 py-1 rounded-full active:scale-95 transition-transform flex items-center gap-1">
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path></svg>
-                            Write
-                        </button>
-                     )}
-                     
                      {/* EXPAND/COLLAPSE BUTTON */}
                      <button 
                        onClick={() => setIsUpdatesExpanded(!isUpdatesExpanded)}
                        className="w-6 h-6 flex items-center justify-center bg-slate-100 rounded-full text-slate-500 hover:bg-slate-200 transition-colors active:scale-95"
-                       title={isUpdatesExpanded ? "Show Latest" : "Show All"}
                      >
                         {isUpdatesExpanded ? (
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M20 12H4" />
-                            </svg>
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M20 12H4" /></svg>
                         ) : (
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                            </svg>
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
                         )}
                      </button>
                  </div>
@@ -278,113 +376,61 @@ export const CommunityPanel: React.FC = () => {
               
               {/* CONTENT */}
               {isUpdatesExpanded ? (
-                  // EXPANDED: Horizontal Scroll List of ALL Updates
                   <div className="flex overflow-x-auto gap-4 -mx-5 px-5 pb-4 scrollbar-hide snap-x snap-mandatory animate-in fade-in slide-in-from-top-2 duration-300">
                       {updatePosts.map((post) => (
-                          <div 
-                            key={post.id} 
-                            onClick={() => setSelectedPost(post)}
-                            className="snap-center shrink-0 w-[280px] flex flex-col bg-white rounded-xl overflow-hidden shadow-sm border border-slate-200 active:scale-[0.98] transition-transform"
-                          >
-                              {/* 16:9 Thumbnail */}
+                          <div key={post.id} onClick={() => setSelectedPost(post)} className="snap-center shrink-0 w-[280px] flex flex-col bg-white rounded-xl overflow-hidden shadow-sm border border-slate-200 active:scale-[0.98] transition-transform">
                               <div className="w-full aspect-video bg-slate-200 relative">
-                                  {post.thumbnail ? (
-                                      <img src={post.thumbnail} alt="" className="w-full h-full object-cover" />
-                                  ) : (
-                                      <div className="w-full h-full flex items-center justify-center text-slate-400 text-xs">No Image</div>
-                                  )}
+                                  {post.thumbnail ? <img src={post.thumbnail} alt="" className="w-full h-full object-cover" /> : null}
                               </div>
-                              {/* Content: Title + Date Only (Per requirement) */}
                               <div className="p-3">
-                                  <h4 className="font-bold text-slate-900 text-sm leading-tight line-clamp-2 mb-2 h-10">
-                                      {post.title}
-                                  </h4>
-                                  <div className="text-[10px] text-slate-500">
-                                      {post.createdAt.split('T')[0]}
-                                  </div>
+                                  <h4 className="font-bold text-slate-900 text-sm leading-tight line-clamp-2 mb-2 h-10">{post.title}</h4>
+                                  <div className="text-[10px] text-slate-500">{post.createdAt.split('T')[0]}</div>
                               </div>
                           </div>
                       ))}
-                      {updatePosts.length === 0 && (
-                          <div className="w-full h-32 flex items-center justify-center text-slate-400 text-xs">Loading Updates...</div>
-                      )}
                   </div>
               ) : (
-                  // COLLAPSED: Single Latest Post Card
                   <div className="animate-in fade-in slide-in-from-left-2 duration-300">
-                     {updatePosts.length > 0 ? (
-                        (() => {
-                            const post = updatePosts[0];
-                            return (
-                                <div 
-                                    onClick={() => setSelectedPost(post)}
-                                    className="w-full flex flex-col bg-white rounded-xl overflow-hidden shadow-md border border-slate-200 active:scale-[0.99] transition-transform"
-                                >
-                                    {/* 16:9 Thumbnail (Larger) */}
-                                    <div className="w-full aspect-video bg-slate-200 relative">
-                                        {post.thumbnail ? (
-                                            <img src={post.thumbnail} alt="" className="w-full h-full object-cover" />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-slate-400 text-xs">No Image</div>
-                                        )}
-                                        <span className="absolute top-3 left-3 px-2 py-0.5 bg-black/50 backdrop-blur-md text-white text-[10px] font-bold rounded">
-                                            LATEST
-                                        </span>
-                                    </div>
-                                    <div className="p-4">
-                                        <h4 className="font-bold text-slate-900 text-base leading-tight mb-2">
-                                            {post.title}
-                                        </h4>
-                                        <div className="text-xs text-slate-500">
-                                            {post.createdAt.split('T')[0]}
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })()
-                     ) : (
-                        <div className="w-full h-40 bg-slate-100 rounded-xl animate-pulse flex items-center justify-center text-slate-400 text-xs">Loading Latest Update...</div>
+                     {updatePosts.length > 0 && (
+                        <div onClick={() => setSelectedPost(updatePosts[0])} className="w-full flex flex-col bg-white rounded-xl overflow-hidden shadow-md border border-slate-200 active:scale-[0.99] transition-transform">
+                             <div className="w-full aspect-video bg-slate-200 relative">
+                                 {updatePosts[0].thumbnail ? <img src={updatePosts[0].thumbnail} alt="" className="w-full h-full object-cover" /> : null}
+                                 <span className="absolute top-3 left-3 px-2 py-0.5 bg-black/50 backdrop-blur-md text-white text-[10px] font-bold rounded">LATEST</span>
+                             </div>
+                             <div className="p-4">
+                                 <h4 className="font-bold text-slate-900 text-base leading-tight mb-2">{updatePosts[0].title}</h4>
+                                 <div className="text-xs text-slate-500">{updatePosts[0].createdAt.split('T')[0]}</div>
+                             </div>
+                        </div>
                      )}
                   </div>
               )}
            </section>
 
-           {/* 3. Navigation Tabs */}
+           {/* 3. Navigation Tabs & WRITE Button */}
            <div className="sticky top-0 z-20 py-2 bg-slate-50/95 backdrop-blur-sm -mx-1 px-1">
              <div className="flex p-1.5 bg-white border border-slate-200 rounded-xl shadow-sm items-center">
                 {(['balance', 'keuk', 'stream'] as const).map((tab) => {
                     const isActive = activeTab === tab;
-                    const label = tab === 'balance' ? 'Balance' : tab === 'keuk' ? '큭큭' : 'Stream';
+                    const label = tab === 'balance' ? '밸런스 토론' : tab === 'keuk' ? '큭큭(유머)' : '방송 홍보';
                     return (
-                        <button
-                            key={tab}
-                            onClick={() => setActiveTab(tab)}
-                            className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition-all relative overflow-hidden ${
-                                isActive
-                                ? 'bg-slate-900 text-white shadow-md'
-                                : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
-                            }`}
-                        >
+                        <button key={tab} onClick={() => setActiveTab(tab)} className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition-all relative overflow-hidden ${isActive ? 'bg-slate-900 text-white shadow-md' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}>
                             {label}
                         </button>
                     );
                 })}
              </div>
              
-             {/* REGISTER STREAM BUTTON (Only visible in Stream Tab) */}
-             {activeTab === 'stream' && (
-                 <div className="mt-2 text-right px-1 animate-in fade-in duration-300">
-                     <button 
-                        onClick={handleRegisterStream}
-                        className="text-[10px] font-bold bg-red-600 text-white px-3 py-1.5 rounded-full shadow-sm hover:bg-red-500 active:scale-95 transition-all flex items-center gap-1 ml-auto"
-                     >
-                         <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
-                           <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l4 2A1 1 0 0020 14V6a1 1 0 00-1.447-.894l-4 2z" />
-                         </svg>
-                         Register Stream
-                     </button>
-                 </div>
-             )}
+             {/* General WRITE Button for current tab */}
+             <div className="mt-2 text-right px-1 animate-in fade-in duration-300">
+                 <button 
+                    onClick={handleWriteClick}
+                    className="text-[10px] font-bold bg-blue-600 text-white px-3 py-1.5 rounded-full shadow-sm hover:bg-blue-500 active:scale-95 transition-all flex items-center gap-1 ml-auto"
+                 >
+                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path></svg>
+                     {activeTab === 'stream' ? '방송 등록' : '글쓰기'}
+                 </button>
+             </div>
            </div>
 
            {/* 4. Tab Content List */}
@@ -395,108 +441,48 @@ export const CommunityPanel: React.FC = () => {
                   </div>
               ) : (
                   <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-3">
-                      {/* POPULAR POSTS SECTION (Only for balance/fun) */}
-                      {popularPosts.length > 0 && (
-                          <div className="mb-4 space-y-2">
-                              <div className="flex items-center gap-1.5 px-1 mb-2">
-                                  <span className="text-sm">🔥</span>
-                                  <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider">Weekly Hot</h3>
-                              </div>
-                              <div className="grid gap-3">
-                                  {popularPosts.map(post => (
-                                      <div 
-                                          key={`hot-${post.id}`} 
-                                          onClick={() => setSelectedPost(post)}
-                                          className="bg-orange-50/50 p-3 rounded-xl border border-orange-100 shadow-sm active:scale-[0.99] transition-transform flex items-start gap-3 relative overflow-hidden group"
-                                      >
-                                          {/* Shine effect */}
-                                          <div className="absolute top-0 -left-[100%] w-1/2 h-full bg-gradient-to-r from-transparent via-white/40 to-transparent skew-x-12 group-hover:animate-shine pointer-events-none" />
-                                          
-                                          <div className="flex-1 min-w-0">
-                                              <div className="flex items-center gap-2 mb-1">
-                                                <span className="px-1.5 py-0.5 bg-orange-500 text-white text-[9px] font-bold rounded">HOT</span>
-                                                <span className="text-[10px] text-orange-700 font-bold">{(post.heads - post.halfshots)} pts</span>
-                                              </div>
-                                              <h4 className="font-bold text-slate-900 text-sm leading-tight line-clamp-1">{post.title}</h4>
-                                          </div>
-                                          <HeadshotCounter count={post.heads} type="head" />
-                                      </div>
-                                  ))}
-                              </div>
-                          </div>
-                      )}
-
-                      {/* REGULAR LIST */}
                       {tabPosts.length === 0 ? (
-                          <div className="text-center py-10 text-slate-400 text-sm">No posts yet.</div>
+                          <div className="text-center py-10 text-slate-400 text-sm">게시글이 없습니다.</div>
                       ) : tabPosts.map(post => {
                           const isPending = post.status === 'PENDING';
                           return (
-                          <div 
-                            key={post.id} 
-                            onClick={() => setSelectedPost(post)}
-                            className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm active:scale-[0.99] transition-transform"
-                          >
+                          <div key={post.id} onClick={() => setSelectedPost(post)} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm active:scale-[0.99] transition-transform">
                               {activeTab === 'stream' ? (
-                                  // Stream Card Layout
                                   <>
                                     <div className="aspect-video bg-slate-800 rounded-lg mb-3 relative overflow-hidden flex items-center justify-center">
-                                         {/* Thumbnail Logic */}
-                                         {post.thumbnail && post.thumbnail !== 'stream_pending' ? (
-                                             <img src={`https://placehold.co/600x338/1e293b/FFF?text=Live+Stream`} alt="" className="w-full h-full object-cover opacity-80" />
-                                         ) : isPending ? (
-                                             <div className="w-full h-full flex flex-col items-center justify-center bg-slate-100 text-slate-400">
-                                                 <svg className="w-8 h-8 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                                 <span className="text-[10px]">Processing</span>
-                                             </div>
-                                         ) : null}
-
-                                         {/* Overlays */}
+                                         {post.thumbnail && post.thumbnail !== 'stream_pending' ? <img src={`https://placehold.co/600x338/1e293b/FFF?text=Live+Stream`} alt="" className="w-full h-full object-cover opacity-80" /> : null}
                                          {!isPending && (
-                                            <div className="absolute inset-0 flex items-center justify-center">
-                                                <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                                                    <svg className="w-5 h-5 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                                                </div>
-                                            </div>
+                                            <div className="absolute inset-0 flex items-center justify-center"><div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center"><svg className="w-5 h-5 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div></div>
                                          )}
-                                         
-                                         {/* Badge */}
-                                         {isPending ? (
-                                            <span className="absolute bottom-2 right-2 px-1.5 py-0.5 bg-yellow-400 text-slate-900 text-[10px] font-bold rounded shadow-sm">게시 판단 중</span>
-                                         ) : (
-                                            <span className="absolute bottom-2 right-2 px-1.5 py-0.5 bg-red-600 text-white text-[10px] font-bold rounded shadow-sm animate-pulse">LIVE</span>
-                                         )}
+                                         {isPending ? <span className="absolute bottom-2 right-2 px-1.5 py-0.5 bg-yellow-400 text-slate-900 text-[10px] font-bold rounded shadow-sm">게시 판단 중</span> : <span className="absolute bottom-2 right-2 px-1.5 py-0.5 bg-red-600 text-white text-[10px] font-bold rounded shadow-sm animate-pulse">LIVE</span>}
                                     </div>
                                     <h4 className={`font-bold text-sm mb-1 line-clamp-1 ${isPending ? 'text-slate-500' : 'text-slate-800'}`}>{post.title}</h4>
                                     <div className="flex justify-between items-center mt-2">
-                                        <span className="text-xs text-slate-500 font-medium">{post.author}</span>
-                                        {!isPending && (
-                                            <div className="flex gap-2">
-                                                <HeadshotCounter count={post.heads} type="head" />
-                                            </div>
-                                        )}
+                                        <span 
+                                            onClick={(e) => { e.stopPropagation(); openCommunityUserProfile(post.author); }} 
+                                            className="text-xs text-slate-500 font-medium hover:underline cursor-pointer"
+                                        >{post.author}</span>
+                                        {!isPending && <HeadshotCounter count={post.heads} type="head" />}
                                     </div>
                                   </>
                               ) : (
-                                  // Standard/Fun Card Layout
                                   <>
                                     <div className="flex justify-between items-start mb-2">
-                                        <span className={`px-2 py-0.5 text-[10px] font-bold rounded-md uppercase ${
-                                            activeTab === 'keuk' ? 'bg-green-50 text-green-600' : 'bg-orange-50 text-orange-600'
-                                        }`}>
-                                            {activeTab === 'keuk' ? 'Humor' : 'Discussion'}
+                                        <span className={`px-2 py-0.5 text-[10px] font-bold rounded-md uppercase ${activeTab === 'keuk' ? 'bg-green-50 text-green-600' : 'bg-orange-50 text-orange-600'}`}>
+                                            {activeTab === 'keuk' ? '유머' : '토론'}
                                         </span>
                                         <span className="text-xs text-slate-400">{formatTime(post.createdAt)}</span>
                                     </div>
                                     <h4 className="font-bold text-slate-800 text-sm mb-1">{post.title}</h4>
                                     <p className="text-xs text-slate-500 line-clamp-2">{post.content}</p>
-                                    
-                                    {/* Footer Stats */}
                                     <div className="mt-3 pt-3 border-t border-slate-50 flex items-center justify-between">
                                         <div className="flex items-center gap-2 text-xs text-slate-400 font-medium">
-                                            <span>{post.author}</span>
+                                            <span 
+                                                onClick={(e) => { e.stopPropagation(); openCommunityUserProfile(post.author); }}
+                                                className="hover:text-slate-600 cursor-pointer"
+                                            >{post.author}</span>
                                             <span>•</span>
-                                            <span>{post.views > 999 ? (post.views/1000).toFixed(1)+'k' : post.views} views</span>
+                                            <span>조회 {post.views}</span>
                                         </div>
                                         <div className="flex gap-2">
                                             <HeadshotCounter count={post.heads} type="head" />
@@ -512,72 +498,67 @@ export const CommunityPanel: React.FC = () => {
            </div>
         </div>
 
-        {/* 5. Fixed Bottom CTA (Virtual Matching) - Visible only on Main View */}
+        {/* 5. Fixed Bottom CTA (Dynamic) */}
         <div className="absolute bottom-0 left-0 right-0 p-4 pb-6 bg-white/80 backdrop-blur-xl border-t border-white/50 z-40 shadow-[0_-5px_20px_rgba(0,0,0,0.05)]">
-            <button
-                onClick={handleVirtualMatching}
-                className="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black rounded-2xl shadow-lg shadow-blue-500/30 active:scale-[0.98] transition-all flex items-center justify-center gap-3 group relative overflow-hidden"
-            >
-                {/* Shine effect */}
-                <div className="absolute top-0 -left-[100%] w-1/2 h-full bg-gradient-to-r from-transparent via-white/20 to-transparent skew-x-12 group-hover:animate-shine" />
-                
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-                <span>Virtual Matching Start</span>
-            </button>
+            {isLoggedIn ? (
+                <button onClick={handleVirtualMatching} className="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black rounded-2xl shadow-lg shadow-blue-500/30 active:scale-[0.98] transition-all flex items-center justify-center gap-3 group relative overflow-hidden">
+                    <div className="absolute top-0 -left-[100%] w-1/2 h-full bg-gradient-to-r from-transparent via-white/20 to-transparent skew-x-12 group-hover:animate-shine" />
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                    <span>가상 매칭 시작하기</span>
+                </button>
+            ) : (
+                <button onClick={handleLoginClick} className="w-full py-4 bg-slate-900 hover:bg-slate-800 text-white font-black rounded-2xl shadow-lg shadow-slate-900/30 active:scale-[0.98] transition-all flex items-center justify-center gap-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                    </svg>
+                    <span>SUGAR 로그인 / 회원가입</span>
+                </button>
+            )}
         </div>
 
-        {/* STREAM REGISTRATION FORM MODAL (Simple Overlay) */}
-        {isStreamFormOpen && (
+        {/* WRITE POST FORM */}
+        {isWriteFormOpen && (
             <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm z-[180] flex items-center justify-center p-4 animate-in fade-in duration-200">
                 <div className="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl animate-in zoom-in-95 duration-200">
-                    <h3 className="text-lg font-black text-slate-800 mb-4">Register Stream</h3>
-                    <form onSubmit={submitStreamRequest} className="space-y-4">
+                    <h3 className="text-lg font-black text-slate-800 mb-4">{activeTab === 'keuk' ? '유머' : '토론'} 글쓰기</h3>
+                    <form onSubmit={submitPost} className="space-y-4">
                         <div>
-                            <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Stream Title</label>
-                            <input 
-                                type="text" 
-                                value={streamTitle}
-                                onChange={(e) => setStreamTitle(e.target.value)}
-                                placeholder="e.g. Ranked Climb with Viewers"
-                                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-slate-900/10"
-                                autoFocus
-                            />
+                            <input type="text" value={writeTitle} onChange={(e) => setWriteTitle(e.target.value)} placeholder="제목" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-slate-900/10" autoFocus />
                         </div>
                         <div>
-                            <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Description / URL</label>
-                            <textarea 
-                                value={streamDesc}
-                                onChange={(e) => setStreamDesc(e.target.value)}
-                                placeholder="Twitch/Youtube URL and short description..."
-                                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-slate-900/10 h-24 resize-none"
-                            />
+                            <textarea value={writeContent} onChange={(e) => setWriteContent(e.target.value)} placeholder="내용을 입력하세요..." className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-slate-900/10 h-32 resize-none" />
                         </div>
                         <div className="flex gap-2 pt-2">
-                            <button 
-                                type="button" 
-                                onClick={() => setIsStreamFormOpen(false)}
-                                className="flex-1 py-3 bg-white border border-slate-200 text-slate-600 font-bold rounded-xl active:scale-95 transition-all"
-                            >
-                                Cancel
-                            </button>
-                            <button 
-                                type="submit"
-                                disabled={isSubmittingStream || !streamTitle.trim()}
-                                className="flex-1 py-3 bg-slate-900 text-white font-bold rounded-xl active:scale-95 transition-all disabled:opacity-50"
-                            >
-                                {isSubmittingStream ? 'Submitting...' : 'Register'}
-                            </button>
+                            <button type="button" onClick={() => setIsWriteFormOpen(false)} className="flex-1 py-3 bg-white border border-slate-200 text-slate-600 font-bold rounded-xl active:scale-95 transition-all">취소</button>
+                            <button type="submit" disabled={isSubmitting || !writeTitle.trim()} className="flex-1 py-3 bg-slate-900 text-white font-bold rounded-xl active:scale-95 transition-all disabled:opacity-50">{isSubmitting ? '...' : '등록'}</button>
                         </div>
                     </form>
                 </div>
             </div>
         )}
 
-        {/* DETAIL VIEW OVERLAY */}
-        <DetailView />
+        {/* STREAM REGISTRATION FORM MODAL */}
+        {isStreamFormOpen && (
+            <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm z-[180] flex items-center justify-center p-4 animate-in fade-in duration-200">
+                <div className="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl animate-in zoom-in-95 duration-200">
+                    <h3 className="text-lg font-black text-slate-800 mb-4">방송 홍보 등록</h3>
+                    <form onSubmit={submitStreamRequest} className="space-y-4">
+                        <div>
+                            <input type="text" value={streamTitle} onChange={(e) => setStreamTitle(e.target.value)} placeholder="예: 랭크전 빡겜 방송" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-slate-900/10" autoFocus />
+                        </div>
+                        <div>
+                            <textarea value={streamDesc} onChange={(e) => setStreamDesc(e.target.value)} placeholder="방송 링크 (Twitch/Youtube)..." className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-slate-900/10 h-24 resize-none" />
+                        </div>
+                        <div className="flex gap-2 pt-2">
+                            <button type="button" onClick={() => setIsStreamFormOpen(false)} className="flex-1 py-3 bg-white border border-slate-200 text-slate-600 font-bold rounded-xl active:scale-95 transition-all">취소</button>
+                            <button type="submit" disabled={isSubmittingStream || !streamTitle.trim()} className="flex-1 py-3 bg-slate-900 text-white font-bold rounded-xl active:scale-95 transition-all disabled:opacity-50">{isSubmittingStream ? '...' : '신청하기'}</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        )}
 
+        <DetailView />
       </div>
     </>
   );

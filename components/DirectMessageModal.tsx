@@ -21,7 +21,7 @@ export const DirectMessageModal: React.FC = () => {
                   <h3 className="font-bold text-slate-900 text-sm">{activeDMUser || 'Unknown User'}</h3>
                   <div className="flex items-center gap-1">
                      <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                     <span className="text-xs text-slate-400">Online</span>
+                     <span className="text-xs text-slate-400">접속 중</span>
                   </div>
               </div>
            </div>
@@ -32,27 +32,27 @@ export const DirectMessageModal: React.FC = () => {
 
         {/* Chat Body (Scrollable) */}
         <div className="flex-1 bg-slate-50 p-4 overflow-y-auto space-y-4">
-            <div className="text-center text-xs text-slate-400 my-4">Today</div>
+            <div className="text-center text-xs text-slate-400 my-4">오늘</div>
             
             {/* Incoming Message Skeleton */}
             <div className="flex justify-start">
                <div className="bg-white text-slate-700 px-4 py-2.5 rounded-2xl rounded-tl-none max-w-[75%] text-sm shadow-sm border border-slate-100">
                   <div className="w-24 h-2 bg-slate-100 rounded mb-2"></div>
-                  <p>Hey, saw your post about the new map!</p>
+                  <p>안녕하세요, 랭크전 같이 하실래요?</p>
                </div>
             </div>
 
             {/* Outgoing Message Skeleton */}
             <div className="flex justify-end">
                <div className="bg-blue-600 text-white px-4 py-2.5 rounded-2xl rounded-tr-none max-w-[75%] text-sm shadow-sm shadow-blue-500/20">
-                  <p>Yeah! It's pretty intense. Want to play a few rounds later?</p>
+                  <p>좋아요! 몇 시쯤 가능하세요?</p>
                </div>
             </div>
 
              {/* Incoming Message Skeleton 2 */}
             <div className="flex justify-start">
                <div className="bg-white text-slate-700 px-4 py-2.5 rounded-2xl rounded-tl-none max-w-[75%] text-sm shadow-sm border border-slate-100">
-                  <p>Sure, I'll be online around 8 PM.</p>
+                  <p>8시쯤 접속할 예정입니다.</p>
                </div>
             </div>
         </div>
@@ -65,7 +65,7 @@ export const DirectMessageModal: React.FC = () => {
               </button>
               <input 
                  type="text" 
-                 placeholder="Type a message..." 
+                 placeholder="메시지 입력..." 
                  className="flex-1 bg-transparent text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none"
               />
               <button className="p-2 bg-blue-600 hover:bg-blue-500 text-white rounded-full shadow-lg shadow-blue-500/30 transition-all active:scale-95">

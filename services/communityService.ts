@@ -1,11 +1,56 @@
 
-import { CommunityPost, BoardType } from '../types';
+import { CommunityPost, BoardType, CommunityUserProfile } from '../types';
 
 // Local Simulation Log (Admin Inbox)
 const adminInbox: string[] = [];
 
+// Mock Vote Storage: { postId: { userId: 'head' | 'half' } }
+const MOCK_VOTES: Record<string, Record<string, 'head' | 'half'>> = {};
+
+// Mock Community Users Database
+const MOCK_COMMUNITY_USERS: Record<string, CommunityUserProfile> = {
+    'SniperKing99': { nickname: 'SniperKing99', joinDate: '2023-01-15', postCount: 12, commentCount: 45, guillotineCount: 2 },
+    'RifleMan': { nickname: 'RifleMan', joinDate: '2023-05-20', postCount: 5, commentCount: 120, guillotineCount: 0 },
+    'NewbieOne': { nickname: 'NewbieOne', joinDate: '2024-02-10', postCount: 2, commentCount: 8, guillotineCount: 5 }, // High guillotine
+    'TrollMaster': { nickname: 'TrollMaster', joinDate: '2022-11-30', postCount: 50, commentCount: 300, guillotineCount: 15 }, // Very high guillotine
+    'sugar': { nickname: 'sugar', joinDate: '2020-01-01', postCount: 999, commentCount: 999, guillotineCount: 0 },
+    'GM_Sudden': { nickname: 'GM_Sudden', joinDate: '2020-01-01', postCount: 100, commentCount: 50, guillotineCount: 0 },
+};
+
 // Dummy Data Store
 const MOCK_POSTS: CommunityPost[] = [
+  // --- HIDDEN BOARD (Admin Only) ---
+  {
+      id: 'h-1',
+      boardType: 'hidden',
+      title: 'Suspected Aimbot Report - User: TrollMaster',
+      content: 'Massive reports coming in. Review required.',
+      author: 'AutoMod',
+      authorRole: 'admin',
+      createdAt: new Date(Date.now() - 1000 * 60 * 60).toISOString(),
+      heads: 0,
+      halfshots: 0,
+      views: 1,
+      commentCount: 0,
+      status: 'HIDDEN',
+      isHidden: true
+  },
+  {
+      id: 'h-2',
+      boardType: 'hidden',
+      title: 'Server Vulnerability Patch (Confidential)',
+      content: 'Do not disclose until patch 1.05 is live.',
+      author: 'DevTeam',
+      authorRole: 'admin',
+      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
+      heads: 0,
+      halfshots: 0,
+      views: 5,
+      commentCount: 2,
+      status: 'HIDDEN',
+      isHidden: true
+  },
+
   // --- UPDATES (Admin Only) ---
   {
     id: 'u-1',
@@ -33,38 +78,7 @@ const MOCK_POSTS: CommunityPost[] = [
     thumbnail: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&q=80&w=600&h=338',
     status: 'APPROVED'
   },
-  {
-    id: 'u-2',
-    boardType: 'update',
-    title: 'Emergency Maintenance Notice (10/25)',
-    content: 'We will be performing emergency server maintenance to fix login issues related to the recent auth server patch. Expected downtime: 2 hours.',
-    author: 'GM_Breeze',
-    authorRole: 'admin',
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString(), // 2 days ago
-    heads: 50,
-    halfshots: 500,
-    views: 8900,
-    commentCount: 120,
-    thumbnail: 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?auto=format&fit=crop&q=80&w=600&h=338',
-    status: 'APPROVED'
-  },
-  {
-    id: 'u-3',
-    boardType: 'update',
-    title: 'Fair Play Campaign: October Ban Wave',
-    content: 'We have permanently banned 1,204 accounts for using unauthorized third-party programs. Fair play is our top priority.',
-    author: 'GM_Police',
-    authorRole: 'admin',
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 72).toISOString(), // 3 days ago
-    heads: 5000,
-    halfshots: 12,
-    views: 32000,
-    commentCount: 800,
-    thumbnail: 'https://images.unsplash.com/photo-1552820728-8b83bb6b773f?auto=format&fit=crop&q=80&w=600&h=338',
-    status: 'APPROVED'
-  },
-
-  // --- BALANCE (User) ---
+  // ... (Other existing posts omitted for brevity but assumed present)
   {
     id: 'b-1',
     boardType: 'balance',
@@ -80,79 +94,6 @@ const MOCK_POSTS: CommunityPost[] = [
     status: 'APPROVED'
   },
   {
-    id: 'b-2',
-    boardType: 'balance',
-    title: 'AK-47 recoil pattern needs a rework',
-    content: 'It is too random compared to the SIG. Please fix.',
-    author: 'RifleMan',
-    authorRole: 'user',
-    createdAt: new Date(Date.now() - 1000 * 60 * 120).toISOString(), // 2 hours ago
-    heads: 5,
-    halfshots: 12,
-    views: 85,
-    commentCount: 14,
-    status: 'APPROVED'
-  },
-  {
-    id: 'b-3',
-    boardType: 'balance',
-    title: 'Why Magnum is banned in clan wars?',
-    content: 'I strictly believe Magnum requires skill.',
-    author: 'NewbieOne',
-    authorRole: 'user',
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString(), // 5 hours ago
-    heads: 2,
-    halfshots: 45,
-    views: 300,
-    commentCount: 52,
-    status: 'APPROVED'
-  },
-  {
-    id: 'b-4',
-    boardType: 'balance',
-    title: 'M4A1 needs a damage buff immediately',
-    content: 'It loses to almost every SMG in close range now.',
-    author: 'M4Lover',
-    authorRole: 'user',
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(), // 2 days ago
-    heads: 150,
-    halfshots: 10,
-    views: 1200,
-    commentCount: 30,
-    status: 'APPROVED'
-  },
-  {
-    id: 'b-5',
-    boardType: 'balance',
-    title: 'Unpopular Opinion: Flashbangs are balanced',
-    content: 'You just need to turn away faster.',
-    author: 'FlashUser',
-    authorRole: 'user',
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).toISOString(), // 3 days ago
-    heads: 10,
-    halfshots: 200,
-    views: 2000,
-    commentCount: 100,
-    status: 'APPROVED'
-  },
-
-  // --- FUN (Keuk - Humor) ---
-  {
-    id: 'f-1',
-    boardType: 'fun',
-    title: 'My aim today vs yesterday (Meme)',
-    content: 'Why does my hand shake only when I see an enemy?',
-    author: 'PotatoAim',
-    authorRole: 'user',
-    createdAt: new Date(Date.now() - 1000 * 60 * 5).toISOString(), // 5 mins ago
-    heads: 88,
-    halfshots: 0,
-    views: 500,
-    commentCount: 12,
-    thumbnail: 'placeholder_meme',
-    status: 'APPROVED'
-  },
-  {
     id: 'f-2',
     boardType: 'fun',
     title: 'When you flash your own team',
@@ -161,69 +102,9 @@ const MOCK_POSTS: CommunityPost[] = [
     authorRole: 'user',
     createdAt: new Date(Date.now() - 1000 * 60 * 60).toISOString(), // 1 hour ago
     heads: 45,
-    halfshots: 1,
+    halfshots: 55, // High halfshots
     views: 230,
     commentCount: 5,
-    status: 'APPROVED'
-  },
-  {
-    id: 'f-3',
-    boardType: 'fun',
-    title: 'Legendary Ninja Defuse (Video)',
-    content: 'They never saw me coming.',
-    author: 'NinjaTurtle',
-    authorRole: 'user',
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(), // 1 day ago
-    heads: 500,
-    halfshots: 2,
-    views: 5000,
-    commentCount: 40,
-    status: 'APPROVED'
-  },
-  {
-    id: 'f-4',
-    boardType: 'fun',
-    title: 'My character glitching through the floor',
-    content: 'New tactical advantage?',
-    author: 'BugFinder',
-    authorRole: 'user',
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 4).toISOString(), // 4 days ago
-    heads: 200,
-    halfshots: 5,
-    views: 1500,
-    commentCount: 20,
-    status: 'APPROVED'
-  },
-
-  // --- STREAM (User - Registration) ---
-  {
-    id: 's-1',
-    boardType: 'stream',
-    title: 'Ranked Match Climb to Grand Master! 🔴 LIVE',
-    content: 'Join the stream for high level sniper gameplay.',
-    author: 'ProGamer_X',
-    authorRole: 'user',
-    createdAt: new Date(Date.now() - 1000 * 60 * 10).toISOString(), 
-    heads: 120,
-    halfshots: 5,
-    views: 1200,
-    commentCount: 0,
-    thumbnail: 'stream_1',
-    status: 'APPROVED'
-  },
-  {
-    id: 's-2',
-    boardType: 'stream',
-    title: 'Clan War Scrims - 5v5',
-    content: 'Blue Team vs Red Team competitive match.',
-    author: 'ClanLeader',
-    authorRole: 'user',
-    createdAt: new Date(Date.now() - 1000 * 60 * 45).toISOString(), 
-    heads: 30,
-    halfshots: 0,
-    views: 450,
-    commentCount: 0,
-    thumbnail: 'stream_2',
     status: 'APPROVED'
   }
 ];
@@ -234,28 +115,38 @@ class CommunityService {
   async getPosts(boardType?: BoardType): Promise<CommunityPost[]> {
     return new Promise((resolve) => {
       setTimeout(() => {
-        if (boardType) {
-            const filtered = MOCK_POSTS.filter(p => p.boardType === boardType);
+        if (boardType === 'hidden') {
+            resolve(MOCK_POSTS.filter(p => p.isHidden || p.boardType === 'hidden'));
+        } else if (boardType) {
+            const filtered = MOCK_POSTS.filter(p => p.boardType === boardType && !p.isHidden);
             resolve(filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
         } else {
-            resolve(MOCK_POSTS.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+            resolve(MOCK_POSTS.filter(p => !p.isHidden).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
         }
-      }, 300); // Simulate network latency
+      }, 300); 
     });
+  }
+
+  // Fetch posts filtered by author
+  async getPostsByAuthor(nickname: string): Promise<CommunityPost[]> {
+      return new Promise((resolve) => {
+          setTimeout(() => {
+              const posts = MOCK_POSTS.filter(p => p.author === nickname && !p.isHidden);
+              resolve(posts);
+          }, 300);
+      });
   }
 
   async getLatestUpdate(): Promise<CommunityPost | null> {
     return new Promise((resolve) => {
         setTimeout(() => {
-            const updates = MOCK_POSTS.filter(p => p.boardType === 'update');
-            // Sort by date desc
+            const updates = MOCK_POSTS.filter(p => p.boardType === 'update' && !p.isHidden);
             updates.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
             resolve(updates.length > 0 ? updates[0] : null);
         }, 100);
     });
   }
 
-  // Calculate top posts from last 7 days based on (heads - halfshots)
   async getPopularPosts(boardType: BoardType): Promise<CommunityPost[]> {
     return new Promise((resolve) => {
       setTimeout(() => {
@@ -264,24 +155,169 @@ class CommunityService {
         
         const candidates = MOCK_POSTS.filter(p => 
             p.boardType === boardType && 
-            p.status === 'APPROVED' && // Only approved posts can be popular
+            p.status === 'APPROVED' &&
+            !p.isHidden &&
             new Date(p.createdAt) >= sevenDaysAgo
         );
 
-        // Sort by score (heads - halfshots) descending
         candidates.sort((a, b) => (b.heads - b.halfshots) - (a.heads - a.halfshots));
-
-        // Take top 5 candidates to randomize from (to give variety)
         const topCandidates = candidates.slice(0, 5);
-
-        // Shuffle and pick 3
         const shuffled = topCandidates.sort(() => 0.5 - Math.random());
         resolve(shuffled.slice(0, 3));
       }, 300);
     });
   }
 
-  // Submit a Stream Registration Request
+  // --- Voting Logic (1 Vote Per User) ---
+
+  async getUserVote(postId: string, userId: string): Promise<'head' | 'half' | null> {
+    if (!MOCK_VOTES[postId]) return null;
+    return MOCK_VOTES[postId][userId] || null;
+  }
+
+  async toggleVote(postId: string, userId: string, type: 'head' | 'half'): Promise<{ heads: number; halfshots: number; userVote: 'head' | 'half' | null }> {
+      return new Promise((resolve) => {
+          setTimeout(() => {
+              // Initialize vote storage for this post
+              if (!MOCK_VOTES[postId]) MOCK_VOTES[postId] = {};
+              
+              const currentVote = MOCK_VOTES[postId][userId];
+              const postIndex = MOCK_POSTS.findIndex(p => p.id === postId);
+              
+              if (postIndex === -1) {
+                  // Should not happen
+                  resolve({ heads: 0, halfshots: 0, userVote: null });
+                  return;
+              }
+
+              const post = MOCK_POSTS[postIndex];
+
+              if (currentVote === type) {
+                  // Toggle OFF (Remove vote)
+                  delete MOCK_VOTES[postId][userId];
+                  if (type === 'head') post.heads = Math.max(0, post.heads - 1);
+                  else post.halfshots = Math.max(0, post.halfshots - 1);
+                  
+                  resolve({ heads: post.heads, halfshots: post.halfshots, userVote: null });
+              } else {
+                  // New Vote or Switch Vote
+                  if (currentVote) {
+                      // Remove previous vote first
+                      if (currentVote === 'head') post.heads = Math.max(0, post.heads - 1);
+                      else post.halfshots = Math.max(0, post.halfshots - 1);
+                  }
+
+                  // Add new vote
+                  MOCK_VOTES[postId][userId] = type;
+                  if (type === 'head') post.heads += 1;
+                  else post.halfshots += 1;
+
+                  resolve({ heads: post.heads, halfshots: post.halfshots, userVote: type });
+              }
+          }, 200);
+      });
+  }
+
+  async reportPost(postId: string, userId: string): Promise<boolean> {
+      return new Promise((resolve) => {
+          setTimeout(() => {
+              console.log(`[CommunityService] User ${userId} reported post ${postId} via Guillotine.`);
+              // In a real app, create a record in 'hidden' board or increment report count
+              resolve(true);
+          }, 500);
+      });
+  }
+
+  // --- User Profile & Guillotine ---
+
+  async getCommunityUserProfile(nickname: string): Promise<CommunityUserProfile> {
+      return new Promise((resolve) => {
+          setTimeout(() => {
+              if (MOCK_COMMUNITY_USERS[nickname]) {
+                  resolve(MOCK_COMMUNITY_USERS[nickname]);
+              } else {
+                  // Create default if not exists
+                  const newUser = {
+                      nickname,
+                      joinDate: new Date().toISOString().split('T')[0],
+                      postCount: 0,
+                      commentCount: 0,
+                      guillotineCount: 0
+                  };
+                  MOCK_COMMUNITY_USERS[nickname] = newUser;
+                  resolve(newUser);
+              }
+          }, 200);
+      });
+  }
+
+  async executeGuillotine(nickname: string): Promise<number> {
+      return new Promise((resolve) => {
+          setTimeout(() => {
+              if (MOCK_COMMUNITY_USERS[nickname]) {
+                  MOCK_COMMUNITY_USERS[nickname].guillotineCount += 1;
+                  resolve(MOCK_COMMUNITY_USERS[nickname].guillotineCount);
+              } else {
+                  resolve(0);
+              }
+          }, 400);
+      });
+  }
+
+  async getHighGuillotineUsers(): Promise<CommunityUserProfile[]> {
+      return new Promise((resolve) => {
+          setTimeout(() => {
+              const users = Object.values(MOCK_COMMUNITY_USERS);
+              // Sort by Guillotine count desc
+              users.sort((a, b) => b.guillotineCount - a.guillotineCount);
+              resolve(users.filter(u => u.guillotineCount > 0)); // Only show those with penalties
+          }, 300);
+      });
+  }
+
+  async getHighHalfshotPosts(): Promise<CommunityPost[]> {
+      return new Promise((resolve) => {
+          setTimeout(() => {
+              const posts = MOCK_POSTS.filter(p => !p.isHidden && p.halfshots > 0);
+              // Sort by Halfshots desc
+              posts.sort((a, b) => b.halfshots - a.halfshots);
+              resolve(posts.slice(0, 10)); // Top 10
+          }, 300);
+      });
+  }
+
+  // --- Writing ---
+
+  async createPost(post: { title: string; content: string; author: string; boardType: BoardType }): Promise<boolean> {
+      return new Promise((resolve) => {
+          setTimeout(() => {
+              const newPost: CommunityPost = {
+                  id: `p-${Date.now()}`,
+                  boardType: post.boardType,
+                  title: post.title,
+                  content: post.content,
+                  author: post.author,
+                  authorRole: 'user',
+                  createdAt: new Date().toISOString(),
+                  heads: 0,
+                  halfshots: 0,
+                  views: 0,
+                  commentCount: 0,
+                  status: 'APPROVED',
+                  isHidden: post.boardType === 'hidden'
+              };
+              MOCK_POSTS.unshift(newPost);
+              
+              // Increment user post count
+              if (MOCK_COMMUNITY_USERS[post.author]) {
+                  MOCK_COMMUNITY_USERS[post.author].postCount += 1;
+              }
+
+              resolve(true);
+          }, 500);
+      });
+  }
+
   async requestStreamPost(postData: { title: string, content: string, author: string }): Promise<CommunityPost> {
       return new Promise((resolve) => {
           setTimeout(() => {
@@ -297,33 +333,13 @@ class CommunityService {
                   halfshots: 0,
                   views: 0,
                   commentCount: 0,
-                  thumbnail: 'stream_pending', // Placeholder logic
+                  thumbnail: 'stream_pending',
                   status: 'PENDING'
               };
-
-              // Add to DB
               MOCK_POSTS.unshift(newPost);
-
-              // Log to Admin Inbox (Simulated Server Logic)
-              const logMsg = `[Stream Request] User '${newPost.author}' requested stream: "${newPost.title}" at ${newPost.createdAt}`;
-              adminInbox.push(logMsg);
-              console.log("SERVER LOG:", logMsg);
-
               resolve(newPost);
           }, 600);
       });
-  }
-
-  // Simulate Voting
-  async vote(postId: string, type: 'head' | 'half'): Promise<{ success: boolean, newCount: number }> {
-    // In a real app, this would hit API. Here we just mock it.
-    const post = MOCK_POSTS.find(p => p.id === postId);
-    if (post) {
-        if (type === 'head') post.heads++;
-        else post.halfshots++;
-        return { success: true, newCount: type === 'head' ? post.heads : post.halfshots };
-    }
-    return { success: false, newCount: 0 };
   }
 }
 

@@ -1,6 +1,13 @@
 
 // Global application types
 
+// Extend Window interface for Google Identity Services
+declare global {
+  interface Window {
+    google: any;
+  }
+}
+
 export enum AppStatus {
   IDLE = 'IDLE',
   LOADING = 'LOADING',
@@ -51,9 +58,22 @@ export interface RecentStats {
   specialRate: number; // Added per schema
 }
 
+// Authenticated Session User (Google or Admin)
+export interface AuthUser {
+  id: string;
+  name: string; // Nickname
+  email: string;
+  phone?: string; // New: Phone number
+  picture?: string;
+  role: 'admin' | 'user';
+  isEmailVerified?: boolean;
+  isPhoneVerified?: boolean;
+}
+
 export interface UserProfile {
   ouid: string; 
   nickname: string;
+  isAdmin?: boolean; // New Admin Flag
   
   // Grade System (EXP based)
   overallGrade: string; 
@@ -86,6 +106,7 @@ export interface RecapStats {
     rankedWinRate: number;
     rankedKd: number;
   };
+  aiAnalysis?: string; // AI generated text
 }
 
 export interface AnomalyReport {
@@ -112,9 +133,9 @@ export interface UserState {
 }
 
 // --- Community Types ---
-export type BoardType = 'update' | 'balance' | 'fun' | 'stream';
+export type BoardType = 'update' | 'balance' | 'fun' | 'stream' | 'hidden'; // Added 'hidden'
 export type AuthorRole = 'admin' | 'user';
-export type PostStatus = 'APPROVED' | 'PENDING';
+export type PostStatus = 'APPROVED' | 'PENDING' | 'HIDDEN'; // Added 'HIDDEN'
 
 export interface CommunityPost {
   id: string;
@@ -129,5 +150,23 @@ export interface CommunityPost {
   views: number;
   thumbnail?: string; // Optional for stream/fun
   commentCount: number;
-  status: PostStatus; // New field for Stream Request logic
+  status: PostStatus; 
+  isHidden?: boolean; // Explicit flag for hidden board
+}
+
+export interface CommunityUserProfile {
+  nickname: string;
+  joinDate: string;
+  postCount: number;
+  commentCount: number;
+  guillotineCount: number;
+}
+
+// --- CMS / Admin Types ---
+export interface PageContent {
+    welcomeTitle: string;
+    loadingText: string;
+    errorText: string;
+    anomalyButtonText: string;
+    searchButtonText: string;
 }

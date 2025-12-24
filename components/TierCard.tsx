@@ -9,6 +9,7 @@ interface TierCardProps {
 
 export const TierCard: React.FC<TierCardProps> = ({ type, tier }) => {
   const isUnranked = tier.tierName === "UNRANK";
+  const typeLabel = type === "Solo" ? "솔로" : "파티";
 
   return (
     <div className={`rounded-2xl p-5 shadow-lg border backdrop-blur-xl relative overflow-hidden transition-all duration-300 hover:scale-[1.02] hover:shadow-xl
@@ -22,7 +23,7 @@ export const TierCard: React.FC<TierCardProps> = ({ type, tier }) => {
       )}
 
       <div className="relative z-10">
-        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">{type} Match</span>
+        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">{typeLabel} 랭크</span>
         <div className={`text-lg font-black leading-none ${isUnranked ? 'text-slate-400' : 'text-slate-900'}`}>
           {tier.tierName}
         </div>
@@ -30,7 +31,7 @@ export const TierCard: React.FC<TierCardProps> = ({ type, tier }) => {
            <div className="text-sm font-medium text-slate-500 mt-1">{tier.score.toLocaleString()} RP</div>
         )}
         {isUnranked && (
-          <div className="text-[10px] text-slate-400 mt-1 font-medium">Placement Needed</div>
+          <div className="text-[10px] text-slate-400 mt-1 font-medium">배치고사 필요</div>
         )}
       </div>
       
