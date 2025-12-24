@@ -214,14 +214,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const logout = async () => {
-    await authService.logout();
-    setIsLoggedIn(false);
-    setIsAdminUser(false);
-    setAuthUser(null);
-    setStatus(AppStatus.IDLE);
-    setIsCommunityOpen(false);
-    setIsAdminHiddenBoardOpen(false);
-    setIsAdminGuillotineOpen(false);
+    try {
+        await authService.logout();
+    } catch (e) {
+        console.warn("Auth logout network error:", e);
+    } finally {
+        // FORCE cleanup regardless of network status
+        setIsLoggedIn(false);
+        setIsAdminUser(false);
+        setAuthUser(null);
+        setStatus(AppStatus.IDLE);
+        
+        // Close sensitive modals
+        setIsCommunityOpen(false);
+        setIsAdminHiddenBoardOpen(false);
+        setIsAdminGuillotineOpen(false);
+        setIsAdminEditorOpen(false);
+    }
   };
 
   const openAuthModal = () => setIsAuthModalOpen(true);

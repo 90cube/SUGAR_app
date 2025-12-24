@@ -122,7 +122,6 @@ export class GeminiService {
   public async analyzeDailyRecap(stats: RecapStats): Promise<string> {
       if (!this.ai) return "AI Service not initialized.";
 
-      // Summarized data input for the AI
       const prompt = `
         당신은 서든어택 전문 개인 코치입니다.
         아래는 플레이어의 '오늘의 경기 요약' 통계입니다. 이 데이터를 바탕으로 오늘의 퍼포먼스를 피드백해주세요.
@@ -149,6 +148,61 @@ export class GeminiService {
       } catch (e) {
           console.error("Recap Analysis Error", e);
           return "AI 분석 중 오류가 발생했습니다.";
+      }
+  }
+
+  // --- New Method for Admin Update Notices ---
+  public async summarizeGameUpdate(rawText: string, masterPrompt: string): Promise<{ title: string; content: string }> {
+      if (!this.ai) throw new Error("AI Service Not Initialized");
+
+      const prompt = `
+        ${masterPrompt}
+
+        [Raw Update Text]
+        ${rawText}
+
+        OUTPUT FORMAT:
+        You must return a valid JSON object string. Do not use Markdown code blocks.
+        JSON Structure:
+        {
+          "title": "A short, catchy title summarizing the main update (Max 20 chars)",
+          "content": "HTML formatted body content. Use <br/> for line breaks, NOT </br>. Use <h3>, <ul>, <li>, <p>, <strong>."
+        }
+      `;
+
+      try {
+          const response = await this.ai.models.generateContent({
+              model: DEFAULT_GEMINI_MODEL,
+              contents: prompt,
+              config: {
+                responseMimeType: "application/json" 
+              }
+          });
+          
+          let jsonStr = response.text || "{}";
+          
+          // Cleanup: Remove markdown code blocks if present (Gemini sometimes adds them despite JSON mode)
+          jsonStr = jsonStr.replace(/```json/g, '').replace(/```/g, '').trim();
+
+          let result = JSON.parse(jsonStr);
+
+          // Post-processing: Fix common HTML tag errors from LLM
+          if (result.content) {
+            result.content = result.content
+                .replace(/<\/br>/gi, '<br/>')
+                .replace(/<br>/gi, '<br/>')
+                .replace(/<br >/gi, '<br/>');
+          }
+
+          return result;
+      } catch (e) {
+          console.error("Update Summary Error", e);
+          
+          // Fallback: Return raw text wrapped in paragraph if JSON parsing fails
+          return {
+              title: "업데이트 공지 (자동 생성 실패)",
+              content: `<p>${rawText.substring(0, 300)}...</p><p>(AI 요약 실패 - 원문을 확인하세요)</p>`
+          };
       }
   }
 }

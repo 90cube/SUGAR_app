@@ -3,7 +3,15 @@ import { createClient } from '@supabase/supabase-js';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../constants';
 
 // Supabase 클라이언트 초기화
-// URL과 Key가 있을 때만 실제 인스턴스를 생성하고, 없으면 null을 반환하여 Mock 모드로 유도합니다.
-export const supabase = (SUPABASE_URL && SUPABASE_ANON_KEY) 
+const isConfigured = SUPABASE_URL && SUPABASE_ANON_KEY;
+
+if (isConfigured) {
+  console.log(`%c[Supabase] Client Initialized`, 'color: #4ade80; font-weight: bold;');
+  console.log(`[Supabase] URL: ${SUPABASE_URL}`);
+} else {
+  console.warn(`%c[Supabase] Client NOT Configured - Using Mock Mode`, 'color: #f87171; font-weight: bold;');
+}
+
+export const supabase = isConfigured 
   ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) 
   : null;

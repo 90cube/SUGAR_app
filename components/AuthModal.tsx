@@ -1,13 +1,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../state/AppContext';
-import { UI_STRINGS, GOOGLE_CLIENT_ID } from '../constants';
+import { UI_STRINGS } from '../constants';
 import { authService } from '../services/authService';
 
 type AuthMode = 'LOGIN' | 'SIGNUP';
 
 export const AuthModal: React.FC = () => {
-  const { isAuthModalOpen, closeAuthModal, handleGoogleLoginSuccess, login, register } = useApp();
+  const { isAuthModalOpen, closeAuthModal, login, register } = useApp();
   
   const [mode, setMode] = useState<AuthMode>('LOGIN');
   const [isLoading, setIsLoading] = useState(false);
@@ -57,35 +57,6 @@ export const AuthModal: React.FC = () => {
     setIsLoading(false);
   };
 
-  // Initialize Google Button
-  useEffect(() => {
-    if (window.google && isAuthModalOpen && mode === 'LOGIN') {
-      try {
-          // Only attempt if Client ID is configured, otherwise skip to prevent console errors
-          if (GOOGLE_CLIENT_ID && !GOOGLE_CLIENT_ID.includes("YOUR_GOOGLE_CLIENT_ID")) {
-              window.google.accounts.id.initialize({
-                client_id: GOOGLE_CLIENT_ID,
-                callback: (response: any) => {
-                    if (response.credential) {
-                        handleGoogleLoginSuccess(response.credential);
-                    }
-                }
-              });
-              
-              const buttonDiv = document.getElementById("googleSignInDiv");
-              if (buttonDiv) {
-                  window.google.accounts.id.renderButton(
-                    buttonDiv,
-                    { theme: "outline", size: "large", width: "100%", text: "continue_with" }
-                  );
-              }
-          }
-      } catch (e) {
-          console.error("GSI Initialization Error", e);
-      }
-    }
-  }, [isAuthModalOpen, handleGoogleLoginSuccess, mode]);
-
   // --- Handlers: Login ---
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
@@ -104,6 +75,12 @@ export const AuthModal: React.FC = () => {
   // Auto-fill dev account helper
   const fillDevAccount = () => {
       setLoginEmail('sugar');
+      setLoginPw('attack');
+  };
+
+  // Auto-fill guest account helper
+  const fillGuestAccount = () => {
+      setLoginEmail('guest');
       setLoginPw('attack');
   };
 
@@ -247,23 +224,6 @@ export const AuthModal: React.FC = () => {
             {mode === 'LOGIN' && (
                 <div className="space-y-5 animate-in slide-in-from-right duration-300">
                     
-                    {/* Google Button Container */}
-                    <div className="w-full h-12 flex justify-center items-center">
-                        <div id="googleSignInDiv" className="w-full">
-                            {/* If Client ID is missing, show placeholder/warning */}
-                            {(!GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID.includes("YOUR_GOOGLE_CLIENT_ID")) && (
-                                <div className="w-full h-full border border-slate-200 rounded-md flex items-center justify-center bg-slate-50 text-slate-400 text-xs font-bold">
-                                    Google Login Not Configured
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    <div className="relative py-2">
-                        <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200"></div></div>
-                        <div className="relative flex justify-center text-xs"><span className="bg-white px-2 text-slate-400 font-medium">or login with Email</span></div>
-                    </div>
-
                     <form onSubmit={handleLoginSubmit} className="space-y-3">
                         <input 
                             type="text" 
@@ -291,23 +251,27 @@ export const AuthModal: React.FC = () => {
                         </button>
                     </form>
 
-                    {/* DEV LOGIN SHORTCUT */}
-                    <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200/60 rounded-xl text-xs text-yellow-800 shadow-sm">
-                        <div className="flex items-center gap-2 mb-2">
-                            <span className="text-lg">🚧</span>
-                            <span className="font-bold">개발/테스트용 계정 안내</span>
-                        </div>
-                        <p className="mb-3 opacity-90 leading-relaxed">
-                            구글 로그인을 설정하기 어려운 개발 환경(AI Studio 등)에서는 아래 마스터 계정을 사용하세요.
-                        </p>
-                        <div className="flex items-center justify-between bg-white/60 p-2.5 rounded-lg border border-yellow-200">
-                             <div className="font-mono text-slate-600 flex gap-3">
-                                 <span>ID: <strong className="text-slate-900">sugar</strong></span>
-                                 <span>PW: <strong className="text-slate-900">attack</strong></span>
+                    {/* DEV LOGIN SHORTCUTS */}
+                    <div className="mt-6 space-y-2">
+                        <div className="flex items-center justify-between bg-yellow-50 p-3 rounded-xl border border-yellow-200/60 shadow-sm">
+                             <div className="text-xs text-yellow-800 font-medium">
+                                 🚧 <strong>Super Admin</strong> (Dev)
                              </div>
                              <button 
                                 onClick={fillDevAccount}
-                                className="px-2 py-1 bg-yellow-400 hover:bg-yellow-300 text-slate-900 text-[10px] font-bold rounded shadow-sm active:scale-95 transition-all"
+                                className="px-3 py-1.5 bg-yellow-400 hover:bg-yellow-300 text-slate-900 text-[10px] font-bold rounded-lg shadow-sm active:scale-95 transition-all"
+                             >
+                                자동입력
+                             </button>
+                        </div>
+                        
+                        <div className="flex items-center justify-between bg-blue-50 p-3 rounded-xl border border-blue-200/60 shadow-sm">
+                             <div className="text-xs text-blue-800 font-medium">
+                                 👤 <strong>Guest User</strong> (Test)
+                             </div>
+                             <button 
+                                onClick={fillGuestAccount}
+                                className="px-3 py-1.5 bg-blue-400 hover:bg-blue-300 text-white text-[10px] font-bold rounded-lg shadow-sm active:scale-95 transition-all"
                              >
                                 자동입력
                              </button>

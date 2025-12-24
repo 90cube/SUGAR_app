@@ -2,12 +2,25 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../state/AppContext';
 import { communityService } from '../services/communityService';
+import { geminiService } from '../services/geminiService';
 import { CommunityPost, BoardType } from '../types';
 
 type TabType = 'balance' | 'keuk' | 'stream';
 
+const DEFAULT_MASTER_PROMPT = `
+당신은 서든어택 커뮤니티 'SUGAR'의 운영자입니다.
+제공된 '서든어택 업데이트 공지사항' 원문을 바탕으로, 유저들이 읽기 쉬운 요약본을 작성해야 합니다.
+
+**작성 가이드라인:**
+1. **HTML 포맷 사용**: <h3>, <ul>, <li>, <p>, <strong> 태그만 사용하여 구조화하세요. (div, style 금지)
+2. **핵심 요약**: 불필요한 인삿말을 제거하고, [주요 업데이트 / 변경 사항 / 이벤트] 위주로 요약하세요.
+3. **톤앤매너**: 서든어택 유저들이 좋아하는 간결하고 명확한 말투 ("~습니다", "~함")를 사용하세요.
+4. **강조**: 중요한 아이템 명, 맵 이름, 날짜는 <strong> 태그로 강조하세요.
+5. **이모지 활용**: 각 섹션 제목에 적절한 이모지를 사용하세요. (예: 🔫 무기, 🗺️ 맵, 🎉 이벤트)
+`.trim();
+
 export const CommunityPanel: React.FC = () => {
-  const { isCommunityOpen, closeCommunity, isLoggedIn, openAuthModal, userProfile, openVirtualMatchingModal, isAdminUser, openCommunityUserProfile } = useApp();
+  const { isCommunityOpen, closeCommunity, isLoggedIn, openAuthModal, logout, userProfile, openVirtualMatchingModal, isAdminUser, openCommunityUserProfile } = useApp();
   
   // Navigation State
   const [activeTab, setActiveTab] = useState<TabType>('balance');
@@ -27,12 +40,26 @@ export const CommunityPanel: React.FC = () => {
   const [writeTitle, setWriteTitle] = useState('');
   const [writeContent, setWriteContent] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [writeError, setWriteError] = useState<string | null>(null);
+
+  // Update (Notice) Write Form State - Admin Only
+  const [isUpdateWriteFormOpen, setIsUpdateWriteFormOpen] = useState(false);
+  const [rawUpdateText, setRawUpdateText] = useState('');
+  const [masterPrompt, setMasterPrompt] = useState(DEFAULT_MASTER_PROMPT);
+  const [updateTitle, setUpdateTitle] = useState('');
+  const [updateContent, setUpdateContent] = useState('');
+  const [updateThumbnail, setUpdateThumbnail] = useState('');
+  const [isAiGenerating, setIsAiGenerating] = useState(false);
+  const [isSubmittingUpdate, setIsSubmittingUpdate] = useState(false);
+  const [dbConnected, setDbConnected] = useState<boolean | null>(null);
+  const [updateError, setUpdateError] = useState<string | null>(null);
 
   // Stream Form State
   const [isStreamFormOpen, setIsStreamFormOpen] = useState(false);
   const [streamTitle, setStreamTitle] = useState('');
   const [streamDesc, setStreamDesc] = useState('');
   const [isSubmittingStream, setIsSubmittingStream] = useState(false);
+  const [streamError, setStreamError] = useState<string | null>(null);
 
   // Scroll State for Bottom CTA
   const [showBottomCTA, setShowBottomCTA] = useState(true);
@@ -86,6 +113,20 @@ export const CommunityPanel: React.FC = () => {
     }
   }, [activeTab]);
 
+  // Check DB Connection when Admin Modal Opens
+  useEffect(() => {
+      if (isUpdateWriteFormOpen) {
+          communityService.checkConnection().then(setDbConnected);
+      }
+  }, [isUpdateWriteFormOpen]);
+
+  // Reset errors when modals close
+  useEffect(() => {
+      if (!isWriteFormOpen) setWriteError(null);
+      if (!isUpdateWriteFormOpen) setUpdateError(null);
+      if (!isStreamFormOpen) setStreamError(null);
+  }, [isWriteFormOpen, isUpdateWriteFormOpen, isStreamFormOpen]);
+
   const fetchTabContent = (tab: TabType) => {
     setIsLoading(true);
     let queryType: BoardType = 'balance';
@@ -110,8 +151,9 @@ export const CommunityPanel: React.FC = () => {
     openVirtualMatchingModal();
   };
 
-  const handleLoginClick = () => {
-    openAuthModal();
+  const handleLogout = () => {
+      // Removed window.confirm for sandbox compatibility
+      logout();
   };
 
   // --- Writing Logic ---
@@ -134,21 +176,85 @@ export const CommunityPanel: React.FC = () => {
       if (!writeTitle.trim()) return;
 
       setIsSubmitting(true);
+      setWriteError(null);
+
       let boardType: BoardType = 'balance';
       if (activeTab === 'keuk') boardType = 'fun';
 
-      await communityService.createPost({
+      const success = await communityService.createPost({
           title: writeTitle,
           content: writeContent,
           author: userProfile.nickname,
           boardType: boardType
       });
 
+      if (!success) {
+          setWriteError("저장 실패: DB가 연결되지 않았거나 권한이 없습니다.");
+          // Do NOT close the form so the user doesn't lose content
+      } else {
+          // Success: Refresh list to get real ID and data from DB
+          fetchTabContent(activeTab);
+          setIsWriteFormOpen(false);
+          setWriteTitle('');
+          setWriteContent('');
+      }
+
       setIsSubmitting(false);
-      setIsWriteFormOpen(false);
-      setWriteTitle('');
-      setWriteContent('');
-      fetchTabContent(activeTab);
+  };
+
+  // --- ADMIN UPDATE LOGIC ---
+  const handleAiGenerateUpdate = async () => {
+      if (!rawUpdateText.trim()) {
+          setUpdateError("업데이트 원문을 입력해주세요.");
+          return;
+      }
+      setIsAiGenerating(true);
+      setUpdateError(null);
+      try {
+          const result = await geminiService.summarizeGameUpdate(rawUpdateText, masterPrompt);
+          setUpdateTitle(result.title);
+          setUpdateContent(result.content);
+      } catch (e) {
+          setUpdateError("AI 요약 중 오류가 발생했습니다.");
+      } finally {
+          setIsAiGenerating(false);
+      }
+  };
+
+  const submitUpdatePost = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!isAdminUser || !userProfile) return;
+      if (!updateTitle.trim() || !updateContent.trim()) {
+          setUpdateError("제목과 내용을 확인해주세요.");
+          return;
+      }
+      
+      setIsSubmittingUpdate(true);
+      setUpdateError(null);
+      
+      // Strict DB Mode
+      const success = await communityService.createPost({
+          title: updateTitle,
+          content: updateContent, // Uses the HTML generated by AI
+          author: userProfile.nickname,
+          boardType: 'update',
+          thumbnail: updateThumbnail
+      });
+
+      setIsSubmittingUpdate(false);
+      
+      if (success) {
+        setIsUpdateWriteFormOpen(false);
+        // Reset Fields
+        setUpdateTitle('');
+        setUpdateContent('');
+        setUpdateThumbnail('');
+        setRawUpdateText('');
+        // Refresh Updates from DB
+        communityService.getPosts('update').then(setUpdatePosts);
+      } else {
+        setUpdateError("공지 등록 실패 (DB 연결/권한 확인)");
+      }
   };
 
   const submitStreamRequest = async (e: React.FormEvent) => {
@@ -157,20 +263,24 @@ export const CommunityPanel: React.FC = () => {
       if (!streamTitle.trim()) return;
 
       setIsSubmittingStream(true);
+      setStreamError(null);
       
-      await communityService.requestStreamPost({
+      const result = await communityService.requestStreamPost({
           title: streamTitle,
           content: streamDesc,
           author: userProfile.nickname
       });
 
-      // Reset & Refresh
       setIsSubmittingStream(false);
-      setIsStreamFormOpen(false);
-      setStreamTitle('');
-      setStreamDesc('');
-      fetchTabContent('stream'); // Refresh list to show pending post
-      alert("스트리머 신청이 완료되었습니다. 관리자 승인 후 게시됩니다.");
+
+      if (result) {
+        setIsStreamFormOpen(false);
+        setStreamTitle('');
+        setStreamDesc('');
+        fetchTabContent('stream'); // Refresh list to show pending post
+      } else {
+        setStreamError("신청 실패 (DB 연결 오류)");
+      }
   };
 
   const formatTime = (isoString: string) => {
@@ -204,12 +314,14 @@ export const CommunityPanel: React.FC = () => {
     const [halfs, setHalfs] = useState(0);
     const [myVote, setMyVote] = useState<'head' | 'half' | null>(null);
     const [isReporting, setIsReporting] = useState(false);
+    const [reportMessage, setReportMessage] = useState<string | null>(null);
 
     useEffect(() => {
         if (selectedPost) {
             setHeads(selectedPost.heads);
             setHalfs(selectedPost.halfshots);
             setMyVote(null); // Reset first
+            setReportMessage(null);
 
             // If logged in, check if I voted
             if (isLoggedIn && userProfile) {
@@ -226,7 +338,6 @@ export const CommunityPanel: React.FC = () => {
             return;
         }
 
-        // Optimistic UI updates could go here, but since service mimics async, we'll wait for result
         const result = await communityService.toggleVote(selectedPost.id, userProfile.nickname, type);
         setHeads(result.heads);
         setHalfs(result.halfshots);
@@ -239,14 +350,13 @@ export const CommunityPanel: React.FC = () => {
             openAuthModal();
             return;
         }
-        if (!window.confirm("정말 이 게시물을 길로틴(신고) 시스템에 회부하시겠습니까? 허위 신고 시 불이익이 있을 수 있습니다.")) {
-            return;
-        }
+        // Removed window.confirm for sandbox compatibility.
         
         setIsReporting(true);
         await communityService.reportPost(selectedPost.id, userProfile.nickname);
         setIsReporting(false);
-        alert("신고가 접수되었습니다. 운영진 검토 후 처리됩니다.");
+        setReportMessage("신고가 접수되었습니다.");
+        setTimeout(() => setReportMessage(null), 3000);
     };
 
     if (!selectedPost) return null;
@@ -269,9 +379,9 @@ export const CommunityPanel: React.FC = () => {
 
         {/* Detail Content */}
         <div className="flex-1 overflow-y-auto overscroll-contain pb-24">
-           {/* Hero Image for Update Posts */}
+           {/* Hero Image for Update Posts - Forced 16:9 Cover */}
            {selectedPost.thumbnail && selectedPost.thumbnail !== 'stream_pending' && (
-              <div className="w-full aspect-video bg-slate-100">
+              <div className="w-full aspect-video bg-slate-100 overflow-hidden relative">
                   <img src={selectedPost.thumbnail} alt="" className="w-full h-full object-cover" />
               </div>
            )}
@@ -301,16 +411,22 @@ export const CommunityPanel: React.FC = () => {
                    </div>
               )}
 
-              {/* Body */}
+              {/* Body (HTML Render) */}
               <div className="prose prose-sm prose-slate max-w-none text-slate-600">
                   <div dangerouslySetInnerHTML={{ __html: selectedPost.content }} />
               </div>
            </div>
         </div>
 
-        {/* Detail Footer CTA (Interactions) */}
+        {/* Report Feedback Toast */}
+        {reportMessage && (
+            <div className="absolute bottom-24 left-1/2 transform -translate-x-1/2 bg-slate-800 text-white text-xs py-2 px-4 rounded-full shadow-lg z-50 animate-in fade-in slide-in-from-bottom-2">
+                {reportMessage}
+            </div>
+        )}
+
+        {/* Detail Footer CTA */}
         <div className="p-4 border-t border-slate-100 bg-white sticky bottom-0 z-10 flex justify-end items-center gap-2">
-             
              {/* Headshot (Like) */}
              <button 
                 onClick={() => handleVote('head')}
@@ -346,7 +462,6 @@ export const CommunityPanel: React.FC = () => {
                 className="flex items-center justify-center p-2.5 bg-red-50 text-red-500 border border-red-100 rounded-xl active:scale-95 transition-all hover:bg-red-100 hover:text-red-600 disabled:opacity-50"
                 title="길로틴 (신고)"
              >
-                 {/* Scale Icon */}
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
                 </svg>
@@ -375,25 +490,58 @@ export const CommunityPanel: React.FC = () => {
              <span className="text-yellow-500 text-2xl">●</span> 
              커뮤니티 (COMMUNITY)
            </h2>
-           <button 
-             onClick={closeCommunity}
-             className="w-10 h-10 flex items-center justify-center bg-slate-100 hover:bg-slate-200 rounded-full text-slate-500 transition-colors active:scale-95"
-           >
-             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-             </svg>
-           </button>
+           <div className="flex items-center gap-2">
+             {isLoggedIn ? (
+               <button 
+                 onClick={handleLogout}
+                 className="text-xs font-bold text-red-500 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-full transition-colors active:scale-95 border border-red-200"
+               >
+                 로그아웃
+               </button>
+             ) : (
+               <button 
+                 onClick={openAuthModal}
+                 className="text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-full transition-colors active:scale-95 border border-blue-200"
+               >
+                 로그인
+               </button>
+             )}
+             <button 
+               onClick={closeCommunity}
+               className="w-10 h-10 flex items-center justify-center bg-slate-100 hover:bg-slate-200 rounded-full text-slate-500 transition-colors active:scale-95"
+             >
+               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+               </svg>
+             </button>
+           </div>
         </div>
 
-        {/* Main Content Area - Attach Ref Here */}
+        {/* Main Content Area */}
         <div ref={scrollContainerRef} className="flex-1 overflow-y-auto overscroll-contain p-5 pb-32 space-y-6">
            
-           {/* 2. Sudden Attack Update News (Admin Only Write) */}
+           {/* Update News Section */}
            <section>
               <div className="flex items-center justify-between mb-3 px-1">
-                 <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">공지사항 (Updates)</h3>
+                 <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
+                     공지사항 (Updates)
+                     <button onClick={() => fetchTabContent(activeTab)} title="새로고침" className="ml-2 text-slate-300 hover:text-slate-500 transition-colors">
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                     </button>
+                 </h3>
                  
                  <div className="flex items-center gap-2">
+                     {/* Admin Only: Write Update */}
+                     {isAdminUser && (
+                         <button 
+                            onClick={() => setIsUpdateWriteFormOpen(true)}
+                            className="w-6 h-6 flex items-center justify-center bg-blue-100 text-blue-600 rounded-full hover:bg-blue-200 active:scale-90 transition-all shadow-sm"
+                            title="공지 작성"
+                         >
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+                         </button>
+                     )}
+
                      {/* EXPAND/COLLAPSE BUTTON */}
                      <button 
                        onClick={() => setIsUpdatesExpanded(!isUpdatesExpanded)}
@@ -408,12 +556,12 @@ export const CommunityPanel: React.FC = () => {
                  </div>
               </div>
               
-              {/* CONTENT */}
+              {/* CONTENT LIST */}
               {isUpdatesExpanded ? (
                   <div className="flex overflow-x-auto gap-4 -mx-5 px-5 pb-4 scrollbar-hide snap-x snap-mandatory animate-in fade-in slide-in-from-top-2 duration-300">
                       {updatePosts.map((post) => (
                           <div key={post.id} onClick={() => setSelectedPost(post)} className="snap-center shrink-0 w-[280px] flex flex-col bg-white rounded-xl overflow-hidden shadow-sm border border-slate-200 active:scale-[0.98] transition-transform">
-                              <div className="w-full aspect-video bg-slate-200 relative">
+                              <div className="w-full aspect-video bg-slate-200 relative overflow-hidden">
                                   {post.thumbnail ? <img src={post.thumbnail} alt="" className="w-full h-full object-cover" /> : null}
                               </div>
                               <div className="p-3">
@@ -422,12 +570,13 @@ export const CommunityPanel: React.FC = () => {
                               </div>
                           </div>
                       ))}
+                      {updatePosts.length === 0 && <div className="text-sm text-slate-400 p-4">등록된 공지가 없습니다.</div>}
                   </div>
               ) : (
                   <div className="animate-in fade-in slide-in-from-left-2 duration-300">
-                     {updatePosts.length > 0 && (
+                     {updatePosts.length > 0 ? (
                         <div onClick={() => setSelectedPost(updatePosts[0])} className="w-full flex flex-col bg-white rounded-xl overflow-hidden shadow-md border border-slate-200 active:scale-[0.99] transition-transform">
-                             <div className="w-full aspect-video bg-slate-200 relative">
+                             <div className="w-full aspect-video bg-slate-200 relative overflow-hidden">
                                  {updatePosts[0].thumbnail ? <img src={updatePosts[0].thumbnail} alt="" className="w-full h-full object-cover" /> : null}
                                  <span className="absolute top-3 left-3 px-2 py-0.5 bg-black/50 backdrop-blur-md text-white text-[10px] font-bold rounded">LATEST</span>
                              </div>
@@ -436,12 +585,14 @@ export const CommunityPanel: React.FC = () => {
                                  <div className="text-xs text-slate-500">{updatePosts[0].createdAt.split('T')[0]}</div>
                              </div>
                         </div>
+                     ) : (
+                         <div className="w-full p-4 bg-slate-100 rounded-xl text-center text-xs text-slate-400">등록된 공지가 없습니다.</div>
                      )}
                   </div>
               )}
            </section>
 
-           {/* 3. Navigation Tabs & WRITE Button */}
+           {/* 3. Navigation Tabs */}
            <div className="sticky top-0 z-20 py-2 bg-slate-50/95 backdrop-blur-sm -mx-1 px-1">
              <div className="flex p-1.5 bg-white border border-slate-200 rounded-xl shadow-sm items-center">
                 {(['balance', 'keuk', 'stream'] as const).map((tab) => {
@@ -455,7 +606,7 @@ export const CommunityPanel: React.FC = () => {
                 })}
              </div>
              
-             {/* General WRITE Button for current tab */}
+             {/* General WRITE Button */}
              <div className="mt-2 text-right px-1 animate-in fade-in duration-300">
                  <button 
                     onClick={handleWriteClick}
@@ -532,27 +683,20 @@ export const CommunityPanel: React.FC = () => {
            </div>
         </div>
 
-        {/* 5. Floating Bottom CTA (Dynamic Size & Scroll Aware) */}
-        <div 
-            className={`absolute bottom-6 left-1/2 transform -translate-x-1/2 z-40 transition-all duration-500 ease-in-out ${showBottomCTA ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10 pointer-events-none'}`}
-        >
-            {isLoggedIn ? (
+        {/* 5. Floating Bottom CTA - Only for Logged In Users (Virtual Matching) */}
+        {isLoggedIn && (
+            <div 
+                className={`absolute bottom-6 left-1/2 transform -translate-x-1/2 z-40 transition-all duration-500 ease-in-out ${showBottomCTA ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10 pointer-events-none'}`}
+            >
                 <button onClick={handleVirtualMatching} className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-sm font-black rounded-full shadow-lg shadow-blue-500/30 active:scale-[0.98] transition-all flex items-center justify-center gap-2 group relative overflow-hidden">
                     <div className="absolute top-0 -left-[100%] w-1/2 h-full bg-gradient-to-r from-transparent via-white/20 to-transparent skew-x-12 group-hover:animate-shine" />
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
                     <span>가상 매칭</span>
                 </button>
-            ) : (
-                <button onClick={handleLoginClick} className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-sm font-black rounded-full shadow-lg shadow-slate-900/30 active:scale-[0.98] transition-all flex items-center justify-center gap-2 whitespace-nowrap">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
-                    </svg>
-                    <span>SUGAR 로그인</span>
-                </button>
-            )}
-        </div>
+            </div>
+        )}
 
-        {/* WRITE POST FORM */}
+        {/* WRITE POST FORM (Normal) */}
         {isWriteFormOpen && (
             <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm z-[180] flex items-center justify-center p-4 animate-in fade-in duration-200">
                 <div className="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl animate-in zoom-in-95 duration-200">
@@ -564,11 +708,137 @@ export const CommunityPanel: React.FC = () => {
                         <div>
                             <textarea value={writeContent} onChange={(e) => setWriteContent(e.target.value)} placeholder="내용을 입력하세요..." className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-slate-900/10 h-32 resize-none" />
                         </div>
+                        
+                        {writeError && <div className="text-red-500 text-xs font-bold bg-red-50 p-2 rounded-lg border border-red-100">{writeError}</div>}
+
                         <div className="flex gap-2 pt-2">
                             <button type="button" onClick={() => setIsWriteFormOpen(false)} className="flex-1 py-3 bg-white border border-slate-200 text-slate-600 font-bold rounded-xl active:scale-95 transition-all">취소</button>
                             <button type="submit" disabled={isSubmitting || !writeTitle.trim()} className="flex-1 py-3 bg-slate-900 text-white font-bold rounded-xl active:scale-95 transition-all disabled:opacity-50">{isSubmitting ? '...' : '등록'}</button>
                         </div>
                     </form>
+                </div>
+            </div>
+        )}
+
+        {/* UPDATE (NOTICE) WRITE FORM - AI ENHANCED */}
+        {isUpdateWriteFormOpen && (
+            <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm z-[180] flex items-center justify-center p-4 animate-in fade-in duration-200">
+                <div className="bg-white w-full max-w-lg rounded-3xl p-0 shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col max-h-[90vh]">
+                    {/* Modal Header */}
+                    <div className="bg-blue-600 p-5 flex justify-between items-center flex-shrink-0">
+                         <div>
+                            <h3 className="text-lg font-black text-white flex items-center gap-2">
+                                📢 업데이트 공지 (AI)
+                            </h3>
+                            <div className="flex items-center gap-2 mt-1">
+                                <span className="px-2 py-0.5 bg-white/20 text-white text-[10px] font-bold rounded border border-white/20">ADMIN ONLY</span>
+                                <span className={`flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded ${dbConnected ? 'bg-green-500/20 text-green-100 border border-green-400/30' : 'bg-red-500/20 text-red-100 border border-red-400/30'}`}>
+                                    <span className={`w-2 h-2 rounded-full ${dbConnected ? 'bg-green-400' : 'bg-red-400'}`}></span>
+                                    {dbConnected ? 'DB Connected' : 'DB Disconnected'}
+                                </span>
+                            </div>
+                         </div>
+                    </div>
+
+                    {/* Scrollable Content */}
+                    <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                        
+                        {/* 1. Input Section */}
+                        <div className="space-y-4">
+                            <div>
+                                <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">1. 원문 붙여넣기 (Raw Text)</label>
+                                <textarea 
+                                    value={rawUpdateText} 
+                                    onChange={(e) => setRawUpdateText(e.target.value)} 
+                                    placeholder="서든어택 홈페이지 공지사항 내용을 복사해서 여기에 붙여넣으세요..." 
+                                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 h-24 resize-none" 
+                                />
+                            </div>
+
+                            <div>
+                                <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">2. 마스터 프롬프트 (Template Config)</label>
+                                <textarea 
+                                    value={masterPrompt} 
+                                    onChange={(e) => setMasterPrompt(e.target.value)} 
+                                    className="w-full p-3 bg-slate-800 text-slate-200 border border-slate-700 rounded-xl text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 h-24 resize-none"
+                                />
+                            </div>
+
+                            <button 
+                                type="button" 
+                                onClick={handleAiGenerateUpdate}
+                                disabled={isAiGenerating || !rawUpdateText}
+                                className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold rounded-xl shadow-lg shadow-blue-500/30 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                            >
+                                {isAiGenerating ? (
+                                    <>
+                                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                        AI 요약 생성 중...
+                                    </>
+                                ) : (
+                                    <>
+                                        <span>✨ AI 자동 생성 (Generate)</span>
+                                    </>
+                                )}
+                            </button>
+                        </div>
+
+                        <div className="border-t border-slate-100 my-4"></div>
+
+                        {/* 2. Result / Edit Section */}
+                        <form id="admin-update-form" onSubmit={submitUpdatePost} className="space-y-4">
+                            <div>
+                                <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">제목 (Title)</label>
+                                <input 
+                                    type="text" 
+                                    value={updateTitle} 
+                                    onChange={(e) => setUpdateTitle(e.target.value)} 
+                                    placeholder="AI가 생성한 제목 (수정 가능)" 
+                                    className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-900/10" 
+                                />
+                            </div>
+                            <div>
+                                <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">썸네일 이미지 (Thumbnail URL)</label>
+                                <input 
+                                    type="text" 
+                                    value={updateThumbnail} 
+                                    onChange={(e) => setUpdateThumbnail(e.target.value)} 
+                                    placeholder="https://... (16:9 권장)" 
+                                    className="w-full p-3 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-900/10" 
+                                />
+                            </div>
+                            <div>
+                                <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">내용 (Content HTML)</label>
+                                <textarea 
+                                    value={updateContent} 
+                                    onChange={(e) => setUpdateContent(e.target.value)} 
+                                    placeholder="AI가 생성한 HTML 내용..." 
+                                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-900/10 h-32 resize-none" 
+                                />
+                            </div>
+                            
+                            {updateError && <div className="text-red-500 text-xs font-bold bg-red-50 p-2 rounded-lg border border-red-100">{updateError}</div>}
+                        </form>
+                    </div>
+
+                    {/* Footer Actions */}
+                    <div className="p-5 bg-slate-50 border-t border-slate-200 flex gap-3 flex-shrink-0">
+                        <button 
+                            type="button" 
+                            onClick={() => setIsUpdateWriteFormOpen(false)} 
+                            className="flex-1 py-3 bg-white border border-slate-200 text-slate-600 font-bold rounded-xl active:scale-95 transition-all"
+                        >
+                            취소
+                        </button>
+                        <button 
+                            type="submit" 
+                            form="admin-update-form"
+                            disabled={isSubmittingUpdate || !updateTitle.trim()} 
+                            className="flex-1 py-3 bg-slate-900 text-white font-bold rounded-xl active:scale-95 transition-all disabled:opacity-50 shadow-lg shadow-slate-900/10"
+                        >
+                            {isSubmittingUpdate ? '업로드 중...' : '공지 등록 (Upload)'}
+                        </button>
+                    </div>
                 </div>
             </div>
         )}
@@ -585,6 +855,9 @@ export const CommunityPanel: React.FC = () => {
                         <div>
                             <textarea value={streamDesc} onChange={(e) => setStreamDesc(e.target.value)} placeholder="방송 링크 (Twitch/Youtube)..." className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-slate-900/10 h-24 resize-none" />
                         </div>
+                        
+                        {streamError && <div className="text-red-500 text-xs font-bold bg-red-50 p-2 rounded-lg border border-red-100">{streamError}</div>}
+
                         <div className="flex gap-2 pt-2">
                             <button type="button" onClick={() => setIsStreamFormOpen(false)} className="flex-1 py-3 bg-white border border-slate-200 text-slate-600 font-bold rounded-xl active:scale-95 transition-all">취소</button>
                             <button type="submit" disabled={isSubmittingStream || !streamTitle.trim()} className="flex-1 py-3 bg-slate-900 text-white font-bold rounded-xl active:scale-95 transition-all disabled:opacity-50">{isSubmittingStream ? '...' : '신청하기'}</button>

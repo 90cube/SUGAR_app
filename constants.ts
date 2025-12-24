@@ -16,9 +16,6 @@ export const NEXON_SA_LOGO_URL = "https://rs.nxfs.nexon.com/common/logo/logo_sud
 // Default model for Gemini Service
 export const DEFAULT_GEMINI_MODEL = "gemini-3-flash-preview";
 
-// Google Client ID
-export const GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID_HERE";
-
 // --- Supabase Config (DB) ---
 // Supabase 프로젝트 설정 후 아래 값을 채워넣으세요.
 // 값이 비어있으면 자동으로 Mock(가상) 모드로 동작합니다.
