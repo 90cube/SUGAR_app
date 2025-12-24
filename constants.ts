@@ -19,6 +19,12 @@ export const DEFAULT_GEMINI_MODEL = "gemini-3-flash-preview";
 // Google Client ID
 export const GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID_HERE";
 
+// --- Supabase Config (DB) ---
+// Supabase 프로젝트 설정 후 아래 값을 채워넣으세요.
+// 값이 비어있으면 자동으로 Mock(가상) 모드로 동작합니다.
+export const SUPABASE_URL = "https://uwjjnncbpyhwslnipons.supabase.co"; 
+export const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV3ampubmNicHlod3Nsbmlwb25zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY1Mjc2MjUsImV4cCI6MjA4MjEwMzYyNX0.CGahTXEhj1kPCnU389xrquf_TMd7q1XLvnNmAEqxGqc";
+
 export const UI_STRINGS = {
   loading: "병영수첩 조회 중...",
   error: "플레이어를 찾을 수 없습니다. 닉네임을 확인해주세요.",

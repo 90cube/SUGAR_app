@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../state/AppContext';
 import { communityService } from '../services/communityService';
 import { CommunityPost, BoardType } from '../types';
@@ -33,6 +33,40 @@ export const CommunityPanel: React.FC = () => {
   const [streamTitle, setStreamTitle] = useState('');
   const [streamDesc, setStreamDesc] = useState('');
   const [isSubmittingStream, setIsSubmittingStream] = useState(false);
+
+  // Scroll State for Bottom CTA
+  const [showBottomCTA, setShowBottomCTA] = useState(true);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const lastScrollTopRef = useRef(0);
+
+  // Handle Scroll to hide/show CTA
+  useEffect(() => {
+    const handleScroll = () => {
+        if (!scrollContainerRef.current) return;
+        const currentScroll = scrollContainerRef.current.scrollTop;
+        
+        // Hide on scroll down, show on scroll up. Always show at very top.
+        if (currentScroll < 20) {
+            setShowBottomCTA(true);
+        } else if (currentScroll > lastScrollTopRef.current) {
+            setShowBottomCTA(false); // Scrolling down
+        } else {
+            setShowBottomCTA(true); // Scrolling up
+        }
+        
+        lastScrollTopRef.current = currentScroll;
+    };
+
+    const container = scrollContainerRef.current;
+    if (container) {
+        container.addEventListener('scroll', handleScroll);
+    }
+    return () => {
+        if (container) {
+            container.removeEventListener('scroll', handleScroll);
+        }
+    };
+  }, [isCommunityOpen]);
 
   // Fetch Data when open or tab changes
   useEffect(() => {
@@ -351,8 +385,8 @@ export const CommunityPanel: React.FC = () => {
            </button>
         </div>
 
-        {/* Main Content Area */}
-        <div className="flex-1 overflow-y-auto overscroll-contain p-5 pb-32 space-y-6">
+        {/* Main Content Area - Attach Ref Here */}
+        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto overscroll-contain p-5 pb-32 space-y-6">
            
            {/* 2. Sudden Attack Update News (Admin Only Write) */}
            <section>
@@ -498,20 +532,22 @@ export const CommunityPanel: React.FC = () => {
            </div>
         </div>
 
-        {/* 5. Fixed Bottom CTA (Dynamic) */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 pb-6 bg-white/80 backdrop-blur-xl border-t border-white/50 z-40 shadow-[0_-5px_20px_rgba(0,0,0,0.05)]">
+        {/* 5. Floating Bottom CTA (Dynamic Size & Scroll Aware) */}
+        <div 
+            className={`absolute bottom-6 left-1/2 transform -translate-x-1/2 z-40 transition-all duration-500 ease-in-out ${showBottomCTA ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10 pointer-events-none'}`}
+        >
             {isLoggedIn ? (
-                <button onClick={handleVirtualMatching} className="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black rounded-2xl shadow-lg shadow-blue-500/30 active:scale-[0.98] transition-all flex items-center justify-center gap-3 group relative overflow-hidden">
+                <button onClick={handleVirtualMatching} className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-sm font-black rounded-full shadow-lg shadow-blue-500/30 active:scale-[0.98] transition-all flex items-center justify-center gap-2 group relative overflow-hidden">
                     <div className="absolute top-0 -left-[100%] w-1/2 h-full bg-gradient-to-r from-transparent via-white/20 to-transparent skew-x-12 group-hover:animate-shine" />
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
-                    <span>가상 매칭 시작하기</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                    <span>가상 매칭</span>
                 </button>
             ) : (
-                <button onClick={handleLoginClick} className="w-full py-4 bg-slate-900 hover:bg-slate-800 text-white font-black rounded-2xl shadow-lg shadow-slate-900/30 active:scale-[0.98] transition-all flex items-center justify-center gap-3">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <button onClick={handleLoginClick} className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-sm font-black rounded-full shadow-lg shadow-slate-900/30 active:scale-[0.98] transition-all flex items-center justify-center gap-2 whitespace-nowrap">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
                     </svg>
-                    <span>SUGAR 로그인 / 회원가입</span>
+                    <span>SUGAR 로그인</span>
                 </button>
             )}
         </div>

@@ -149,9 +149,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [isDMModalOpen, setIsDMModalOpen] = useState(false);
   const [activeDMUser, setActiveDMUser] = useState<string | null>(null);
 
-  // Load Content on Mount
+  // Load Content on Mount & Restore Session
   useEffect(() => {
+     // 1. Content
      cloudStorageService.fetchContentConfig().then(setPageContent);
+     
+     // 2. Auth Session
+     authService.getSession().then((user) => {
+         if (user) {
+             console.log("[AppContext] Restored session for", user.name);
+             setAuthUser(user);
+             setIsLoggedIn(true);
+             setIsAdminUser(user.role === 'admin');
+         }
+     });
   }, []);
 
   // --- Login Logic ---
@@ -202,7 +213,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
   };
 
-  const logout = () => {
+  const logout = async () => {
+    await authService.logout();
     setIsLoggedIn(false);
     setIsAdminUser(false);
     setAuthUser(null);

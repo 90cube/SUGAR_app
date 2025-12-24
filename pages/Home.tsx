@@ -6,14 +6,6 @@ import { ProfileCard } from '../components/ProfileCard';
 import { TierCard } from '../components/TierCard';
 import { RecentTrend } from '../components/RecentTrend';
 import { RecentMatches } from '../components/RecentMatches';
-import { AuthModal } from '../components/AuthModal';
-import { MatchDetailModal } from '../components/MatchDetailModal';
-import { RecapModal } from '../components/RecapModal';
-import { AnalysisModal } from '../components/AnalysisModal';
-import { AdminEditor } from '../components/AdminEditor';
-import { AdminHiddenBoardModal } from '../components/AdminHiddenBoardModal';
-import { AdminGuillotineModal } from '../components/AdminGuillotineModal';
-import { CommunityUserProfileModal } from '../components/CommunityUserProfileModal';
 
 export const Home: React.FC = () => {
   const { status, userProfile, searchUser, isLoggedIn, openAuthModal, performAnomalyCheck, pageContent, isAdminUser, openAdminEditor } = useApp();
@@ -35,14 +27,7 @@ export const Home: React.FC = () => {
 
   return (
     <div className="w-full max-w-md mx-auto space-y-6 pb-24 relative">
-      <AuthModal />
-      <MatchDetailModal />
-      <RecapModal />
-      <AnalysisModal />
-      <AdminEditor />
-      <AdminHiddenBoardModal />
-      <AdminGuillotineModal />
-      <CommunityUserProfileModal />
+      {/* Modals have been moved to Layout.tsx to ensure proper z-index layering */}
 
       {/* Admin Floating Action Button */}
       {isAdminUser && (
@@ -55,13 +40,68 @@ export const Home: React.FC = () => {
           </button>
       )}
       
-      {/* Section 0: Search Panel */}
-      <section className="space-y-5 pt-8 animate-in fade-in slide-in-from-bottom-8 duration-700">
-        <h1 className="text-3xl font-black text-slate-800 text-center uppercase tracking-tighter drop-shadow-sm">
-          {pageContent.welcomeTitle}
-        </h1>
+      {/* Section 0: Search Panel & Title */}
+      <section className="space-y-8 pt-12 animate-in fade-in slide-in-from-bottom-8 duration-700">
         
-        <form onSubmit={handleSearch} className="space-y-4">
+        {/* Title Container - Group for hover effects */}
+        <div className="group relative flex flex-col items-center justify-center select-none cursor-default z-20 w-full">
+            
+            {/* Letters: Maximized Spacing (justify-between), Forced Single Line (flex-nowrap) */}
+            <div className="flex justify-between items-end w-full px-4 sm:px-10 flex-nowrap transition-transform duration-500 group-hover:scale-105">
+                {/* S - White */}
+                <div className="text-5xl sm:text-7xl font-[900] text-white drop-shadow-[0_5px_0_rgba(0,0,0,0.15)] transform -rotate-6 group-hover:-translate-y-2 transition-transform duration-300 flex-shrink-0">S</div>
+                
+                {/* U - Yellow */}
+                <div className="text-5xl sm:text-7xl font-[900] text-yellow-400 drop-shadow-[0_5px_0_rgba(234,179,8,0.4)] transform rotate-3 group-hover:-translate-y-2 transition-transform duration-300 delay-75 flex-shrink-0">U</div>
+                
+                {/* G - Yellow */}
+                <div className="text-5xl sm:text-7xl font-[900] text-yellow-400 drop-shadow-[0_5px_0_rgba(234,179,8,0.4)] transform -rotate-3 group-hover:-translate-y-2 transition-transform duration-300 delay-100 flex-shrink-0">G</div>
+                
+                {/* A - White */}
+                <div className="text-5xl sm:text-7xl font-[900] text-white drop-shadow-[0_5px_0_rgba(0,0,0,0.15)] transform rotate-6 group-hover:-translate-y-2 transition-transform duration-300 delay-150 flex-shrink-0">A</div>
+                
+                {/* R - Yellow */}
+                <div className="text-5xl sm:text-7xl font-[900] text-yellow-400 drop-shadow-[0_5px_0_rgba(234,179,8,0.4)] transform -rotate-2 group-hover:-translate-y-2 transition-transform duration-300 delay-200 flex-shrink-0">R</div>
+            </div>
+            
+            {/* Interactive Description Animation */}
+            {/* Positioned absolutely to drop down without reflow */}
+            <div className="absolute top-[100%] left-1/2 -translate-x-1/2 mt-4 flex justify-center w-full px-2">
+                <div className="
+                    flex items-center justify-center overflow-hidden
+                    bg-slate-300/60 backdrop-blur-sm
+                    rounded-full
+                    w-12 h-1.5
+                    transition-all duration-500 cubic-bezier(0.34, 1.56, 0.64, 1)
+                    group-hover:w-full sm:group-hover:w-auto
+                    group-hover:h-auto group-hover:min-h-[36px]
+                    group-hover:bg-slate-900/90 group-hover:border group-hover:border-white/20
+                    group-hover:rounded-2xl
+                    group-hover:shadow-xl
+                    group-hover:translate-y-2
+                ">
+                    {/* Inner Text - Hidden by default, Reveals on Hover */}
+                    <div className="
+                        opacity-0 scale-90 translate-y-2
+                        group-hover:opacity-100 group-hover:scale-100 group-hover:translate-y-0
+                        transition-all duration-300 delay-100
+                        text-[9px] sm:text-xs font-bold tracking-widest uppercase
+                        flex flex-nowrap items-center justify-center gap-x-2 sm:gap-x-3 p-2 sm:p-3
+                    ">
+                        <span className="whitespace-nowrap flex-shrink-0"><span className="text-white text-xs sm:text-sm">S</span><span className="text-slate-400">udden Attack</span></span>
+                        <span className="whitespace-nowrap flex-shrink-0"><span className="text-yellow-400 text-xs sm:text-sm">U</span><span className="text-slate-400">ser</span></span>
+                        <span className="whitespace-nowrap flex-shrink-0"><span className="text-yellow-400 text-xs sm:text-sm">G</span><span className="text-slate-400">ameplay</span></span>
+                        <span className="whitespace-nowrap flex-shrink-0"><span className="text-white text-xs sm:text-sm">A</span><span className="text-slate-400">nalysis &</span></span>
+                        <span className="whitespace-nowrap flex-shrink-0"><span className="text-yellow-400 text-xs sm:text-sm">R</span><span className="text-slate-400">ank</span></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        {/* Spacer for the dropped description to not overlap search bar too much if expanded */}
+        <div className="h-4"></div>
+
+        <form onSubmit={handleSearch} className="space-y-4 px-2 relative z-10">
           <div className="flex gap-3">
             <div className="relative flex-1 group">
               <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-400 to-purple-400 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-500"></div>
@@ -69,8 +109,8 @@ export const Home: React.FC = () => {
                 type="text"
                 value={nickname}
                 onChange={(e) => setNickname(e.target.value)}
-                placeholder="Enter nickname"
-                className="relative w-full h-14 px-5 rounded-xl border border-white/50 bg-white/60 backdrop-blur-md text-slate-900 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 font-medium transition-all shadow-sm"
+                placeholder="닉네임을 입력하세요"
+                className="relative w-full h-14 px-5 rounded-2xl border border-white/50 bg-white/60 backdrop-blur-md text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 font-bold transition-all shadow-sm text-center tracking-wide"
               />
             </div>
             
@@ -80,7 +120,7 @@ export const Home: React.FC = () => {
                 type="button"
                 onClick={handleAnomalyClick}
                 disabled={!userProfile}
-                className="relative h-14 w-14 bg-white/70 backdrop-blur-md text-red-500 border border-red-100 font-bold rounded-xl active:scale-95 transition-all shadow-sm hover:shadow-red-500/20 flex items-center justify-center disabled:opacity-50 disabled:grayscale"
+                className="relative h-14 w-14 bg-white/70 backdrop-blur-md text-red-500 border border-red-100 font-bold rounded-2xl active:scale-95 transition-all shadow-sm hover:shadow-red-500/20 flex items-center justify-center disabled:opacity-50 disabled:grayscale"
                 aria-label={pageContent.anomalyButtonText}
                 title={pageContent.anomalyButtonText}
               >
@@ -94,7 +134,7 @@ export const Home: React.FC = () => {
           <button 
             type="submit"
             disabled={status === AppStatus.LOADING}
-            className="w-full h-14 bg-slate-900/90 backdrop-blur-sm text-white font-bold rounded-xl active:scale-[0.98] transition-all hover:bg-slate-800 hover:shadow-[0_0_20px_rgba(15,23,42,0.3)] disabled:opacity-70 flex items-center justify-center border border-white/10"
+            className="w-full h-14 bg-slate-900/90 backdrop-blur-sm text-white font-bold rounded-2xl active:scale-[0.98] transition-all hover:bg-slate-800 hover:shadow-[0_0_20px_rgba(15,23,42,0.3)] disabled:opacity-70 flex items-center justify-center border border-white/10 shadow-lg"
           >
             {status === AppStatus.LOADING ? (
                <div className="flex items-center gap-2">

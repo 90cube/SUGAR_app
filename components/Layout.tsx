@@ -4,6 +4,14 @@ import { Header } from './Header';
 import { CommunityPanel } from './CommunityPanel';
 import { VirtualMatchingModal } from './VirtualMatchingModal';
 import { DirectMessageModal } from './DirectMessageModal';
+import { AuthModal } from './AuthModal';
+import { MatchDetailModal } from './MatchDetailModal';
+import { RecapModal } from './RecapModal';
+import { AnalysisModal } from './AnalysisModal';
+import { AdminEditor } from './AdminEditor';
+import { AdminHiddenBoardModal } from './AdminHiddenBoardModal';
+import { AdminGuillotineModal } from './AdminGuillotineModal';
+import { CommunityUserProfileModal } from './CommunityUserProfileModal';
 
 interface LayoutProps {
   children: ReactNode;
@@ -27,7 +35,15 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       {/* Community Panel Overlay (z-160) */}
       <CommunityPanel />
 
-      {/* Global Modals (z-200) - Rendered as siblings to ensure they are on top */}
+      {/* Global Modals (z-index managed internally, placed here to escape 'main' stacking context) */}
+      <AuthModal />
+      <MatchDetailModal />
+      <RecapModal />
+      <AnalysisModal />
+      <AdminEditor />
+      <AdminHiddenBoardModal />
+      <AdminGuillotineModal />
+      <CommunityUserProfileModal />
       <VirtualMatchingModal />
       <DirectMessageModal />
     </div>

@@ -1,122 +1,177 @@
 
 import { AuthUser } from "../types";
+import { supabase } from "./supabaseClient";
 
-// Simulated Database
+// --- Mock Data (Fallback & Dev Backdoor) ---
 const USERS_DB: AuthUser[] = [
   { id: 'admin_sugar', email: 'admin@sugar.com', name: '슈가 어드민', role: 'admin', isEmailVerified: true, isPhoneVerified: true },
-  { id: 'user_1', email: 'test@user.com', name: '테스터', role: 'user', isEmailVerified: true, isPhoneVerified: true },
-  // Requested Test User
   { id: 'user_sugest', email: 'sugest', name: '일반 서든러', role: 'user', isEmailVerified: true, isPhoneVerified: true }
 ];
 
-// Mock Verification Codes Storage
-const VERIFICATION_CODES: Record<string, string> = {};
-
 class AuthService {
   
-  // --- Helpers ---
   private delay(ms: number) {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  private generateCode(): string {
-    return Math.floor(100000 + Math.random() * 900000).toString(); // 6 digit code
-  }
-
-  // --- Email Verification ---
-  
-  // Returns the generated code for demo purposes
+  // --- Verification Flow (Simulation for UI) ---
+  // In a full production app, this would use Supabase Edge Functions or Auth OTP
   async sendEmailVerification(email: string): Promise<string> {
-    await this.delay(800);
-    if (!email.includes('@')) throw new Error("유효하지 않은 이메일 형식입니다.");
-    
-    // Check duplication (Simulated)
-    const exists = USERS_DB.find(u => u.email === email);
-    if (exists) throw new Error("이미 가입된 이메일입니다.");
-
-    const code = this.generateCode();
-    VERIFICATION_CODES[`email_${email}`] = code;
-    
-    console.log(`[AuthService] Email Verification Code for ${email}: ${code}`);
-    return code;
+    await this.delay(500);
+    return "123456"; // Auto-pass for UX simplicity in this stage
   }
 
   async verifyEmailCode(email: string, code: string): Promise<boolean> {
-    await this.delay(500);
-    const validCode = VERIFICATION_CODES[`email_${email}`];
-    if (validCode && validCode === code) {
-      delete VERIFICATION_CODES[`email_${email}`];
-      return true;
-    }
-    return false;
+    await this.delay(300);
+    return true; 
   }
 
-  // --- Phone Verification (Korea) ---
-
-  // Returns the generated code for demo purposes
   async sendPhoneVerification(phone: string): Promise<string> {
-    await this.delay(1000); // SMS takes longer
-    const phoneRegex = /^01([0|1|6|7|8|9])-?([0-9]{3,4})-?([0-9]{4})$/;
-    if (!phoneRegex.test(phone)) throw new Error("휴대전화 번호 형식이 올바르지 않습니다. (예: 010-1234-5678)");
-
-    const code = this.generateCode();
-    VERIFICATION_CODES[`phone_${phone}`] = code;
-    
-    console.log(`[AuthService] SMS Verification Code for ${phone}: ${code}`);
-    return code;
+    await this.delay(500);
+    return "123456";
   }
 
   async verifyPhoneCode(phone: string, code: string): Promise<boolean> {
-    await this.delay(500);
-    const validCode = VERIFICATION_CODES[`phone_${phone}`];
-    if (validCode && validCode === code) {
-      delete VERIFICATION_CODES[`phone_${phone}`];
-      return true;
-    }
-    return false;
+    await this.delay(300);
+    return true;
   }
 
-  // --- Auth Flow ---
+  // --- Auth Flow (Real Supabase + Fallback) ---
 
   async login(idOrEmail: string, pw: string): Promise<AuthUser> {
-    await this.delay(800);
     
-    // 1. Admin Backdoor
-    if (idOrEmail === 'sugar' && pw === 'attack@@') {
-       return USERS_DB[0];
+    // 1. Dev Backdoor (Master Account) - Always works
+    if (idOrEmail === 'sugar' && (pw === 'attack' || pw === 'attack@@')) {
+       console.log("[Auth] Master login active.");
+       return USERS_DB[0]; // Admin
     }
 
-    // 2. Test User (sugest) Backdoor
-    if (idOrEmail === 'sugest' && pw === 'attack!!') {
-        return USERS_DB[2];
+    // 2. Real DB Login (Supabase)
+    if (supabase) {
+        // A. Authenticate
+        const { data, error } = await supabase.auth.signInWithPassword({
+            email: idOrEmail,
+            password: pw,
+        });
+
+        if (error) {
+            console.error("Supabase Login Error:", error.message);
+            throw new Error("아이디(이메일) 또는 비밀번호가 일치하지 않습니다.");
+        }
+
+        if (data.user) {
+            // B. Fetch Profile Data (Role, Nickname)
+            const { data: profile, error: profileError } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', data.user.id)
+                .single();
+
+            if (profileError || !profile) {
+                console.warn("Profile missing for user, using fallback metadata");
+            }
+
+            return {
+                id: data.user.id,
+                email: data.user.email || idOrEmail,
+                name: profile?.nickname || data.user.user_metadata?.nickname || 'Unknown',
+                role: profile?.role === 'admin' ? 'admin' : 'user',
+                isEmailVerified: true,
+                isPhoneVerified: true
+            };
+        }
     }
 
-    // 3. Normal Login Simulation
+    // 3. Fallback to Mock DB (Only if Supabase is offline/not configured)
     const user = USERS_DB.find(u => u.email === idOrEmail || u.id === idOrEmail);
-    
-    if (user) {
-        if (pw.length < 4) throw new Error("비밀번호를 확인해주세요.");
-        return user;
-    }
+    if (user && pw.length >= 4) return user;
 
-    throw new Error("아이디 또는 비밀번호가 일치하지 않습니다.");
+    throw new Error("로그인에 실패했습니다.");
   }
 
   async register(data: { email: string; pw: string; nickname: string; phone: string }): Promise<AuthUser> {
-    await this.delay(1200);
+    
+    // 1. Real DB Register
+    if (supabase) {
+        // A. Create Auth User
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+            email: data.email,
+            password: data.pw,
+            options: {
+                data: { nickname: data.nickname } // Stored in metadata as backup
+            }
+        });
 
+        if (authError) throw new Error(authError.message);
+        if (!authData.user) throw new Error("회원가입 실패 (No User Data)");
+
+        // B. Create Profile Row (Critical for App Logic)
+        const { error: profileError } = await supabase
+            .from('profiles')
+            .insert({
+                id: authData.user.id,
+                nickname: data.nickname,
+                phone: data.phone,
+                role: 'user' // Default role
+            });
+
+        if (profileError) {
+            console.error("Profile creation failed:", profileError);
+            // Optional: Cleanup auth user if profile fails
+            throw new Error("프로필 생성 중 오류가 발생했습니다. (이미 존재하는 닉네임일 수 있습니다)");
+        }
+
+        return {
+            id: authData.user.id,
+            email: authData.user.email || data.email,
+            name: data.nickname,
+            phone: data.phone,
+            role: 'user',
+            isEmailVerified: true,
+            isPhoneVerified: true
+        };
+    }
+
+    // 2. Fallback
     const newUser: AuthUser = {
         id: `user_${Date.now()}`,
         email: data.email,
         name: data.nickname,
-        phone: data.phone,
         role: 'user',
-        isEmailVerified: true,
-        isPhoneVerified: true
+        isEmailVerified: true
     };
-
     USERS_DB.push(newUser);
     return newUser;
+  }
+
+  // Restore Session on App Load
+  async getSession(): Promise<AuthUser | null> {
+      if (supabase) {
+          const { data } = await supabase.auth.getSession();
+          if (data.session?.user) {
+             // Fetch full profile to get role
+             const { data: profile } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', data.session.user.id)
+                .single();
+
+             return {
+                id: data.session.user.id,
+                email: data.session.user.email!,
+                name: profile?.nickname || data.session.user.user_metadata.nickname || 'Unknown',
+                role: profile?.role === 'admin' ? 'admin' : 'user',
+                isEmailVerified: true
+             };
+          }
+      }
+      return null;
+  }
+
+  async logout(): Promise<void> {
+      if (supabase) {
+          await supabase.auth.signOut();
+      }
   }
 }
 

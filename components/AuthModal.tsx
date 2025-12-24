@@ -61,21 +61,24 @@ export const AuthModal: React.FC = () => {
   useEffect(() => {
     if (window.google && isAuthModalOpen && mode === 'LOGIN') {
       try {
-          window.google.accounts.id.initialize({
-            client_id: GOOGLE_CLIENT_ID,
-            callback: (response: any) => {
-                if (response.credential) {
-                    handleGoogleLoginSuccess(response.credential);
+          // Only attempt if Client ID is configured, otherwise skip to prevent console errors
+          if (GOOGLE_CLIENT_ID && !GOOGLE_CLIENT_ID.includes("YOUR_GOOGLE_CLIENT_ID")) {
+              window.google.accounts.id.initialize({
+                client_id: GOOGLE_CLIENT_ID,
+                callback: (response: any) => {
+                    if (response.credential) {
+                        handleGoogleLoginSuccess(response.credential);
+                    }
                 }
-            }
-          });
-          
-          const buttonDiv = document.getElementById("googleSignInDiv");
-          if (buttonDiv) {
-              window.google.accounts.id.renderButton(
-                buttonDiv,
-                { theme: "outline", size: "large", width: "100%", text: "continue_with" }
-              );
+              });
+              
+              const buttonDiv = document.getElementById("googleSignInDiv");
+              if (buttonDiv) {
+                  window.google.accounts.id.renderButton(
+                    buttonDiv,
+                    { theme: "outline", size: "large", width: "100%", text: "continue_with" }
+                  );
+              }
           }
       } catch (e) {
           console.error("GSI Initialization Error", e);
@@ -96,6 +99,12 @@ export const AuthModal: React.FC = () => {
       } finally {
           setIsLoading(false);
       }
+  };
+
+  // Auto-fill dev account helper
+  const fillDevAccount = () => {
+      setLoginEmail('sugar');
+      setLoginPw('attack');
   };
 
   // --- Handlers: Email Verification ---
@@ -237,8 +246,17 @@ export const AuthModal: React.FC = () => {
             {/* LOGIN FORM */}
             {mode === 'LOGIN' && (
                 <div className="space-y-5 animate-in slide-in-from-right duration-300">
+                    
+                    {/* Google Button Container */}
                     <div className="w-full h-12 flex justify-center items-center">
-                        <div id="googleSignInDiv" className="w-full"></div>
+                        <div id="googleSignInDiv" className="w-full">
+                            {/* If Client ID is missing, show placeholder/warning */}
+                            {(!GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID.includes("YOUR_GOOGLE_CLIENT_ID")) && (
+                                <div className="w-full h-full border border-slate-200 rounded-md flex items-center justify-center bg-slate-50 text-slate-400 text-xs font-bold">
+                                    Google Login Not Configured
+                                </div>
+                            )}
+                        </div>
                     </div>
 
                     <div className="relative py-2">
@@ -272,6 +290,29 @@ export const AuthModal: React.FC = () => {
                             {isLoading ? 'Processing...' : 'Sign In'}
                         </button>
                     </form>
+
+                    {/* DEV LOGIN SHORTCUT */}
+                    <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200/60 rounded-xl text-xs text-yellow-800 shadow-sm">
+                        <div className="flex items-center gap-2 mb-2">
+                            <span className="text-lg">🚧</span>
+                            <span className="font-bold">개발/테스트용 계정 안내</span>
+                        </div>
+                        <p className="mb-3 opacity-90 leading-relaxed">
+                            구글 로그인을 설정하기 어려운 개발 환경(AI Studio 등)에서는 아래 마스터 계정을 사용하세요.
+                        </p>
+                        <div className="flex items-center justify-between bg-white/60 p-2.5 rounded-lg border border-yellow-200">
+                             <div className="font-mono text-slate-600 flex gap-3">
+                                 <span>ID: <strong className="text-slate-900">sugar</strong></span>
+                                 <span>PW: <strong className="text-slate-900">attack</strong></span>
+                             </div>
+                             <button 
+                                onClick={fillDevAccount}
+                                className="px-2 py-1 bg-yellow-400 hover:bg-yellow-300 text-slate-900 text-[10px] font-bold rounded shadow-sm active:scale-95 transition-all"
+                             >
+                                자동입력
+                             </button>
+                        </div>
+                    </div>
                 </div>
             )}
 
