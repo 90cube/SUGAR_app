@@ -6,7 +6,7 @@ import { ADMIN_EMAILS } from "../constants";
 class AuthService {
   /**
    * Supabase Auth 유저 정보를 바탕으로 프로필 정보를 가져옵니다.
-   * role(admin/user) 정보를 포함하며, DB 500 에러 발생 시 Metadata로 폴백합니다.
+   * DB 조회 실패(400/500) 시에도 ADMIN_EMAILS 목록에 있다면 관리자 권한을 부여합니다.
    */
   async fetchMyProfile(): Promise<AuthUser | null> {
     if (!supabase) return null;
@@ -15,43 +15,45 @@ class AuthService {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError || !user) return null;
 
-      // 관리자 이메일 목록 확인 (최우선순위/폴백용)
-      const isEmailInAdminList = ADMIN_EMAILS.includes(user.email || "");
+      const userEmail = user.email || "";
+      // 이메일 화이트리스트 확인 (DB 상태와 무관하게 권한 부여의 기준이 됨)
+      const isEmailInAdminList = ADMIN_EMAILS.some(email => email.toLowerCase() === userEmail.toLowerCase());
       const meta = user.user_metadata || {};
       
-      // 기본 사용자 객체 구성 (DB 조회 실패 시 사용될 기본값)
-      const defaultUser: AuthUser = {
+      // 1. 기본 사용자 객체 (이메일 기반 권한 설정)
+      const fallbackUser: AuthUser = {
         id: user.id,
         loginId: meta.login_id || '',
-        email: user.email || '',
-        name: meta.nickname || meta.full_name || user.email?.split('@')[0] || 'Unknown',
+        email: userEmail,
+        name: meta.nickname || meta.full_name || userEmail.split('@')[0] || 'Unknown',
         role: isEmailInAdminList ? 'admin' : 'user',
         isEmailVerified: !!user.email_confirmed_at
       };
 
       try {
-        // DB profiles 테이블에서 role 포함 정보 조회
+        // 2. DB profiles 테이블 조회 시도
+        // 여기서 400 에러가 발생하더라도 catch 블록에서 fallbackUser를 반환함
         const { data, error } = await supabase
           .from('profiles')
           .select('login_id, nickname, role')
           .eq('id', user.id)
           .maybeSingle();
 
-        // 500 에러 등 발생 시 세션 정보(이메일 기반 권한)로 즉시 전환
         if (error || !data) {
-          if (error) console.warn("[AuthService] Profile fetch failed (500/RLS), using session fallback.");
-          return defaultUser;
+          // DB 조회 실패 시 이메일 기반의 권한을 가진 객체 반환
+          return fallbackUser;
         }
 
         return {
-          ...defaultUser,
-          loginId: data.login_id || defaultUser.loginId,
-          name: data.nickname || defaultUser.name,
-          // DB에 명시된 role이 있으면 사용, 없으면 이메일 체크 결과 유지
-          role: (data.role as 'admin' | 'user') || defaultUser.role
+          ...fallbackUser,
+          loginId: data.login_id || fallbackUser.loginId,
+          name: data.nickname || fallbackUser.name,
+          // DB에 명시된 role이 있으면 사용하되, 없으면 이메일 체크 결과(fallbackUser.role) 유지
+          role: (data.role as 'admin' | 'user') || fallbackUser.role
         };
       } catch (dbErr) {
-        return defaultUser;
+        // DB 테이블 구조가 다르거나 컬럼이 없어서 발생하는 400/500 에러 대응
+        return fallbackUser;
       }
     } catch (e) {
       return null;

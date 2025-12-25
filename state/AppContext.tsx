@@ -5,7 +5,6 @@ import { nexonService } from '../services/nexonService';
 import { cloudStorageService } from '../services/cloudStorageService';
 import { geminiService } from '../services/geminiService';
 import { authService } from '../services/authService';
-// Fix: Add missing import for communityService
 import { communityService } from '../services/communityService';
 import { supabase } from '../services/supabaseClient';
 
@@ -171,8 +170,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const openAdminGuillotine = () => setIsAdminGuillotineOpen(true);
   const closeAdminGuillotine = () => setIsAdminGuillotineOpen(false);
 
+  // Fix: Do NOT call nexonService.getOuid(nickname) here. 
+  // The 'nickname' param is an internal App nickname, which may not exist in Sudden Attack.
+  // Directly fetching the community profile prevents 400/404 errors in the console.
   const openCommunityUserProfile = async (nickname: string) => {
-      const profile = await nexonService.getOuid(nickname).then(() => communityService.getCommunityUserProfile(nickname));
+      const profile = await communityService.getCommunityUserProfile(nickname);
       setSelectedCommunityUser(profile);
   };
   const closeCommunityUserProfile = () => setSelectedCommunityUser(null);
