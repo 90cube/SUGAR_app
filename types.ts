@@ -23,30 +23,25 @@ export enum MatchResult {
 }
 
 export interface Match {
-  id: string; // match_id
+  id: string; 
   result: MatchResult;
-  matchType: string; // match_type
-  matchMode: string; // match_mode
-  kd: string; // Formatted "K/D" string for display
-  date: string; // Formatted date for display (MM-DD HH:mm)
-  rawDate: string; // Original ISO/KST string for logic (YYYY-MM-DD...)
+  matchType: string;
+  matchMode: string;
+  kd: string;
+  date: string;
+  rawDate: string;
   kill: number;
   death: number;
   assist: number;
 }
 
-// Since the schema for Match Detail was not fully provided, 
-// we will extend Match and allow for additional dynamic fields usually found in detail responses
 export interface MatchDetail extends Match {
-  // Add specific detail fields if known, otherwise we treat it as an extension of the list info
-  // For the purpose of the UI, we will display the core stats in the modal
   RawData?: any; 
 }
 
-// Terminology: Tier is for Ranked Matches (Solo/Party)
 export interface RankMatchState {
-  tierName: string; // e.g., "GOLD I", "UNRANK"
-  tierImage: string; // URL from metadata
+  tierName: string;
+  tierImage: string;
   score: number;
 }
 
@@ -55,43 +50,36 @@ export interface RecentStats {
   kd: number;
   assaultRate: number;
   sniperRate: number;
-  specialRate: number; // Added per schema
+  specialRate: number;
 }
 
-// Authenticated Session User (Google or Admin)
 export interface AuthUser {
   id: string;
-  loginId?: string; // Custom Login ID (e.g. sugar123)
-  name: string; // Nickname
+  loginId?: string;
+  name: string;
   email: string;
-  phone?: string; // New: Phone number
   picture?: string;
   role: 'admin' | 'user';
+  // Added missing fields for authentication and profile management
   isEmailVerified?: boolean;
   isPhoneVerified?: boolean;
+  phone?: string;
 }
 
 export interface UserProfile {
   ouid: string; 
   nickname: string;
-  isAdmin?: boolean; // New Admin Flag
-  
-  // Grade System (EXP based)
+  isAdmin?: boolean;
   overallGrade: string; 
   overallExp: number;
   overallRanking: number;
-  
   seasonGrade: string;
   seasonExp: number;
   seasonRanking: number;
-  
   clan: string | null;
-  
-  // Rank Match System (Tier based)
   soloTier: RankMatchState;
   partyTier: RankMatchState;
-  
-  recentMatches: Match[]; // Acts as 'matchesAll'
+  recentMatches: Match[];
   recentStats: RecentStats | null;
 }
 
@@ -107,14 +95,14 @@ export interface RecapStats {
     rankedWinRate: number;
     rankedKd: number;
   };
-  aiAnalysis?: string; // AI generated text
+  aiAnalysis?: string;
 }
 
 export interface AnomalyReport {
   status: "OK" | "SKIPPED_LOW_IMPACT" | "ERROR";
   label: "Normal" | "Suspicious";
-  suspicion_score: number; // 0..100
-  deviation_level: number; // 0..1
+  suspicion_score: number;
+  deviation_level: number;
   message: string;
   reasons: string[];
   evidence: {
@@ -128,31 +116,24 @@ export interface AnomalyReport {
   };
 }
 
-export interface UserState {
-  isLoggedIn: boolean;
-  profile: UserProfile | null;
-}
-
-// --- Community Types ---
-export type BoardType = 'update' | 'balance' | 'fun' | 'stream' | 'hidden'; // Added 'hidden'
-export type AuthorRole = 'admin' | 'user';
-export type PostStatus = 'APPROVED' | 'PENDING' | 'HIDDEN'; // Added 'HIDDEN'
+// Defined BoardType for community boards
+export type BoardType = 'update' | 'balance' | 'fun' | 'stream' | 'hidden';
 
 export interface CommunityPost {
   id: string;
-  boardType: BoardType;
+  boardType: BoardType; // Updated to use BoardType instead of inline literal union
   title: string;
-  content: string; // Text or HTML/Markdown stub
+  content: string;
   author: string;
-  authorRole: AuthorRole;
-  createdAt: string; // ISO string
-  heads: number; // Headshot (Like)
-  halfshots: number; // Half-shot (Dislike)
+  authorRole: 'admin' | 'user';
+  createdAt: string;
+  heads: number;
+  halfshots: number;
   views: number;
-  thumbnail?: string; // Optional for stream/fun
+  thumbnail?: string;
   commentCount: number;
-  status: PostStatus; 
-  isHidden?: boolean; // Explicit flag for hidden board
+  status: 'APPROVED' | 'PENDING' | 'HIDDEN'; 
+  isHidden?: boolean;
 }
 
 export interface CommunityUserProfile {
@@ -163,7 +144,6 @@ export interface CommunityUserProfile {
   guillotineCount: number;
 }
 
-// --- CMS / Admin Types ---
 export interface PageContent {
     welcomeTitle: string;
     loadingText: string;

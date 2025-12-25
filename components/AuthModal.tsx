@@ -1,115 +1,72 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../state/AppContext';
-import { UI_STRINGS, GOOGLE_CLIENT_ID } from '../constants';
+import { GOOGLE_CLIENT_ID } from '../constants';
 import { authService } from '../services/authService';
 
-type AuthMode = 'LOGIN' | 'SIGNUP';
+type AuthMode = 'LOGIN' | 'SIGNUP' | 'VERIFY_SENT';
 
 export const AuthModal: React.FC = () => {
-  const { isAuthModalOpen, closeAuthModal, login, register, handleGoogleLoginSuccess } = useApp();
+  const { isAuthModalOpen, closeAuthModal, login, handleGoogleLoginSuccess } = useApp();
   
   const [mode, setMode] = useState<AuthMode>('LOGIN');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [errorType, setErrorType] = useState('');
   
   const googleButtonRef = useRef<HTMLDivElement>(null);
 
-  // Login Form State
+  // Form States
   const [loginId, setLoginId] = useState(''); 
   const [loginPw, setLoginPw] = useState('');
-
-  // Signup Form State
+  
   const [signupId, setSignupId] = useState('');
   const [signupEmail, setSignupEmail] = useState('');
-  const [emailCode, setEmailCode] = useState('');
-  const [isEmailSent, setIsEmailSent] = useState(false);
-  const [isEmailVerified, setIsEmailVerified] = useState(false);
-
   const [signupPw, setSignupPw] = useState('');
   const [signupPwConfirm, setSignupPwConfirm] = useState('');
-
-  const [signupPhone, setSignupPhone] = useState('');
-  const [phoneCode, setPhoneCode] = useState('');
-  const [isPhoneSent, setIsPhoneSent] = useState(false);
-  const [isPhoneVerified, setIsPhoneVerified] = useState(false);
-
   const [signupNickname, setSignupNickname] = useState('');
 
-  // Initialize Google Button
   useEffect(() => {
     if (!isAuthModalOpen || mode !== 'LOGIN') return;
-
     const renderGoogleButton = () => {
         if (window.google && googleButtonRef.current) {
-             if (!GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID.includes("YOUR_GOOGLE_CLIENT_ID")) {
-                console.warn("[Google Auth] Client ID가 설정되지 않았습니다.");
-                return;
-             }
-
+             if (!GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID.includes("YOUR_GOOGLE_CLIENT_ID")) return;
              try {
                 window.google.accounts.id.initialize({
                     client_id: GOOGLE_CLIENT_ID,
-                    callback: (response: any) => {
-                        handleGoogleLoginSuccess(response.credential);
-                    },
-                    auto_select: false,
+                    callback: (response: any) => handleGoogleLoginSuccess(response.credential),
                 });
-                
-                window.google.accounts.id.renderButton(
-                    googleButtonRef.current,
-                    { 
-                        theme: "outline", 
-                        size: "large", 
-                        width: 350,
-                        text: "signin_with",
-                        shape: "pill"
-                    }
-                );
-             } catch (e) {
-                console.error("Google Sign-In Error", e);
-             }
+                window.google.accounts.id.renderButton(googleButtonRef.current, { 
+                    theme: "outline", size: "large", width: 350, text: "signin_with", shape: "pill"
+                });
+             } catch (e) { console.error(e); }
         }
     };
-
     renderGoogleButton();
-    const timer = setTimeout(renderGoogleButton, 1000);
-    
-    return () => clearTimeout(timer);
   }, [isAuthModalOpen, mode]);
 
-  // Reset state on open/mode change
-  useEffect(() => {
-    if (!isAuthModalOpen) {
-        setMode('LOGIN');
-        resetForms();
+  // 클라이언트 측 유효성 검사
+  const validateSignup = () => {
+    const idRegex = /^[a-zA-Z0-9_]{4,15}$/; // 영문, 숫자, 언더바만
+    const nickRegex = /^[a-zA-Z0-9가-힣]{2,10}$/; // 한글, 영문, 숫자만
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!idRegex.test(signupId)) {
+        return "아이디는 4~15자의 영문, 숫자, 언더바(_)만 가능합니다.";
     }
-  }, [isAuthModalOpen]);
-
-  useEffect(() => {
-      setError('');
-      resetForms();
-  }, [mode]);
-
-  const resetForms = () => {
-    setLoginId(''); setLoginPw('');
-    setSignupId('');
-    setSignupEmail(''); setEmailCode(''); setIsEmailSent(false); setIsEmailVerified(false);
-    setSignupPw(''); setSignupPwConfirm('');
-    setSignupPhone(''); setPhoneCode(''); setIsPhoneSent(false); setIsPhoneVerified(false);
-    setSignupNickname('');
-    setIsLoading(false);
-  };
-
-  const handleSafeError = (e: any) => {
-      if (e instanceof Error) {
-          setError(e.message);
-      } else if (typeof e === 'string') {
-          setError(e);
-      } else {
-          setError("알 수 없는 오류가 발생했습니다.");
-          console.error("Unknown auth error:", e);
-      }
+    if (signupPw.length < 6) {
+        return "비밀번호는 최소 6자 이상이어야 합니다.";
+    }
+    if (signupPw !== signupPwConfirm) {
+        return "비밀번호 확인이 일치하지 않습니다.";
+    }
+    if (!nickRegex.test(signupNickname)) {
+        return "닉네임은 2~10자의 한글, 영문, 숫자만 가능하며 특수문자는 불가능합니다.";
+    }
+    if (!emailRegex.test(signupEmail)) {
+        return "올바른 이메일 형식을 입력해주세요.";
+    }
+    return null;
   };
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
@@ -119,111 +76,46 @@ export const AuthModal: React.FC = () => {
       try {
           await login(loginId, loginPw);
       } catch (err: any) {
-          handleSafeError(err);
+          setError(err.message || "로그인 실패");
       } finally {
           setIsLoading(false);
       }
   };
 
-  const requestEmailCode = async () => {
-      if (!signupEmail) return;
-      setIsLoading(true);
-      try {
-          await authService.sendEmailVerification(signupEmail);
-          setIsEmailSent(true);
-          setError('');
-          alert(`인증번호가 발송되었습니다. (콘솔 확인: 123456)`);
-      } catch (e: any) {
-          handleSafeError(e);
-      } finally {
-          setIsLoading(false);
-      }
-  };
-
-  const verifyEmail = async () => {
-      if (!emailCode) return;
-      setIsLoading(true);
-      try {
-          const success = await authService.verifyEmailCode(signupEmail, emailCode);
-          if (success) {
-              setIsEmailVerified(true);
-              setError('');
-          } else {
-              setError("인증번호가 올바르지 않습니다.");
-          }
-      } catch (e: any) {
-          handleSafeError(e);
-      } finally {
-          setIsLoading(false);
-      }
-  };
-
-  const requestPhoneCode = async () => {
-      if (!signupPhone) return;
-      setIsLoading(true);
-      try {
-          await authService.sendPhoneVerification(signupPhone);
-          setIsPhoneSent(true);
-          setError('');
-          alert(`인증번호가 발송되었습니다. (콘솔 확인: 123456)`);
-      } catch (e: any) {
-          handleSafeError(e);
-      } finally {
-          setIsLoading(false);
-      }
-  };
-
-  const verifyPhone = async () => {
-      if (!phoneCode) return;
-      setIsLoading(true);
-      try {
-          const success = await authService.verifyPhoneCode(signupPhone, phoneCode);
-          if (success) {
-              setIsPhoneVerified(true);
-              setError('');
-          } else {
-              setError("인증번호가 올바르지 않습니다.");
-          }
-      } catch (e: any) {
-          handleSafeError(e);
-      } finally {
-          setIsLoading(false);
-      }
-  };
-
-  const handleRegisterSubmit = async () => {
-      if (!signupId.trim()) {
-          setError("아이디를 입력해주세요.");
-          return;
-      }
-      if (!isEmailVerified || !isPhoneVerified) {
-          setError("이메일과 휴대전화 인증을 완료해주세요.");
-          return;
-      }
-      if (signupPw !== signupPwConfirm) {
-          setError("비밀번호가 일치하지 않습니다.");
-          return;
-      }
-      if (signupPw.length < 6) {
-          setError("비밀번호는 6자리 이상이어야 합니다.");
-          return;
-      }
-      if (!signupNickname) {
-          setError("닉네임을 입력해주세요.");
+  const handleRegisterSubmit = async (e: React.FormEvent) => {
+      e.preventDefault();
+      
+      const validationError = validateSignup();
+      if (validationError) {
+          setError(validationError);
           return;
       }
 
       setIsLoading(true);
+      setError('');
+      setErrorType('');
+      
       try {
-          await register({
-              loginId: signupId,
-              email: signupEmail,
-              pw: signupPw,
-              nickname: signupNickname,
-              phone: signupPhone
+          const result = await authService.register({ 
+              loginId: signupId, 
+              email: signupEmail, 
+              pw: signupPw, 
+              nickname: signupNickname, 
+              phone: ''
           });
+          
+          if (result.needsEmailConfirm) {
+              setMode('VERIFY_SENT');
+          } else {
+              window.location.reload();
+          }
       } catch (e: any) {
-          handleSafeError(e);
+          if (e.message === "SUPABASE_EMAIL_LIMIT_REACHED") {
+              setErrorType('EMAIL_LIMIT');
+              setError("이메일 발송 제한(시간당 3건)에 도달했습니다. 잠시 후 다시 시도하거나 관리자에게 문의하세요.");
+          } else {
+              setError(e.message || "가입 중 오류가 발생했습니다.");
+          }
       } finally {
           setIsLoading(false);
       }
@@ -233,156 +125,85 @@ export const AuthModal: React.FC = () => {
 
   return (
     <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in duration-300">
-      <div className="w-full max-w-md bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] border border-white/50">
+      <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col border border-white/50">
         
-        {/* Toggle Header */}
-        <div className="flex border-b border-slate-100">
-            <button 
-                onClick={() => setMode('LOGIN')}
-                className={`flex-1 py-4 text-sm font-bold transition-colors ${mode === 'LOGIN' ? 'bg-white text-slate-900 border-b-2 border-slate-900' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
-            >
-                로그인 (Login)
-            </button>
-            <button 
-                onClick={() => setMode('SIGNUP')}
-                className={`flex-1 py-4 text-sm font-bold transition-colors ${mode === 'SIGNUP' ? 'bg-white text-slate-900 border-b-2 border-slate-900' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
-            >
-                회원가입 (Sign Up)
-            </button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-8">
-            <div className="text-center mb-6">
-                <h2 className="text-2xl font-black text-slate-900 tracking-tight">
-                    {mode === 'LOGIN' ? UI_STRINGS.loginTitle : '계정 생성 (Sign Up)'}
-                </h2>
-                <p className="text-sm text-slate-500 mt-1">
-                    {mode === 'LOGIN' ? 'Access advanced features & community' : 'SUGAR 커뮤니티에 오신 것을 환영합니다.'}
-                </p>
+        {mode !== 'VERIFY_SENT' && (
+            <div className="flex border-b border-slate-100">
+                <button onClick={() => {setMode('LOGIN'); setError('');}} className={`flex-1 py-4 text-xs font-bold transition-all ${mode === 'LOGIN' ? 'text-slate-900 border-b-2 border-slate-900 bg-white' : 'bg-slate-50 text-slate-400'}`}>로그인</button>
+                <button onClick={() => {setMode('SIGNUP'); setError('');}} className={`flex-1 py-4 text-xs font-bold transition-all ${mode === 'SIGNUP' ? 'text-slate-900 border-b-2 border-slate-900 bg-white' : 'bg-slate-50 text-slate-400'}`}>회원가입</button>
             </div>
-            
-            {/* LOGIN FORM */}
+        )}
+
+        <div className="p-8">
             {mode === 'LOGIN' && (
-                <div className="space-y-5 animate-in slide-in-from-right duration-300">
-                    
-                    {/* Google Login Button */}
-                    <div className="w-full flex justify-center min-h-[40px]" ref={googleButtonRef}></div>
-
-                    <div className="flex items-center gap-2">
-                        <div className="h-px bg-slate-200 flex-1"></div>
-                        <span className="text-[10px] text-slate-400 font-bold uppercase">Or use account ID</span>
-                        <div className="h-px bg-slate-200 flex-1"></div>
-                    </div>
-
+                <div className="space-y-6 animate-in slide-in-from-right duration-300">
+                    <div className="w-full flex justify-center" ref={googleButtonRef}></div>
+                    <div className="flex items-center gap-3"><div className="h-px bg-slate-100 flex-1"></div><span className="text-[10px] text-slate-300 font-bold">OR</span><div className="h-px bg-slate-100 flex-1"></div></div>
                     <form onSubmit={handleLoginSubmit} className="space-y-3">
-                        <input 
-                            type="text" 
-                            value={loginId}
-                            onChange={(e) => setLoginId(e.target.value)}
-                            placeholder="아이디 (ID) 또는 이메일"
-                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/10 placeholder:text-slate-400"
-                        />
-                        <input 
-                            type="password" 
-                            value={loginPw}
-                            onChange={(e) => setLoginPw(e.target.value)}
-                            placeholder="비밀번호 (Password)"
-                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/10 placeholder:text-slate-400"
-                        />
-                        
-                        {error && <p className="text-red-500 text-xs font-bold text-center animate-pulse">{error}</p>}
-                        
-                        <button 
-                            type="submit"
-                            disabled={isLoading}
-                            className="w-full py-3.5 bg-slate-900 text-white font-bold rounded-xl shadow-lg active:scale-95 transition-all hover:bg-slate-800 disabled:opacity-50"
-                        >
-                            {isLoading ? '로그인 중...' : '로그인 (Sign In)'}
+                        <input type="text" value={loginId} onChange={(e) => setLoginId(e.target.value)} placeholder="아이디" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-slate-200" />
+                        <input type="password" value={loginPw} onChange={(e) => setLoginPw(e.target.value)} placeholder="비밀번호" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-slate-200" />
+                        {error && <p className="text-red-500 text-[11px] font-bold text-center animate-pulse">{error}</p>}
+                        <button type="submit" disabled={isLoading} className="w-full py-4 bg-slate-900 text-white font-bold rounded-2xl shadow-xl active:scale-95 transition-all">
+                            {isLoading ? '로그인 중...' : '로그인'}
                         </button>
                     </form>
                 </div>
             )}
 
-            {/* SIGNUP FORM */}
             {mode === 'SIGNUP' && (
-                <div className="space-y-4 animate-in slide-in-from-left duration-300">
-                    <div className="space-y-1">
-                        <label className="text-xs font-bold text-slate-500 uppercase">1. 아이디 (ID)</label>
-                        <input 
-                            type="text" 
-                            value={signupId}
-                            onChange={(e) => setSignupId(e.target.value)}
-                            placeholder="사용할 아이디를 입력하세요"
-                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-slate-900/10"
-                        />
-                    </div>
-                    <div className="space-y-1">
-                        <label className="text-xs font-bold text-slate-500 uppercase">2. 비밀번호 (Password)</label>
-                        <input 
-                            type="password" 
-                            value={signupPw}
-                            onChange={(e) => setSignupPw(e.target.value)}
-                            placeholder="비밀번호 (6자 이상)"
-                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-slate-900/10"
-                        />
-                        <input 
-                            type="password" 
-                            value={signupPwConfirm}
-                            onChange={(e) => setSignupPwConfirm(e.target.value)}
-                            placeholder="비밀번호 확인"
-                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-slate-900/10 mt-2"
-                        />
-                    </div>
-                    <div className="space-y-1">
-                         <label className="text-xs font-bold text-slate-500 uppercase">3. 닉네임 (Nickname)</label>
-                         <input 
-                            type="text" 
-                            value={signupNickname} 
-                            onChange={(e) => setSignupNickname(e.target.value)} 
-                            placeholder="커뮤니티 활동명" 
-                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-slate-900/10"
-                        />
-                    </div>
-                    <div className="border-t border-slate-100 my-2"></div>
-                    <div className="space-y-1">
-                        <label className="text-xs font-bold text-slate-500 uppercase">4. 이메일 인증</label>
-                        <div className="flex gap-2">
-                            <input 
-                                type="email" 
-                                value={signupEmail} 
-                                onChange={(e) => setSignupEmail(e.target.value)} 
-                                placeholder="example@email.com" 
-                                disabled={isEmailVerified}
-                                className={`flex-1 p-3 bg-slate-50 border rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-slate-900/10 ${isEmailVerified ? 'border-green-400 text-green-700 bg-green-50' : 'border-slate-200'}`}
-                            />
-                            <button 
-                                type="button" 
-                                onClick={requestEmailCode}
-                                disabled={isEmailVerified || isLoading || !signupEmail}
-                                className="px-3 bg-slate-900 text-white text-xs font-bold rounded-xl disabled:opacity-50 whitespace-nowrap"
-                            >
-                                {isEmailVerified ? '완료' : '인증요청'}
-                            </button>
+                <div className="space-y-3 animate-in slide-in-from-left duration-300">
+                    <div className="space-y-2.5">
+                        <input type="text" value={signupId} onChange={(e) => setSignupId(e.target.value)} placeholder="아이디 (영문/숫자, 4자 이상)" className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-blue-100" />
+                        
+                        <div className="grid grid-cols-2 gap-2">
+                            <input type="password" value={signupPw} onChange={(e) => setSignupPw(e.target.value)} placeholder="비밀번호" className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-blue-100" />
+                            <input type="password" value={signupPwConfirm} onChange={(e) => setSignupPwConfirm(e.target.value)} placeholder="비밀번호 확인" className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-blue-100" />
                         </div>
+
+                        <input type="text" value={signupNickname} onChange={(e) => setSignupNickname(e.target.value)} placeholder="닉네임 (한글/영문/숫자, 2자 이상)" className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-blue-100" />
+                        <input type="email" value={signupEmail} onChange={(e) => setSignupEmail(e.target.value)} placeholder="이메일 (인증용)" className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-blue-100" />
                     </div>
-                    {error && <p className="text-red-500 text-xs font-bold text-center animate-pulse mt-2">{error}</p>}
-                    <button 
-                        onClick={handleRegisterSubmit}
-                        disabled={isLoading || !signupId}
-                        className="w-full py-3.5 bg-yellow-400 text-slate-900 font-bold rounded-xl shadow-[0_0_15px_rgba(250,204,21,0.4)] active:scale-95 transition-all hover:bg-yellow-300 disabled:opacity-50 disabled:shadow-none mt-4"
-                    >
-                        {isLoading ? 'Creating Account...' : '가입하기 (Join)'}
+                    
+                    {error && (
+                        <div className="bg-red-50 p-4 rounded-xl border border-red-100 space-y-2">
+                             <p className="text-red-600 text-[11px] font-bold text-center">{error}</p>
+                             {errorType === 'EMAIL_LIMIT' && (
+                                 <div className="text-[10px] text-red-500/80 space-y-1 mt-1 border-t border-red-200 pt-2">
+                                     <p className="font-bold">⚠️ 개발자 참고 (SMTP 이슈):</p>
+                                     <p>Supabase 대시보드 -> Authentication -> Providers -> Email에서 <span className="underline">Confirm Email</span> 설정을 확인하거나 SMTP 서버를 직접 연결하세요.</p>
+                                 </div>
+                             )}
+                        </div>
+                    )}
+
+                    <button onClick={handleRegisterSubmit} disabled={isLoading} className="w-full py-4 bg-blue-600 text-white font-bold rounded-2xl shadow-lg active:scale-95 transition-all">
+                        {isLoading ? '요청 중...' : '회원가입 및 인증 메일 발송'}
                     </button>
+                </div>
+            )}
+
+            {mode === 'VERIFY_SENT' && (
+                <div className="text-center space-y-6 py-4 animate-in zoom-in-95 duration-300">
+                    <div className="relative">
+                        <div className="w-24 h-24 bg-blue-50 text-blue-500 rounded-full mx-auto flex items-center justify-center text-4xl shadow-inner">📧</div>
+                        <div className="absolute -bottom-1 -right-1 bg-green-500 w-8 h-8 rounded-full border-4 border-white flex items-center justify-center text-white text-xs">✓</div>
+                    </div>
+                    <div>
+                        <h3 className="text-xl font-black text-slate-800">이메일을 확인해주세요!</h3>
+                        <p className="text-sm text-slate-500 mt-2 leading-relaxed">
+                            <span className="font-bold text-blue-600">{signupEmail}</span>(으)로<br/>인증 링크를 발송했습니다.
+                        </p>
+                    </div>
+                    <div className="bg-slate-50 p-4 rounded-2xl text-xs text-slate-500 text-left space-y-2 border border-slate-100">
+                        <p>• 인증 링크를 클릭한 후 아래 로그인 버튼을 눌러주세요.</p>
+                        <p>• 메일이 오지 않았다면 스팸함도 확인해보세요.</p>
+                    </div>
+                    <button onClick={() => setMode('LOGIN')} className="w-full py-4 bg-slate-900 text-white font-bold rounded-2xl shadow-xl hover:bg-slate-800 transition-all">인증 완료 후 로그인</button>
                 </div>
             )}
         </div>
 
-        <button 
-          onClick={closeAuthModal}
-          className="p-4 w-full text-center text-sm font-bold text-slate-400 hover:text-slate-800 transition-colors border-t border-slate-100 bg-white"
-        >
-          닫기 (Close)
-        </button>
+        <button onClick={closeAuthModal} className="p-4 w-full text-center text-xs font-bold text-slate-400 hover:text-slate-800 border-t border-slate-100 bg-white">닫기</button>
       </div>
     </div>
   );

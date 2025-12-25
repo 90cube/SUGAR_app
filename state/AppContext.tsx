@@ -157,10 +157,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
      // 2. Auth Session
      authService.getSession().then((user) => {
          if (user) {
-             console.log("[AppContext] Restored session for", user.name);
+             console.log("[AppContext] 세션 복원됨:", user.email);
              setAuthUser(user);
              setIsLoggedIn(true);
              setIsAdminUser(user.role === 'admin');
+         } else {
+             console.log("[AppContext] 활성 세션 없음");
          }
      });
   }, []);
@@ -170,6 +172,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const handleGoogleLoginSuccess = (credential: string) => {
     try {
       const decoded: any = jwtDecode(credential);
+      console.log("[AppContext] 구글 로그인 성공:", decoded.email);
       const user: AuthUser = {
         id: decoded.sub,
         name: decoded.name,
@@ -182,44 +185,57 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setIsLoggedIn(true);
       setIsAuthModalOpen(false);
     } catch (e) {
-      console.error("Failed to decode Google Credential", e);
-      alert("Failed to verify Google Login.");
+      console.error("[AppContext] 구글 토큰 디코드 실패", e);
+      alert("구글 로그인 확인에 실패했습니다.");
     }
   };
 
   const login = async (id: string, pw: string) => {
       try {
           const user = await authService.login(id, pw);
+          console.log("[AppContext] 로그인 완료:", user.email);
           setAuthUser(user);
           setIsLoggedIn(true);
           setIsAdminUser(user.role === 'admin');
           setIsAuthModalOpen(false);
           return true;
       } catch (e: any) {
+          console.error("[AppContext] 로그인 에러 발생:", e.message);
           throw e; // Pass error to UI
       }
   };
 
   const register = async (data: { loginId: string; email: string; pw: string; nickname: string; phone: string }) => {
       try {
-          const user = await authService.register(data);
-          setAuthUser(user);
-          setIsLoggedIn(true);
-          setIsAdminUser(false);
+          const result = await authService.register(data);
+          if (result.needsEmailConfirm) {
+              console.log("[AppContext] 가입 요청 성공. 이메일 인증 대기 중.");
+              // AuthModal에서 VERIFY_SENT 모드로 전환될 수 있도록 false 반환
+              return false;
+          }
+          // 인증이 필요 없는 경우 즉시 로그인 처리 (실제로는 Supabase 설정에 따라 다름)
+          const user = await authService.getSession();
+          if (user) {
+              setAuthUser(user);
+              setIsLoggedIn(true);
+              setIsAdminUser(user.role === 'admin');
+          }
           setIsAuthModalOpen(false);
           return true;
       } catch (e: any) {
+          console.error("[AppContext] 가입 에러 발생:", e.message);
           throw e;
       }
   };
 
   const logout = async () => {
     try {
+        console.log("[AppContext] 로그아웃 시도...");
         await authService.logout();
     } catch (e) {
-        console.warn("Auth logout network error:", e);
+        console.warn("[AppContext] 로그아웃 중 네트워크 오류:", e);
     } finally {
-        // FORCE cleanup regardless of network status
+        console.log("[AppContext] 클라이언트 세션 초기화 완료");
         setIsLoggedIn(false);
         setIsAdminUser(false);
         setAuthUser(null);

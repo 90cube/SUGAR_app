@@ -3,53 +3,18 @@ import { AuthUser } from "../types";
 import { supabase } from "./supabaseClient";
 import { ADMIN_EMAILS } from "../constants";
 
-// --- Mock Data (Fallback) ---
-const USERS_DB: AuthUser[] = [];
-
 class AuthService {
   
-  private delay(ms: number) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-  }
-
-  // --- Verification Flow (Simulation for UI) ---
-  async sendEmailVerification(email: string): Promise<string> {
-    await this.delay(800);
-    const code = "123456";
-    console.log(`[AuthService] Email Verification Code for ${email}: ${code}`);
-    return code; 
-  }
-
-  async verifyEmailCode(email: string, code: string): Promise<boolean> {
-    await this.delay(500);
-    return code === "123456"; 
-  }
-
-  async sendPhoneVerification(phone: string): Promise<string> {
-    await this.delay(800);
-    const code = "123456";
-    console.log(`[AuthService] Phone Verification Code for ${phone}: ${code}`);
-    return code;
-  }
-
-  async verifyPhoneCode(phone: string, code: string): Promise<boolean> {
-    await this.delay(500);
-    return code === "123456";
-  }
-
-  // --- Auth Flow ---
-
   private isAdminEmail(email: string): boolean {
       return ADMIN_EMAILS.includes(email);
   }
 
   async login(idOrEmail: string, pw: string): Promise<AuthUser> {
+    console.log(`[AuthService] 로그인 시도: ${idOrEmail}`);
     
-    // Real DB Login (Supabase)
     if (supabase) {
         let emailToUse = idOrEmail;
 
-        // A. If input looks like an ID (not email), lookup
         if (!idOrEmail.includes('@')) {
             const { data: profileData, error: profileError } = await supabase
                 .from('profiles')
@@ -58,36 +23,35 @@ class AuthService {
                 .single();
             
             if (profileError || !profileData) {
+                console.error(`[AuthService] 프로필 조회 실패:`, profileError);
                 throw new Error("존재하지 않는 아이디입니다.");
             }
             emailToUse = profileData.email;
         }
 
-        // B. Authenticate
         const { data, error } = await supabase.auth.signInWithPassword({
             email: emailToUse,
             password: pw,
         });
 
         if (error) {
+            console.error(`[AuthService] Supabase 로그인 에러:`, error.message);
+            if (error.message.includes("Email not confirmed")) {
+                throw new Error("이메일 인증이 완료되지 않았습니다. 메일함을 확인해주세요.");
+            }
             if (error.message.includes("Invalid login credentials")) {
-                throw new Error("비밀번호가 일치하지 않습니다.");
+                throw new Error("아이디 또는 비밀번호가 일치하지 않습니다.");
             }
             throw new Error(error.message);
         }
 
         if (data.user) {
-            let profile = null;
-            try {
-                const { data: p } = await supabase
-                    .from('profiles')
-                    .select('*')
-                    .eq('id', data.user.id)
-                    .single();
-                profile = p;
-            } catch (e) {}
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', data.user.id)
+                .single();
 
-            // Determine Role: DB Role OR Hardcoded Constant
             const isHardcodedAdmin = this.isAdminEmail(data.user.email || '');
             const finalRole = (profile?.role === 'admin' || isHardcodedAdmin) ? 'admin' : 'user';
 
@@ -95,25 +59,20 @@ class AuthService {
                 id: data.user.id,
                 loginId: profile?.login_id || 'N/A',
                 email: data.user.email || emailToUse,
-                name: profile?.nickname || data.user.user_metadata?.nickname || 'Unknown',
+                name: profile?.nickname || 'Unknown',
                 role: finalRole,
-                isEmailVerified: true,
-                isPhoneVerified: true
+                isEmailVerified: !!data.user.email_confirmed_at
             };
         }
     }
-
-    // Fallback to Mock DB
-    const user = USERS_DB.find(u => u.email === idOrEmail || u.loginId === idOrEmail);
-    if (user && pw.length >= 6) return user;
-
-    throw new Error("로그인에 실패했습니다.");
+    throw new Error("서버 연결 실패");
   }
 
-  async register(data: { loginId: string; email: string; pw: string; nickname: string; phone: string }): Promise<AuthUser> {
+  async register(data: { loginId: string; email: string; pw: string; nickname: string; phone: string }): Promise<{needsEmailConfirm: boolean}> {
+    console.log(`[AuthService] 회원가입 프로세스 시작: ${data.email}`);
     
-    // 1. Real DB Register
     if (supabase) {
+        // 1. 아이디 중복 체크 (DB)
         const { data: existingId } = await supabase
             .from('profiles')
             .select('login_id')
@@ -124,94 +83,69 @@ class AuthService {
             throw new Error("이미 사용 중인 아이디입니다.");
         }
 
+        // 2. Auth 회원가입 시도
         const { data: authData, error: authError } = await supabase.auth.signUp({
             email: data.email,
             password: data.pw,
             options: {
                 data: { 
                     login_id: data.loginId,
-                    nickname: data.nickname,
-                    phone: data.phone
-                } 
+                    nickname: data.nickname
+                },
+                emailRedirectTo: window.location.origin 
             }
         });
 
         if (authError) {
-            if (authError.message.includes("already registered")) {
-                throw new Error("이미 가입된 이메일입니다.");
+            console.error(`[AuthService] SignUp 에러:`, authError.message);
+            
+            // 이메일 발송 제한 또는 설정 오류 핸들링
+            if (authError.message.includes("Error sending confirmation email")) {
+                throw new Error("SUPABASE_EMAIL_LIMIT_REACHED");
             }
             throw new Error(authError.message);
         }
 
-        if (!authData.user) throw new Error("회원가입 실패 (응답 없음)");
-
-        if (authData.user && !authData.session) {
-            throw new Error("인증 메일이 발송되었습니다. 이메일 확인 후 로그인해주세요.");
-        }
-
-        if (authData.session) {
+        // 3. 프로필 정보 DB 저장
+        if (authData.user) {
             const role = this.isAdminEmail(data.email) ? 'admin' : 'user';
+            const { error: insertError } = await supabase.from('profiles').insert({
+                id: authData.user.id,
+                login_id: data.loginId,
+                email: data.email,
+                nickname: data.nickname,
+                role: role 
+            });
 
-            await supabase
-                .from('profiles')
-                .insert({
-                    id: authData.user.id,
-                    login_id: data.loginId,
-                    email: data.email,
-                    nickname: data.nickname,
-                    phone: data.phone,
-                    role: role 
-                });
+            if (insertError) {
+                console.error(`[AuthService] 프로필 DB 저장 실패:`, insertError.message);
+            }
         }
 
-        return {
-            id: authData.user.id,
-            loginId: data.loginId,
-            email: authData.user.email || data.email,
-            name: data.nickname,
-            phone: data.phone,
-            role: this.isAdminEmail(data.email) ? 'admin' : 'user',
-            isEmailVerified: true,
-            isPhoneVerified: true
-        };
+        // 세션이 없으면 이메일 인증이 필요한 상태
+        return { needsEmailConfirm: !authData.session };
     }
-
-    const newUser: AuthUser = {
-        id: `user_${Date.now()}`,
-        loginId: data.loginId,
-        email: data.email,
-        name: data.nickname,
-        role: 'user',
-        isEmailVerified: true
-    };
-    USERS_DB.push(newUser);
-    return newUser;
+    throw new Error("서비스 연결 실패");
   }
 
   async getSession(): Promise<AuthUser | null> {
       if (supabase) {
           const { data } = await supabase.auth.getSession();
           if (data.session?.user) {
-             let profile = null;
-             try {
-                const { data: p } = await supabase
-                    .from('profiles')
-                    .select('*')
-                    .eq('id', data.session.user.id)
-                    .single();
-                profile = p;
-             } catch {}
+             const { data: profile } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', data.session.user.id)
+                .single();
 
              const isHardcodedAdmin = this.isAdminEmail(data.session.user.email || '');
-             const finalRole = (profile?.role === 'admin' || isHardcodedAdmin) ? 'admin' : 'user';
-
              return {
                 id: data.session.user.id,
                 loginId: profile?.login_id || 'Unknown',
                 email: data.session.user.email!,
-                name: profile?.nickname || data.session.user.user_metadata.nickname || 'Unknown',
-                role: finalRole,
-                isEmailVerified: true
+                name: profile?.nickname || 'Unknown',
+                role: (profile?.role === 'admin' || isHardcodedAdmin) ? 'admin' : 'user',
+                isEmailVerified: !!data.session.user.email_confirmed_at
              };
           }
       }
@@ -219,9 +153,7 @@ class AuthService {
   }
 
   async logout(): Promise<void> {
-      if (supabase) {
-          await supabase.auth.signOut();
-      }
+      if (supabase) await supabase.auth.signOut();
   }
 }
 
