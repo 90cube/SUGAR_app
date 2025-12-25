@@ -4,10 +4,6 @@ import { supabase } from './supabaseClient';
 
 class CommunityService {
   
-  /**
-   * 게시글 목록을 가져옵니다. 
-   * boardType이 'TEMP'일 경우 관리자는 전체, 일반 사용자는 본인 글만 조회합니다.
-   */
   async getPosts(boardType?: BoardType, currentUserId?: string): Promise<CommunityPost[]> {
     if (!supabase) return [];
     try {
@@ -19,7 +15,6 @@ class CommunityService {
 
       if (boardType === 'TEMP') {
         query = query.eq('board_type', 'TEMP');
-        // 관리자가 아니면 본인 글만 필터링 (보안 강화)
         if (currentUserId && !await this.checkIsAdmin(currentUserId)) {
           query = query.eq('author_id', currentUserId);
         }
@@ -49,74 +44,89 @@ class CommunityService {
     return {
       id: row.id,
       boardType: row.board_type as BoardType,
-      title: row.title,
-      content: row.content,
+      title: row.title || (row.board_type === 'balance' ? `${row.blue_option} vs ${row.red_option}` : 'Untitled'),
+      content: row.content || row.extra_content || '',
       author: row.author_nickname || 'Unknown',
       authorRole: 'user', 
       createdAt: row.created_at,
       heads: votes.filter((v: any) => v.vote_type === 'HEAD').length,
       halfshots: votes.filter((v: any) => v.vote_type === 'HALF').length,
-      blueVotes: votes.filter((v: any) => v.vote_type === 'BLUE').length,
-      redVotes: votes.filter((v: any) => v.vote_type === 'RED').length,
+      blueVotes: row.blue_votes || 0,
+      redVotes: row.red_votes || 0,
       views: row.views || 0,
       commentCount: comments.length,
       status: row.status,
       thumbnail: row.thumbnail,
-      isHidden: row.status === 'HIDDEN'
+      isHidden: row.status === 'HIDDEN',
+      blueOption: row.blue_option,
+      redOption: row.red_option
     };
-  }
-
-  /**
-   * 게시글을 임시 보관함으로 이동 (board_type을 'TEMP'로 변경)
-   */
-  async movePostToTemp(postId: string) {
-    if (!supabase) return false;
-    try {
-      const { error } = await supabase
-        .from('posts')
-        .update({ board_type: 'TEMP' })
-        .eq('id', postId);
-      return !error;
-    } catch {
-      return false;
-    }
-  }
-
-  /**
-   * 게시글 삭제 (Soft Delete)
-   */
-  async deletePost(postId: string) {
-    if (!supabase) return false;
-    try {
-      const { error } = await supabase
-        .from('posts')
-        .update({ status: 'DELETED' })
-        .eq('id', postId);
-      return !error;
-    } catch {
-      return false;
-    }
-  }
-
-  async getPostsByAuthor(nickname: string): Promise<CommunityPost[]> {
-    if (!supabase) return [];
-    try {
-      const { data, error } = await supabase
-        .from('posts')
-        .select(`*, votes (vote_type), comments (id)`)
-        .eq('author_nickname', nickname)
-        .neq('status', 'DELETED');
-      if (error) return [];
-      return (data || []).map((row: any) => this.mapRowToPost(row));
-    } catch { return []; }
   }
 
   async createPost(post: any) {
     if (!supabase) return false;
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return false;
-    const { error } = await supabase.from('posts').insert({
-      ...post, author_id: user.id, author_nickname: post.author, status: 'APPROVED'
+
+    const payload: any = {
+      author_id: user.id,
+      author_nickname: post.author,
+      board_type: post.boardType,
+      status: 'APPROVED',
+      thumbnail: post.thumbnail
+    };
+
+    if (post.boardType === 'balance') {
+      payload.blue_option = post.blueOption;
+      payload.red_option = post.redOption;
+      payload.extra_content = post.content;
+      payload.title = `${post.blueOption} vs ${post.redOption}`;
+    } else {
+      payload.title = post.title;
+      payload.content = post.content;
+    }
+
+    const { error } = await supabase.from('posts').insert(payload);
+    return !error;
+  }
+
+  async votePost(postId: string, voteType: 'HEAD' | 'HALF') {
+    if (!supabase) return false;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return false;
+
+    // Check existing vote
+    const { data: existing } = await supabase
+      .from('votes')
+      .select('id')
+      .eq('post_id', postId)
+      .eq('author_id', user.id)
+      .maybeSingle();
+
+    if (existing) return false;
+
+    const { error } = await supabase.from('votes').insert({
+      post_id: postId,
+      author_id: user.id,
+      vote_type: voteType
+    });
+    return !error;
+  }
+
+  async addComment(postId: string, content: string, teamType: 'BLUE' | 'RED' | 'GRAY' = 'GRAY') {
+    if (!supabase) return false;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return false;
+
+    const { data: profile } = await supabase.from('profiles').select('nickname').eq('id', user.id).maybeSingle();
+    const nickname = profile?.nickname || user.email?.split('@')[0] || 'Unknown';
+
+    const { error } = await supabase.from('comments').insert({
+      post_id: postId,
+      author_id: user.id,
+      author_nickname: nickname,
+      content: content,
+      team_type: teamType
     });
     return !error;
   }
@@ -124,12 +134,40 @@ class CommunityService {
   async getComments(postId: string): Promise<CommunityComment[]> {
     if (!supabase) return [];
     try {
-      const { data } = await supabase.from('comments').select('*').eq('post_id', postId).order('created_at', { ascending: true });
+      const { data } = await supabase
+        .from('comments')
+        .select('*')
+        .eq('post_id', postId)
+        .order('created_at', { ascending: true });
       return (data || []).map((c: any) => ({
-        id: c.id, postId: c.post_id, authorId: c.author_id, authorNickname: c.author_nickname,
-        content: c.content, createdAt: c.created_at, teamType: (c.team_type as any) || 'GRAY'
+        id: c.id, 
+        postId: c.post_id, 
+        authorId: c.author_id, 
+        authorNickname: c.author_nickname,
+        content: c.content, 
+        createdAt: c.created_at, 
+        teamType: (c.team_type as any) || 'GRAY'
       }));
     } catch { return []; }
+  }
+
+  async movePostToTemp(postId: string) {
+    if (!supabase) return false;
+    const { error } = await supabase.from('posts').update({ board_type: 'TEMP' }).eq('id', postId);
+    return !error;
+  }
+
+  async deletePost(postId: string) {
+    if (!supabase) return false;
+    const { error } = await supabase.from('posts').update({ status: 'DELETED' }).eq('id', postId);
+    return !error;
+  }
+
+  async getPostsByAuthor(nickname: string): Promise<CommunityPost[]> {
+    if (!supabase) return [];
+    const { data, error } = await supabase.from('posts').select(`*, votes (vote_type), comments (id)`).eq('author_nickname', nickname).neq('status', 'DELETED');
+    if (error) return [];
+    return (data || []).map((row: any) => this.mapRowToPost(row));
   }
 
   async getCommunityUserProfile(nickname: string): Promise<CommunityUserProfile> {

@@ -125,13 +125,16 @@ export interface CommunityPost {
   createdAt: string;
   heads: number; // 추천 (헤드샷)
   halfshots: number; // 비추천 (반샷)
-  blueVotes: number; // 밸런스 투표 BLUE
-  redVotes: number; // 밸런스 투표 RED
+  blueVotes: number; // 밸런스 투표 BLUE (예비용)
+  redVotes: number; // 밸런스 투표 RED (예비용)
   views: number;
   thumbnail?: string;
   commentCount: number;
   status: 'APPROVED' | 'PENDING' | 'HIDDEN' | 'DELETED'; 
   isHidden?: boolean;
+  // Balance specific
+  blueOption?: string;
+  redOption?: string;
 }
 
 export interface CommunityComment {
