@@ -19,7 +19,8 @@ class CommunityService {
     try {
       let query = supabase
         .from('posts')
-        .select(`*, votes ( vote_type ), comments ( id )`)
+        .select('*, votes(vote_type), comments(id)')
+        .neq('status', 'DELETED') // 삭제된 글은 제외
         .order('created_at', { ascending: false });
 
       if (boardType && boardType !== 'hidden') {
@@ -28,8 +29,7 @@ class CommunityService {
 
       const { data, error } = await query;
       if (error) throw error;
-      
-      return data.map((row: any) => this.mapRowToPost(row));
+      return (data || []).map((row: any) => this.mapRowToPost(row));
     } catch (e) {
       console.error("[CommunityService] getPosts error", e);
       return [];
@@ -47,7 +47,7 @@ class CommunityService {
       
       if (error) throw error;
       
-      return data.map((c: any) => ({
+      return (data || []).map((c: any) => ({
         id: c.id,
         postId: c.post_id,
         authorId: c.author_id,
@@ -108,7 +108,7 @@ class CommunityService {
         .maybeSingle();
 
       if (existing) {
-        return { blue: 0, red: 0, userVote: existing.vote_type as any, error: "투표는 번복할 수 없습니다." };
+        return { blue: 0, red: 0, userVote: existing.vote_type as 'BLUE' | 'RED', error: "투표는 번복할 수 없습니다." };
       }
 
       await supabase.from('votes').insert({
@@ -166,7 +166,7 @@ class CommunityService {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
     const { data } = await supabase.from('votes').select('vote_type').eq('post_id', postId).eq('user_id', user.id).in('vote_type', ['BLUE', 'RED']).maybeSingle();
-    return data ? data.vote_type as any : null;
+    return data ? (data.vote_type as 'BLUE' | 'RED') : null;
   }
 
   async createPost(post: { title: string; content: string; author: string; boardType: BoardType; thumbnail?: string }): Promise<boolean> {
@@ -189,16 +189,37 @@ class CommunityService {
     }
   }
 
-  async updatePostStatus(postId: string, status: 'APPROVED' | 'PENDING' | 'HIDDEN'): Promise<boolean> {
+  async updatePostStatus(postId: string, status: 'APPROVED' | 'PENDING' | 'HIDDEN' | 'DELETED'): Promise<boolean> {
     if (!supabase) return false;
     const { error } = await supabase.from('posts').update({ status }).eq('id', postId);
     return !error;
   }
 
+  async movePostToTemp(postId: string): Promise<boolean> {
+    if (!supabase) return false;
+    try {
+        const { error } = await supabase
+            .from('posts')
+            .update({ board_type: 'TEMP' })
+            .eq('id', postId);
+        return !error;
+    } catch (e) {
+        console.error("[CommunityService] movePostToTemp error", e);
+        return false;
+    }
+  }
+
   async deletePost(postId: string): Promise<boolean> {
     if (!supabase) return false;
-    const { error } = await supabase.from('posts').delete().eq('id', postId);
-    return !error;
+    try {
+      // 실제 데이터 보존이 필요하다면 update status = 'DELETED'
+      // 여기서는 하드 딜리트를 수행합니다.
+      const { error } = await supabase.from('posts').delete().eq('id', postId);
+      return !error;
+    } catch (e) {
+      console.error("[CommunityService] deletePost error", e);
+      return false;
+    }
   }
 
   async getCommunityUserProfile(nickname: string): Promise<CommunityUserProfile> {
@@ -262,12 +283,12 @@ class CommunityService {
     try {
       const { data, error } = await supabase
         .from('posts')
-        .select(`*, votes(vote_type), comments(id)`);
+        .select('*, votes(vote_type), comments(id)');
       if (error) throw error;
       const mapped = (data || []).map((row: any) => this.mapRowToPost(row));
       return mapped
-        .filter((p: any) => p.halfshots > 0)
-        .sort((a: any, b: any) => b.halfshots - a.halfshots)
+        .filter((p: CommunityPost) => p.halfshots > 0)
+        .sort((a: CommunityPost, b: CommunityPost) => b.halfshots - a.halfshots)
         .slice(0, 10);
     } catch (e) {
       console.error("[CommunityService] getHighHalfshotPosts error", e);
@@ -277,7 +298,7 @@ class CommunityService {
 
   async getPostsByAuthor(nickname: string): Promise<CommunityPost[]> {
     if (!supabase) return [];
-    const { data } = await supabase.from('posts').select(`*, votes(vote_type), comments(id)`).eq('author_nickname', nickname).order('created_at', { ascending: false });
+    const { data } = await supabase.from('posts').select('*, votes(vote_type), comments(id)').eq('author_nickname', nickname).order('created_at', { ascending: false });
     return (data || []).map((row: any) => this.mapRowToPost(row));
   }
 

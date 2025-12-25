@@ -113,7 +113,7 @@ export interface AnomalyReport {
   };
 }
 
-export type BoardType = 'update' | 'balance' | 'fun' | 'stream' | 'hidden';
+export type BoardType = 'update' | 'balance' | 'fun' | 'stream' | 'hidden' | 'TEMP';
 
 export interface CommunityPost {
   id: string;
@@ -130,7 +130,7 @@ export interface CommunityPost {
   views: number;
   thumbnail?: string;
   commentCount: number;
-  status: 'APPROVED' | 'PENDING' | 'HIDDEN'; 
+  status: 'APPROVED' | 'PENDING' | 'HIDDEN' | 'DELETED'; 
   isHidden?: boolean;
 }
 
