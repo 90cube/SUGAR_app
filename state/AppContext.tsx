@@ -18,7 +18,7 @@ interface AppContextType {
   authUser: AuthUser | null;
   handleGoogleLoginSuccess: (credential: string) => void;
   login: (id: string, pw: string) => Promise<boolean>; // Updated signature
-  register: (data: { email: string; pw: string; nickname: string; phone: string }) => Promise<boolean>; // New
+  register: (data: { loginId: string; email: string; pw: string; nickname: string; phone: string }) => Promise<boolean>; // New
   logout: () => void;
   isAdminUser: boolean; 
   
@@ -200,7 +200,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
   };
 
-  const register = async (data: { email: string; pw: string; nickname: string; phone: string }) => {
+  const register = async (data: { loginId: string; email: string; pw: string; nickname: string; phone: string }) => {
       try {
           const user = await authService.register(data);
           setAuthUser(user);

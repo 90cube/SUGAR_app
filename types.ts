@@ -61,6 +61,7 @@ export interface RecentStats {
 // Authenticated Session User (Google or Admin)
 export interface AuthUser {
   id: string;
+  loginId?: string; // Custom Login ID (e.g. sugar123)
   name: string; // Nickname
   email: string;
   phone?: string; // New: Phone number

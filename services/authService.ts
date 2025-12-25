@@ -1,13 +1,10 @@
 
 import { AuthUser } from "../types";
 import { supabase } from "./supabaseClient";
+import { ADMIN_EMAILS } from "../constants";
 
 // --- Mock Data (Fallback & Dev Backdoor) ---
-const USERS_DB: AuthUser[] = [
-  { id: 'admin_sugar', email: 'admin@sugar.com', name: '슈가 어드민', role: 'admin', isEmailVerified: true, isPhoneVerified: true },
-  { id: 'user_sugest', email: 'sugest', name: '일반 서든러', role: 'user', isEmailVerified: true, isPhoneVerified: true },
-  { id: 'user_guest', email: 'guest', name: '게스트 유저', role: 'user', isEmailVerified: true, isPhoneVerified: true }
-];
+const USERS_DB: AuthUser[] = [];
 
 class AuthService {
   
@@ -17,131 +14,193 @@ class AuthService {
 
   // --- Verification Flow (Simulation for UI) ---
   async sendEmailVerification(email: string): Promise<string> {
-    await this.delay(500);
-    return "123456"; 
+    await this.delay(800);
+    const code = "123456";
+    console.log(`[AuthService] Email Verification Code for ${email}: ${code}`);
+    return code; 
   }
 
   async verifyEmailCode(email: string, code: string): Promise<boolean> {
-    await this.delay(300);
-    return true; 
+    await this.delay(500);
+    return code === "123456"; 
   }
 
   async sendPhoneVerification(phone: string): Promise<string> {
-    await this.delay(500);
-    return "123456";
+    await this.delay(800);
+    const code = "123456";
+    console.log(`[AuthService] Phone Verification Code for ${phone}: ${code}`);
+    return code;
   }
 
   async verifyPhoneCode(phone: string, code: string): Promise<boolean> {
-    await this.delay(300);
-    return true;
+    await this.delay(500);
+    return code === "123456";
   }
 
-  // --- Auth Flow (Real Supabase + Fallback) ---
+  // --- Auth Flow ---
+
+  private isAdminEmail(email: string): boolean {
+      return ADMIN_EMAILS.includes(email);
+  }
 
   async login(idOrEmail: string, pw: string): Promise<AuthUser> {
     
-    // 1. Dev Backdoor (Master Account) - Always works
+    // 1. Dev Backdoor (Master Account)
     if (idOrEmail === 'sugar' && (pw === 'attack' || pw === 'attack@@')) {
-       console.log("[Auth] Master login active.");
-       return USERS_DB[0]; // Admin
+       // Try to get a real session if possible
+       if (supabase) {
+           try {
+               await supabase.auth.signInWithPassword({
+                   email: 'admin@sugar.com',
+                   password: pw
+               });
+           } catch (e) {}
+       }
+       return {
+           id: 'admin_sugar',
+           loginId: 'sugar',
+           email: 'admin@sugar.com',
+           name: '슈가 어드민',
+           role: 'admin',
+           isEmailVerified: true,
+           isPhoneVerified: true
+       };
     }
 
-    // 2. Guest Backdoor - Always works for testing
-    if (idOrEmail === 'guest' && (pw === 'attack' || pw === 'attack!!')) {
-        console.log("[Auth] Guest login active.");
-        return USERS_DB[2]; // Guest
-    }
-
-    // 3. Real DB Login (Supabase)
+    // 2. Real DB Login (Supabase)
     if (supabase) {
-        // A. Authenticate
+        let emailToUse = idOrEmail;
+
+        // A. If input looks like an ID (not email), lookup
+        if (!idOrEmail.includes('@')) {
+            const { data: profileData, error: profileError } = await supabase
+                .from('profiles')
+                .select('email')
+                .eq('login_id', idOrEmail)
+                .single();
+            
+            if (profileError || !profileData) {
+                throw new Error("존재하지 않는 아이디입니다.");
+            }
+            emailToUse = profileData.email;
+        }
+
+        // B. Authenticate
         const { data, error } = await supabase.auth.signInWithPassword({
-            email: idOrEmail,
+            email: emailToUse,
             password: pw,
         });
 
         if (error) {
-            console.error("Supabase Login Error:", error.message);
-            throw new Error("아이디(이메일) 또는 비밀번호가 일치하지 않습니다.");
+            if (error.message.includes("Invalid login credentials")) {
+                throw new Error("비밀번호가 일치하지 않습니다.");
+            }
+            throw new Error(error.message);
         }
 
         if (data.user) {
-            // B. Fetch Profile Data (Role, Nickname)
-            // If 'profiles' table is missing (PGRST205), we just proceed with metadata
             let profile = null;
             try {
-                const { data: p, error: pErr } = await supabase
+                const { data: p } = await supabase
                     .from('profiles')
                     .select('*')
                     .eq('id', data.user.id)
                     .single();
-                
-                if (!pErr) profile = p;
-                else console.warn("Profile fetch warning:", pErr.message);
-            } catch (e) {
-                console.warn("Profile table query failed, using metadata.");
-            }
+                profile = p;
+            } catch (e) {}
+
+            // Determine Role: DB Role OR Hardcoded Constant
+            const isHardcodedAdmin = this.isAdminEmail(data.user.email || '');
+            const finalRole = (profile?.role === 'admin' || isHardcodedAdmin) ? 'admin' : 'user';
 
             return {
                 id: data.user.id,
-                email: data.user.email || idOrEmail,
+                loginId: profile?.login_id || 'N/A',
+                email: data.user.email || emailToUse,
                 name: profile?.nickname || data.user.user_metadata?.nickname || 'Unknown',
-                role: profile?.role === 'admin' ? 'admin' : 'user',
+                role: finalRole,
                 isEmailVerified: true,
                 isPhoneVerified: true
             };
         }
     }
 
-    // 4. Fallback to Mock DB (Only if Supabase is offline/not configured)
-    const user = USERS_DB.find(u => u.email === idOrEmail || u.id === idOrEmail);
-    if (user && pw.length >= 4) return user;
+    // 3. Fallback to Mock DB
+    const user = USERS_DB.find(u => u.email === idOrEmail || u.loginId === idOrEmail);
+    if (user && pw.length >= 6) return user;
 
     throw new Error("로그인에 실패했습니다.");
   }
 
-  async register(data: { email: string; pw: string; nickname: string; phone: string }): Promise<AuthUser> {
+  async register(data: { loginId: string; email: string; pw: string; nickname: string; phone: string }): Promise<AuthUser> {
     
     // 1. Real DB Register
     if (supabase) {
-        // A. Create Auth User
+        // A. Check duplicate ID
+        const { data: existingId } = await supabase
+            .from('profiles')
+            .select('login_id')
+            .eq('login_id', data.loginId)
+            .maybeSingle();
+        
+        if (existingId) {
+            throw new Error("이미 사용 중인 아이디입니다.");
+        }
+
+        // B. Create Auth User
         const { data: authData, error: authError } = await supabase.auth.signUp({
             email: data.email,
             password: data.pw,
             options: {
-                data: { nickname: data.nickname } // Stored in metadata as backup
+                data: { 
+                    login_id: data.loginId,
+                    nickname: data.nickname,
+                    phone: data.phone
+                } 
             }
         });
 
-        if (authError) throw new Error(authError.message);
-        if (!authData.user) throw new Error("회원가입 실패 (No User Data)");
+        if (authError) {
+            if (authError.message.includes("already registered")) {
+                throw new Error("이미 가입된 이메일입니다.");
+            }
+            throw new Error(authError.message);
+        }
 
-        // B. Create Profile Row (Critical for App Logic)
-        const { error: profileError } = await supabase
-            .from('profiles')
-            .insert({
-                id: authData.user.id,
-                nickname: data.nickname,
-                phone: data.phone,
-                role: 'user' // Default role
-            });
+        if (!authData.user) throw new Error("회원가입 실패 (응답 없음)");
 
-        if (profileError) {
-            console.error("Profile creation failed:", profileError);
-            if (profileError.code === 'PGRST205' || profileError.code === '42P01') {
-                // Table missing - but Auth User was created. Warn user.
-                console.warn("Profiles table missing. User created in Auth only.");
-            } else {
-                throw new Error("프로필 생성 중 오류가 발생했습니다. (이미 존재하는 닉네임일 수 있습니다)");
+        if (authData.user && !authData.session) {
+            throw new Error("인증 메일이 발송되었습니다. 이메일 확인 후 로그인해주세요.");
+        }
+
+        // C. Create Profile Row
+        if (authData.session) {
+            // Check if this email is in our ADMIN_EMAILS list
+            const role = this.isAdminEmail(data.email) ? 'admin' : 'user';
+
+            const { error: profileError } = await supabase
+                .from('profiles')
+                .insert({
+                    id: authData.user.id,
+                    login_id: data.loginId,
+                    email: data.email,
+                    nickname: data.nickname,
+                    phone: data.phone,
+                    role: role // Try to set admin role on creation
+                });
+
+            if (profileError) {
+                console.warn("Profile creation failed (likely RLS). User created in Auth only.");
             }
         }
 
         return {
             id: authData.user.id,
+            loginId: data.loginId,
             email: authData.user.email || data.email,
             name: data.nickname,
             phone: data.phone,
-            role: 'user',
+            role: this.isAdminEmail(data.email) ? 'admin' : 'user',
             isEmailVerified: true,
             isPhoneVerified: true
         };
@@ -150,6 +209,7 @@ class AuthService {
     // 2. Fallback
     const newUser: AuthUser = {
         id: `user_${Date.now()}`,
+        loginId: data.loginId,
         email: data.email,
         name: data.nickname,
         role: 'user',
@@ -159,7 +219,7 @@ class AuthService {
     return newUser;
   }
 
-  // Restore Session on App Load
+  // Restore Session
   async getSession(): Promise<AuthUser | null> {
       if (supabase) {
           const { data } = await supabase.auth.getSession();
@@ -174,11 +234,15 @@ class AuthService {
                 profile = p;
              } catch {}
 
+             const isHardcodedAdmin = this.isAdminEmail(data.session.user.email || '');
+             const finalRole = (profile?.role === 'admin' || isHardcodedAdmin) ? 'admin' : 'user';
+
              return {
                 id: data.session.user.id,
+                loginId: profile?.login_id || 'Unknown',
                 email: data.session.user.email!,
                 name: profile?.nickname || data.session.user.user_metadata.nickname || 'Unknown',
-                role: profile?.role === 'admin' ? 'admin' : 'user',
+                role: finalRole,
                 isEmailVerified: true
              };
           }

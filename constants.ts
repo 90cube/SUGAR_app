@@ -16,9 +16,19 @@ export const NEXON_SA_LOGO_URL = "https://rs.nxfs.nexon.com/common/logo/logo_sud
 // Default model for Gemini Service
 export const DEFAULT_GEMINI_MODEL = "gemini-3-flash-preview";
 
+// --- Google OAuth Config ---
+// 발급받은 Google Client ID를 아래에 입력하세요.
+export const GOOGLE_CLIENT_ID = "770615003528-nbag5q4n1d8vcpnsjkuqqa0t57csbjm3.apps.googleusercontent.com";
+
+// --- Admin Config ---
+// 관리자 권한을 부여할 이메일 목록입니다.
+// 구글 로그인 후 이 리스트에 본인 이메일이 있으면 자동으로 'admin' 권한이 부여됩니다.
+export const ADMIN_EMAILS = [
+    "admin@sugar.com",
+    "your_email@gmail.com" // 여기에 본인의 실제 이메일을 추가하세요!
+];
+
 // --- Supabase Config (DB) ---
-// Supabase 프로젝트 설정 후 아래 값을 채워넣으세요.
-// 값이 비어있으면 자동으로 Mock(가상) 모드로 동작합니다.
 export const SUPABASE_URL = "https://uwjjnncbpyhwslnipons.supabase.co"; 
 export const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV3ampubmNicHlod3Nsbmlwb25zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY1Mjc2MjUsImV4cCI6MjA4MjEwMzYyNX0.CGahTXEhj1kPCnU389xrquf_TMd7q1XLvnNmAEqxGqc";
 

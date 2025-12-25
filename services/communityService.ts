@@ -9,21 +9,16 @@ class CommunityService {
       if (!supabase) return false;
       try {
           const { count, error } = await supabase.from('posts').select('*', { count: 'exact', head: true });
-          if (error) {
-              console.error("[Supabase] Connection Check Failed:", error.message);
-              return false;
-          }
+          if (error) return false;
           console.log(`[Supabase] Connection OK. Post count: ${count}`);
           return true;
       } catch (e) {
-          console.error("[Supabase] Connection Exception:", e);
           return false;
       }
   }
 
   // --- Fallback Mock Data ---
   private getMockPosts(boardType: BoardType = 'balance'): CommunityPost[] {
-      // Mock data logic remains the same...
       const systemNotice: CommunityPost = {
           id: 'sys_notice_1',
           boardType: 'update',
@@ -62,12 +57,10 @@ class CommunityService {
   // --- Read Posts ---
   async getPosts(boardType?: BoardType): Promise<CommunityPost[]> {
     if (!supabase) {
-        console.warn("[CommunityService] Supabase client is null. Returning mocks.");
         return this.getMockPosts(boardType); 
     }
 
     try {
-        console.log(`[Supabase] Fetching posts for board: ${boardType || 'ALL'}...`);
         let query = supabase
             .from('posts')
             .select(`
@@ -80,7 +73,6 @@ class CommunityService {
             query = query.eq('board_type', boardType);
         }
         
-        // Filter hidden posts unless asking for hidden board
         if (boardType !== 'hidden') {
             query = query.neq('status', 'HIDDEN');
         }
@@ -88,16 +80,14 @@ class CommunityService {
         const { data, error } = await query;
 
         if (error) {
-            console.error("[Supabase] Fetch Error:", error);
-            // Check for Missing Table Error (PGRST205 or 42P01)
             if (error.code === 'PGRST205' || error.code === '42P01') {
                 console.warn("[CommunityService] Tables missing in Supabase. Returning mock data.");
                 return this.getMockPosts(boardType);
             }
+            console.warn(`[Supabase] Fetch Warning: ${error.message}`);
             return [];
         }
 
-        console.log(`[Supabase] Fetched ${data?.length || 0} posts.`);
         return data.map((row: any) => this.mapRowToPost(row));
     } catch (e) {
         console.error("[CommunityService] Exception in getPosts:", e);
@@ -116,14 +106,10 @@ class CommunityService {
             .neq('status', 'HIDDEN')
             .order('created_at', { ascending: false });
             
-        if (error) {
-            if (error.code === 'PGRST205' || error.code === '42P01') return [];
-            throw error;
-        }
+        if (error) return [];
 
         return (data || []).map((row: any) => this.mapRowToPost(row));
       } catch (e) {
-          console.warn("getPostsByAuthor failed:", e);
           return [];
       }
   }
@@ -141,7 +127,6 @@ class CommunityService {
             .limit(20);
             
         if (error) {
-            // Fallback if table missing
             if (error.code === 'PGRST205' || error.code === '42P01') {
                 return this.getMockPosts(boardType).slice(0, 3);
             }
@@ -151,7 +136,6 @@ class CommunityService {
         if (!data) return [];
 
         const mapped = data.map((row: any) => this.mapRowToPost(row));
-        // Sort by Total Votes (Heads) descending
         return mapped.sort((a, b) => b.heads - a.heads).slice(0, 3);
     } catch (e) {
         return [];
@@ -162,24 +146,18 @@ class CommunityService {
 
   async createPost(post: { title: string; content: string; author: string; boardType: BoardType; thumbnail?: string }): Promise<boolean> {
       if (!supabase) {
-          console.error("[CommunityService] Cannot create post: Supabase not connected.");
           return false;
       }
-
-      console.log(`[Supabase] 📤 Sending Create Post Request...`);
-      console.log(` - Title: ${post.title}`);
-      console.log(` - Author: ${post.author}`);
-      console.log(` - Board: ${post.boardType}`);
-
+      
       try {
           // 1. Get User ID
           const { data: { user } } = await supabase.auth.getUser();
-          
-          let userId = user?.id;
+          const userId = user?.id;
+
           if (!userId) {
-              console.warn("[Supabase] No Auth Session found. Trying Fallback UUID for Dev/Test Mode.");
-              // Fallback for "sugar" dev account if RLS allows anon/public inserts
-              userId = '00000000-0000-0000-0000-000000000000'; 
+              // No user -> fail
+              console.error("[Community] Cannot create post without auth.");
+              return false;
           }
 
           // 2. Insert
@@ -193,21 +171,28 @@ class CommunityService {
               thumbnail: post.thumbnail || null
           };
 
-          const { data, error } = await supabase
+          const { error } = await supabase
               .from('posts')
               .insert(payload)
               .select(); 
 
           if (error) {
-              console.error(`%c[Supabase] ❌ Insert Error: ${error.message}`, 'color: red; font-weight: bold;');
-              console.error(error);
+              console.error(`[Supabase] Insert Failed: ${error.message} (Code: ${error.code})`);
+              
+              if (error.code === '42501') {
+                  // RLS Error
+                  alert("권한이 없습니다 (RLS Policy). \n\n[해결방법] Supabase SQL Editor에서 본인 계정의 role을 'admin'으로 변경하세요:\nUPDATE profiles SET role = 'admin' WHERE id = '...';");
+                  return false;
+              }
+
               if (error.code === 'PGRST205' || error.code === '42P01') {
                   alert("데이터베이스 테이블(posts)이 존재하지 않습니다.");
+                  return false;
               }
+              
               return false;
           }
           
-          console.log(`%c[Supabase] ✅ Post Created Successfully!`, 'color: green; font-weight: bold;', data);
           return true;
       } catch (e) {
           console.error("[CommunityService] createPost Exception:", e);
@@ -220,7 +205,8 @@ class CommunityService {
       
       try {
           const { data: { user } } = await supabase.auth.getUser();
-          const userId = user?.id || '00000000-0000-0000-0000-000000000000';
+          const userId = user?.id;
+          if (!userId) return null;
 
           const { data, error } = await supabase
               .from('posts')
@@ -237,10 +223,9 @@ class CommunityService {
               .single();
 
           if (error) {
-              console.error("[Supabase] Stream Request Error:", error);
+              console.error("[Supabase] Stream Request Error:", error.message);
               return null;
           }
-          console.log("[Supabase] Stream Request Sent:", data);
           return this.mapRowToPost(data);
       } catch {
           return null;
@@ -276,7 +261,6 @@ class CommunityService {
           const { data: { user } } = await supabase.auth.getUser();
           if (!user) return { heads: 0, halfshots: 0, userVote: null };
 
-          // 1. Check existing vote
           const { data: existing, error } = await supabase
               .from('votes')
               .select('*')
@@ -284,9 +268,8 @@ class CommunityService {
               .eq('user_id', user.id)
               .single();
           
-          if (error && error.code !== 'PGRST116') { // PGRST116 is 'not found', which is fine
+          if (error && error.code !== 'PGRST116') { 
                if (error.code === 'PGRST205' || error.code === '42P01') {
-                   // Table missing, simulate success for UI
                    return { heads: 1, halfshots: 0, userVote: type };
                }
           }
@@ -308,7 +291,6 @@ class CommunityService {
               });
           }
 
-          // 2. Re-calculate totals
           const { count: heads } = await supabase.from('votes').select('*', { count: 'exact', head: true }).eq('post_id', postId).eq('vote_type', 'head');
           const { count: halfs } = await supabase.from('votes').select('*', { count: 'exact', head: true }).eq('post_id', postId).eq('vote_type', 'half');
 
@@ -318,13 +300,11 @@ class CommunityService {
               userVote: finalUserVote
           };
       } catch (e) {
-          console.error("toggleVote failed", e);
           return { heads: 0, halfshots: 0, userVote: null };
       }
   }
 
   async reportPost(postId: string, nickname: string): Promise<boolean> {
-      console.log(`[CommunityService] Post ${postId} reported by ${nickname}`);
       return true;
   }
 
@@ -358,7 +338,6 @@ class CommunityService {
       return [];
   }
 
-  // --- Helper: Mapper ---
   private mapRowToPost(row: any): CommunityPost {
       const votes = row.votes || [];
       const heads = votes.filter((v: any) => v.vote_type === 'head').length;
