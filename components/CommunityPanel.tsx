@@ -60,7 +60,17 @@ export const CommunityPanel: React.FC = () => {
   };
 
   const handleAdminAction = async (postId: string, action: 'DELETE' | 'TEMP') => {
-    if (!isAdmin) return;
+    if (!selectedPost) return;
+    
+    // 본인 글인 경우 경고 (관리자 제외)
+    const myNickname = userProfile?.nickname || authUser?.name;
+    if (selectedPost.author === myNickname && !isAdmin) {
+        alert("자신의 글에 추천, 비추천, 투표, 신고 할 수 없습니다.");
+        return;
+    }
+
+    if (!isAdmin && selectedPost.author !== myNickname) return;
+
     if (!window.confirm("정말 처리하시겠습니까?")) return;
     const success = action === 'DELETE' ? await communityService.deletePost(postId) : await communityService.movePostToTemp(postId);
     if (success) { fetchTabContent(activeTab); if (selectedPost?.id === postId) setViewMode('MAIN'); }
@@ -69,6 +79,14 @@ export const CommunityPanel: React.FC = () => {
 
   const handleVote = async (type: 'HEAD' | 'HALF') => {
     if (!selectedPost || !isLoggedIn) { if(!isLoggedIn) openAuthModal(); return; }
+    
+    // 본인 글인 경우 투표 차단
+    const myNickname = userProfile?.nickname || authUser?.name;
+    if (selectedPost.author === myNickname) {
+        alert("자신의 글에 추천, 비추천, 투표, 신고 할 수 없습니다.");
+        return;
+    }
+
     const success = await communityService.votePost(selectedPost.id, type);
     if (success) {
         setSelectedPost(prev => prev ? { 
