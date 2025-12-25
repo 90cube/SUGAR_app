@@ -127,11 +127,12 @@ class CommunityService {
     }
   }
 
-  async toggleReaction(postId: string, type: 'HEAD' | 'HALF'): Promise<{ heads: number; halfs: number }> {
-    if (!supabase) return { heads: 0, halfs: 0 };
+  // Fix: Renamed return property 'halfs' to 'halfshots' to be consistent with CommunityPost interface and types
+  async toggleReaction(postId: string, type: 'HEAD' | 'HALF'): Promise<{ heads: number; halfshots: number }> {
+    if (!supabase) return { heads: 0, halfshots: 0 };
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return { heads: 0, halfs: 0 };
+      if (!user) return { heads: 0, halfshots: 0 };
 
       const { data: existing } = await supabase
         .from('votes')
@@ -154,10 +155,10 @@ class CommunityService {
       const { data: all } = await supabase.from('votes').select('vote_type').eq('post_id', postId);
       return {
         heads: all?.filter((v: any) => v.vote_type === 'HEAD').length || 0,
-        halfs: all?.filter((v: any) => v.vote_type === 'HALF').length || 0
+        halfshots: all?.filter((v: any) => v.vote_type === 'HALF').length || 0
       };
     } catch {
-      return { heads: 0, halfs: 0 };
+      return { heads: 0, halfshots: 0 };
     }
   }
 
