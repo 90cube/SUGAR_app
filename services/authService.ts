@@ -6,7 +6,7 @@ import { ADMIN_EMAILS } from "../constants";
 class AuthService {
   /**
    * Supabase Auth 유저 정보를 바탕으로 프로필 정보를 가져옵니다.
-   * 500 Internal Server Error 발생 시에도 서비스 중단을 막기 위해 폴백을 사용합니다.
+   * role(admin/user) 정보를 포함하며, DB 500 에러 발생 시 Metadata로 폴백합니다.
    */
   async fetchMyProfile(): Promise<AuthUser | null> {
     if (!supabase) return null;
@@ -15,29 +15,31 @@ class AuthService {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError || !user) return null;
 
-      const isAdmin = ADMIN_EMAILS.includes(user.email || "");
-      
-      // 기본 메타데이터 추출 (DB 조회 실패 시 사용)
+      // 관리자 이메일 목록 확인 (최우선순위/폴백용)
+      const isEmailInAdminList = ADMIN_EMAILS.includes(user.email || "");
       const meta = user.user_metadata || {};
+      
+      // 기본 사용자 객체 구성 (DB 조회 실패 시 사용될 기본값)
       const defaultUser: AuthUser = {
         id: user.id,
         loginId: meta.login_id || '',
         email: user.email || '',
         name: meta.nickname || meta.full_name || user.email?.split('@')[0] || 'Unknown',
-        role: isAdmin ? 'admin' : 'user',
+        role: isEmailInAdminList ? 'admin' : 'user',
         isEmailVerified: !!user.email_confirmed_at
       };
 
       try {
-        // DB 조회를 시도하되, 500 에러 등 서버 장애 시 즉시 catch로 이동
+        // DB profiles 테이블에서 role 포함 정보 조회
         const { data, error } = await supabase
           .from('profiles')
           .select('login_id, nickname, role')
           .eq('id', user.id)
           .maybeSingle();
 
+        // 500 에러 등 발생 시 세션 정보(이메일 기반 권한)로 즉시 전환
         if (error || !data) {
-          // 에러가 나면 조용히 기본 정보 반환
+          if (error) console.warn("[AuthService] Profile fetch failed (500/RLS), using session fallback.");
           return defaultUser;
         }
 
@@ -45,11 +47,10 @@ class AuthService {
           ...defaultUser,
           loginId: data.login_id || defaultUser.loginId,
           name: data.nickname || defaultUser.name,
+          // DB에 명시된 role이 있으면 사용, 없으면 이메일 체크 결과 유지
           role: (data.role as 'admin' | 'user') || defaultUser.role
         };
       } catch (dbErr) {
-        // DB 연결 실패 시에도 로그아웃시키지 않고 세션 정보로 유지
-        console.warn("[AuthService] DB Profile fetch failed (500), using session metadata.");
         return defaultUser;
       }
     } catch (e) {
@@ -61,9 +62,7 @@ class AuthService {
     if (!supabase) throw new Error("DB 연결 불가");
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: {
-        redirectTo: window.location.origin
-      }
+      options: { redirectTo: window.location.origin }
     });
     if (error) throw error;
   }
@@ -74,15 +73,9 @@ class AuthService {
     let emailToUse = idOrEmail;
     if (!idOrEmail.includes('@')) {
       try {
-        const { data } = await supabase
-          .from('profiles')
-          .select('email')
-          .eq('login_id', idOrEmail)
-          .maybeSingle();
+        const { data } = await supabase.from('profiles').select('email').eq('login_id', idOrEmail).maybeSingle();
         if (data) emailToUse = data.email;
-      } catch {
-        // Ignore DB error for login attempt
-      }
+      } catch { }
     }
 
     const { error } = await supabase.auth.signInWithPassword({
@@ -102,10 +95,7 @@ class AuthService {
       email: data.email,
       password: data.pw,
       options: {
-        data: { 
-          login_id: data.loginId, 
-          nickname: data.nickname 
-        }
+        data: { login_id: data.loginId, nickname: data.nickname }
       }
     });
     if (authError) throw new Error(authError.message);
@@ -119,23 +109,17 @@ class AuthService {
   async isIdAvailable(loginId: string): Promise<{available: boolean, message: string}> {
     if (!supabase) return { available: true, message: "Offline" };
     try {
-      const { data, error } = await supabase.from('profiles').select('login_id').eq('login_id', loginId).maybeSingle();
-      if (error) return { available: true, message: "검증 불가" };
+      const { data } = await supabase.from('profiles').select('login_id').eq('login_id', loginId).maybeSingle();
       return { available: !data, message: data ? "이미 사용 중인 아이디" : "사용 가능" };
-    } catch {
-      return { available: true, message: "검증 불가" };
-    }
+    } catch { return { available: true, message: "검증 불가" }; }
   }
 
   async isEmailAvailable(email: string): Promise<{available: boolean, message: string}> {
     if (!supabase) return { available: true, message: "Offline" };
     try {
-      const { data, error } = await supabase.from('profiles').select('email').eq('email', email).maybeSingle();
-      if (error) return { available: true, message: "검증 불가" };
+      const { data } = await supabase.from('profiles').select('email').eq('email', email).maybeSingle();
       return { available: !data, message: data ? "이미 가입된 이메일" : "사용 가능" };
-    } catch {
-      return { available: true, message: "검증 불가" };
-    }
+    } catch { return { available: true, message: "검증 불가" }; }
   }
 }
 

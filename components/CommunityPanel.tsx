@@ -39,45 +39,71 @@ export const CommunityPanel: React.FC = () => {
     else if (tab === 'stream') queryType = 'stream';
     else if (tab === 'temp') queryType = 'TEMP';
     
-    communityService.getPosts(queryType).then((data) => {
+    communityService.getPosts(queryType, authUser?.id).then((data) => {
       setTabPosts(data);
       setIsLoading(false);
     });
   };
 
-  const openWriteForm = (mode: BoardType) => {
-    if (!isLoggedIn) { openAuthModal(); return; }
-    setWriteMode(mode);
-    setIsWriteFormOpen(true);
-  };
-
   const handleAdminAction = async (postId: string, action: 'DELETE' | 'TEMP') => {
-    if (!window.confirm("정말 처리하시겠습니까?")) return;
-    const success = action === 'DELETE' ? await communityService.deletePost(postId) : await communityService.movePostToTemp(postId);
+    if (!isAdmin) return;
+    const confirmMsg = action === 'DELETE' 
+      ? "이 게시글을 영구 삭제하시겠습니까? 복구할 수 없습니다." 
+      : "이 게시글을 임시 보관함으로 이동하여 격리하시겠습니까?";
+    
+    if (!window.confirm(confirmMsg)) return;
+    
+    const success = action === 'DELETE' 
+      ? await communityService.deletePost(postId) 
+      : await communityService.movePostToTemp(postId);
+      
     if (success) {
-        alert("완료되었습니다.");
+        alert("처리가 완료되었습니다.");
         fetchTabContent(activeTab);
         communityService.getPosts('update').then(setUpdatePosts);
         if (selectedPost?.id === postId) setSelectedPost(null);
+    } else {
+        alert("서버 통신 중 오류가 발생했습니다.");
     }
     setOpenAdminMenuId(null);
   };
 
   const AdminPostMenu = ({ postId }: { postId: string }) => {
     const isOpen = openAdminMenuId === postId;
+    if (!isAdmin) return null;
+
     return (
       <div className="relative">
-        <button onClick={(e) => { e.stopPropagation(); setOpenAdminMenuId(isOpen ? null : postId); }} className="w-8 h-8 flex items-center justify-center bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white/40 transition-all">
+        <button 
+          onClick={(e) => { e.stopPropagation(); setOpenAdminMenuId(isOpen ? null : postId); }} 
+          className="w-8 h-8 flex items-center justify-center bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white/40 transition-all border border-white/10 shadow-lg"
+        >
           <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" /></svg>
         </button>
         {isOpen && (
-          <div className="absolute right-0 mt-2 w-32 bg-white rounded-xl shadow-2xl z-50 overflow-hidden border border-slate-100">
-            <button onClick={(e) => { e.stopPropagation(); handleAdminAction(postId, 'TEMP'); }} className="w-full px-4 py-2 text-left text-[10px] font-bold hover:bg-slate-50 border-b">임시이동</button>
-            <button onClick={(e) => { e.stopPropagation(); handleAdminAction(postId, 'DELETE'); }} className="w-full px-4 py-2 text-left text-[10px] font-bold text-red-600 hover:bg-red-50">영구삭제</button>
+          <div className="absolute right-0 mt-2 w-40 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <button 
+                onClick={(e) => { e.stopPropagation(); handleAdminAction(postId, 'TEMP'); }} 
+                className="w-full px-4 py-3 text-left text-[11px] font-bold text-slate-600 hover:bg-slate-50 border-b border-slate-100 flex items-center gap-2"
+            >
+                📁 임시 보관함 이동
+            </button>
+            <button 
+                onClick={(e) => { e.stopPropagation(); handleAdminAction(postId, 'DELETE'); }} 
+                className="w-full px-4 py-3 text-left text-[11px] font-bold text-red-500 hover:bg-red-50 flex items-center gap-2"
+            >
+                🗑️ 영구 삭제
+            </button>
           </div>
         )}
       </div>
     );
+  };
+
+  const openWriteForm = (mode: BoardType) => {
+    if (!isLoggedIn) { openAuthModal(); return; }
+    setWriteMode(mode);
+    setIsWriteFormOpen(true);
   };
 
   const submitPost = async (e: React.FormEvent) => {
@@ -98,7 +124,8 @@ export const CommunityPanel: React.FC = () => {
   };
 
   const latestUpdate = updatePosts[0];
-  const generalTabs: TabType[] = ['balance', 'keuk', 'stream'];
+  // 관리자이거나 작성자인 경우 임시 게시판 탭을 보여줍니다.
+  const generalTabs: TabType[] = isAdmin ? ['balance', 'keuk', 'stream', 'temp'] : ['balance', 'keuk', 'stream'];
 
   return (
     <>
@@ -153,11 +180,9 @@ export const CommunityPanel: React.FC = () => {
                               <span className="inline-block px-3 py-1 bg-yellow-400 text-slate-900 text-[8px] font-black rounded-lg uppercase tracking-widest mb-2">New Update</span>
                               <h4 className="text-white text-xl font-black leading-tight drop-shadow-2xl line-clamp-2">{latestUpdate.title}</h4>
                           </div>
-                          {isAdmin && (
-                            <div className="absolute top-4 right-4 z-20" onClick={e => e.stopPropagation()}>
+                          <div className="absolute top-4 right-4 z-20" onClick={e => e.stopPropagation()}>
                                 <AdminPostMenu postId={latestUpdate.id} />
-                            </div>
-                          )}
+                          </div>
                       </div>
                   ) : (
                       <div className="aspect-video rounded-[2rem] bg-slate-200 border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400 gap-2">
@@ -187,11 +212,9 @@ export const CommunityPanel: React.FC = () => {
                           <div className="text-center py-24 text-slate-300 font-black text-xs uppercase tracking-widest bg-white/40 border-2 border-dashed border-slate-200 rounded-[2.5rem]">No Feed Found</div>
                       ) : tabPosts.map((post) => (
                           <div key={post.id} onClick={() => { setSelectedPost(post); setViewMode('POST_DETAIL'); }} className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-xl relative transition-all active:scale-[0.98] group hover:border-slate-300">
-                              {isAdmin && (
-                                <div className="absolute top-6 right-6 z-20" onClick={e => e.stopPropagation()}>
+                              <div className="absolute top-6 right-6 z-20" onClick={e => e.stopPropagation()}>
                                     <AdminPostMenu postId={post.id} />
-                                </div>
-                              )}
+                              </div>
                               <h4 className="font-black text-slate-800 text-base mb-4 line-clamp-2 leading-tight group-hover:text-blue-600 transition-colors">{post.title}</h4>
                               <div className="pt-5 border-t border-slate-50 flex items-center justify-between text-[10px] font-black text-slate-400">
                                   <div className="flex items-center gap-2">
@@ -257,6 +280,24 @@ export const CommunityPanel: React.FC = () => {
                         </div>
                         <h1 className="text-2xl font-black text-slate-900 mb-8 leading-tight tracking-tight">{selectedPost.title}</h1>
                         <div className="prose prose-slate max-w-none text-slate-600 font-medium leading-relaxed text-sm" dangerouslySetInnerHTML={{ __html: selectedPost.content }}></div>
+                        
+                        {/* 관리자 전용 액션 버튼 */}
+                        {isAdmin && (
+                          <div className="mt-12 flex gap-3 pt-8 border-t border-slate-100">
+                             <button 
+                                onClick={() => handleAdminAction(selectedPost.id, 'TEMP')} 
+                                className="flex-1 py-4 bg-slate-100 text-slate-600 font-black text-[11px] rounded-2xl active:scale-95 transition-all hover:bg-slate-200"
+                             >
+                                격리(TEMP)
+                             </button>
+                             <button 
+                                onClick={() => handleAdminAction(selectedPost.id, 'DELETE')} 
+                                className="flex-1 py-4 bg-red-50 text-red-500 font-black text-[11px] rounded-2xl active:scale-95 transition-all hover:bg-red-100"
+                             >
+                                영구삭제
+                             </button>
+                          </div>
+                        )}
                     </div>
                 </div>
             </div>
