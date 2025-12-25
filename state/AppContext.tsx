@@ -5,94 +5,65 @@ import { nexonService } from '../services/nexonService';
 import { cloudStorageService } from '../services/cloudStorageService';
 import { geminiService } from '../services/geminiService';
 import { authService } from '../services/authService';
-import { supabase } from '../services/supabaseClient';
-import { UI_STRINGS, ADMIN_EMAILS } from '../constants';
-import { jwtDecode } from "jwt-decode";
+// Fix: Add missing import for communityService
 import { communityService } from '../services/communityService';
+import { supabase } from '../services/supabaseClient';
 
 interface AppContextType {
   status: AppStatus;
   setStatus: (status: AppStatus) => void;
   isLoggedIn: boolean;
-  
-  // Login Methods
   authUser: AuthUser | null;
-  handleGoogleLoginSuccess: (credential: string) => void;
   login: (id: string, pw: string) => Promise<boolean>;
-  register: (data: { loginId: string; email: string; pw: string; nickname: string; phone: string }) => Promise<boolean>;
   logout: () => void;
-  isAdmin: boolean; // role === 'admin' 체크용 축약 상태
+  isAdmin: boolean;
   isAdminToastOpen: boolean; 
-  
   isAuthModalOpen: boolean;
   openAuthModal: () => void;
   closeAuthModal: () => void;
-  
   userProfile: UserProfile | null;
   searchUser: (nickname: string) => Promise<void>;
-  
-  // Content / CMS State
   pageContent: PageContent;
   updatePageContent: (newContent: PageContent) => Promise<void>;
   isAdminEditorOpen: boolean;
   openAdminEditor: () => void;
   closeAdminEditor: () => void;
   isSavingContent: boolean;
-
-  // Admin Specific Modals
   isAdminHiddenBoardOpen: boolean;
   openAdminHiddenBoard: () => void;
   closeAdminHiddenBoard: () => void;
   isAdminGuillotineOpen: boolean;
   openAdminGuillotine: () => void;
   closeAdminGuillotine: () => void;
-
-  // Community User Profile
   selectedCommunityUser: CommunityUserProfile | null;
   openCommunityUserProfile: (nickname: string) => void;
   closeCommunityUserProfile: () => void;
-
-  // Match List & Pagination Logic
   visibleMatchCount: number;
   loadMoreMatches: () => Promise<void>;
   isLoadingMore: boolean;
-  
-  // Match Detail Logic
   activeMatch: Match | null;
   activeMatchDetail: MatchDetail | null;
   isMatchDetailLoading: boolean;
   openMatchDetail: (match: Match) => void;
   closeMatchDetail: () => void;
-
-  // Recap Logic
   isRecapModalOpen: boolean;
   openRecapModal: () => void;
   closeRecapModal: () => void;
   recapStats: RecapStats | null;
   calculateRecap: (date: string) => Promise<void>;
   isRecapLoading: boolean;
-
-  // Analysis Logic
   isAnalysisModalOpen: boolean;
   openAnalysisModal: () => void;
   closeAnalysisModal: () => void;
-  
-  // Anomaly Logic
   performAnomalyCheck: () => Promise<void>;
   anomalyReport: AnomalyReport | null;
   isAnomalyLoading: boolean;
-
-  // Community Logic
   isCommunityOpen: boolean;
   openCommunity: () => void;
   closeCommunity: () => void;
-
-  // Virtual Matching Logic
   isVirtualMatchingModalOpen: boolean;
   openVirtualMatchingModal: () => void;
   closeVirtualMatchingModal: () => void;
-
-  // Direct Message Logic
   isDMModalOpen: boolean;
   openDMModal: (username: string) => void;
   closeDMModal: () => void;
@@ -106,34 +77,25 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [isAdminToastOpen, setIsAdminToastOpen] = useState(false);
-  
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-
   const [pageContent, setPageContent] = useState<PageContent>(cloudStorageService.getDefaultContent());
   const [isAdminEditorOpen, setIsAdminEditorOpen] = useState(false);
   const [isSavingContent, setIsSavingContent] = useState(false);
-
   const [isAdminHiddenBoardOpen, setIsAdminHiddenBoardOpen] = useState(false);
   const [isAdminGuillotineOpen, setIsAdminGuillotineOpen] = useState(false);
-
   const [selectedCommunityUser, setSelectedCommunityUser] = useState<CommunityUserProfile | null>(null);
-
   const [visibleMatchCount, setVisibleMatchCount] = useState(10);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-
   const [activeMatch, setActiveMatch] = useState<Match | null>(null);
   const [activeMatchDetail, setActiveMatchDetail] = useState<MatchDetail | null>(null);
   const [isMatchDetailLoading, setIsMatchDetailLoading] = useState(false);
-
   const [isRecapModalOpen, setIsRecapModalOpen] = useState(false);
   const [recapStats, setRecapStats] = useState<RecapStats | null>(null);
   const [isRecapLoading, setIsRecapLoading] = useState(false);
-
   const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState(false);
   const [anomalyReport, setAnomalyReport] = useState<AnomalyReport | null>(null);
   const [isAnomalyLoading, setIsAnomalyLoading] = useState(false);
-
   const [isCommunityOpen, setIsCommunityOpen] = useState(false);
   const [isVirtualMatchingModalOpen, setIsVirtualMatchingModalOpen] = useState(false);
   const [isDMModalOpen, setIsDMModalOpen] = useState(false);
@@ -146,23 +108,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setTimeout(() => setIsAdminToastOpen(false), 3500);
   };
 
-  /**
-   * 새로고침 시 세션을 복구하고 프로필(role 포함)을 로드합니다.
-   */
   const recoverSession = async () => {
-    try {
-      const profile = await authService.fetchMyProfile();
-      if (profile) {
-          console.log("[AppContext] Session Restored Profile:", profile.email);
-          setAuthUser(profile);
-          setIsLoggedIn(true);
-          if (profile.role === 'admin') showAdminToast();
-      } else {
-          setAuthUser(null);
-          setIsLoggedIn(false);
-      }
-    } catch (e) {
-      console.error("[AppContext] Session recovery failed", e);
+    const profile = await authService.fetchMyProfile();
+    if (profile) {
+      setAuthUser(profile);
+      setIsLoggedIn(true);
+      if (profile.role === 'admin') showAdminToast();
+    } else {
+      setAuthUser(null);
+      setIsLoggedIn(false);
     }
   };
 
@@ -172,8 +126,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
      if (supabase) {
        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-         console.log(`[Supabase] Auth Event: ${event}`);
-         if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session) {
+         if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
             recoverSession();
          } else if (event === 'SIGNED_OUT') {
             setAuthUser(null);
@@ -185,69 +138,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
      }
   }, []);
 
-  const handleGoogleLoginSuccess = async (credential: string) => {
-    try {
-      const decoded: any = jwtDecode(credential);
-      const isAdminEmail = ADMIN_EMAILS.includes(decoded.email);
-      
-      const user: AuthUser = {
-        id: decoded.sub,
-        name: decoded.name,
-        email: decoded.email,
-        picture: decoded.picture,
-        role: isAdminEmail ? 'admin' : 'user',
-        isEmailVerified: true
-      };
-      
+  const login = async (id: string, pw: string) => {
+      const user = await authService.login(id, pw);
       setAuthUser(user);
       setIsLoggedIn(true);
       setIsAuthModalOpen(false);
       if (user.role === 'admin') showAdminToast();
-    } catch (e) {
-      console.error("[AppContext] Google Login Failed", e);
-      alert("로그인 처리에 실패했습니다.");
-    }
-  };
-
-  const login = async (id: string, pw: string) => {
-      try {
-          const user = await authService.login(id, pw);
-          setAuthUser(user);
-          setIsLoggedIn(true);
-          setIsAuthModalOpen(false);
-          if (user.role === 'admin') showAdminToast();
-          return true;
-      } catch (e: any) {
-          throw e;
-      }
-  };
-
-  const register = async (data: { loginId: string; email: string; pw: string; nickname: string; phone: string }) => {
-      try {
-          const result = await authService.register(data);
-          if (result.needsEmailConfirm) return false;
-          
-          await recoverSession();
-          setIsAuthModalOpen(false);
-          return true;
-      } catch (e: any) {
-          throw e;
-      }
+      return true;
   };
 
   const logout = async () => {
-    try {
-        await authService.logout();
-    } finally {
-        setIsLoggedIn(false);
-        setAuthUser(null);
-        setStatus(AppStatus.IDLE);
-        setIsCommunityOpen(false);
-        setIsAdminHiddenBoardOpen(false);
-        setIsAdminGuillotineOpen(false);
-        setIsAdminEditorOpen(false);
-        setIsAdminToastOpen(false);
-    }
+    await authService.logout();
+    setAuthUser(null);
+    setIsLoggedIn(false);
+    setIsCommunityOpen(false);
   };
 
   const openAuthModal = () => setIsAuthModalOpen(true);
@@ -268,7 +172,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const closeAdminGuillotine = () => setIsAdminGuillotineOpen(false);
 
   const openCommunityUserProfile = async (nickname: string) => {
-      const profile = await communityService.getCommunityUserProfile(nickname);
+      const profile = await nexonService.getOuid(nickname).then(() => communityService.getCommunityUserProfile(nickname));
       setSelectedCommunityUser(profile);
   };
   const closeCommunityUserProfile = () => setSelectedCommunityUser(null);
@@ -290,8 +194,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setActiveMatchDetail(null); 
     try {
       const detailData = await nexonService.getMatchDetail(match.id);
-      const fullDetail: MatchDetail = { ...match, RawData: detailData };
-      setActiveMatchDetail(fullDetail);
+      setActiveMatchDetail({ ...match, RawData: detailData });
     } catch (e) {
       setActiveMatchDetail({ ...match }); 
     } finally {
@@ -300,7 +203,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const closeMatchDetail = () => { setActiveMatch(null); setActiveMatchDetail(null); };
-  const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
   const searchUser = async (nickname: string) => {
     setStatus(AppStatus.LOADING);
@@ -308,7 +210,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setAnomalyReport(null);
     try {
       const profile = await nexonService.fetchFullProfile(nickname);
-      await wait(600);
       if (profile) {
         setUserProfile(profile);
         setStatus(AppStatus.SUCCESS);
@@ -325,7 +226,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (!userProfile) return;
     if (visibleMatchCount >= userProfile.recentMatches.length) return;
     setIsLoadingMore(true);
-    await wait(500);
     setVisibleMatchCount(prev => prev + 10);
     setIsLoadingMore(false);
   };
@@ -351,7 +251,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const matchesOnDate = userProfile.recentMatches.filter(m => m.rawDate.startsWith(date));
       const restMatches = userProfile.recentMatches.filter(m => !m.rawDate.startsWith(date));
       const rankedMatches = userProfile.recentMatches.filter(m => m.matchType === "랭크전");
-
       const stats: RecapStats = {
         date,
         totalMatches: matchesOnDate.length,
@@ -365,7 +264,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           rankedKd: calculateKD(rankedMatches)
         }
       };
-
       if (stats.totalMatches > 0) {
         const feedback = await geminiService.analyzeDailyRecap(stats);
         stats.aiAnalysis = feedback;
@@ -383,17 +281,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setIsAnomalyLoading(true);
     setAnomalyReport(null);
     openAnalysisModal();
-
     try {
       const now = new Date();
       const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
       const kstDate = new Date(utc + (9 * 60 * 60 * 1000)).toISOString().split('T')[0];
-      
-      const report = await nexonService.runAnomalyDetection(
-        userProfile.nickname,
-        kstDate,
-        userProfile.recentMatches
-      );
+      const report = await nexonService.runAnomalyDetection(userProfile.nickname, kstDate, userProfile.recentMatches);
       setAnomalyReport(report);
     } catch (e) {
       console.error("[AppContext] Anomaly detection failed", e);
@@ -410,7 +302,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   return (
     <AppContext.Provider value={{ 
-      status, setStatus, isLoggedIn, authUser, handleGoogleLoginSuccess, login, register, logout, isAdmin, isAdminToastOpen,
+      status, setStatus, isLoggedIn, authUser, login, logout, isAdmin, isAdminToastOpen,
       isAuthModalOpen, openAuthModal, closeAuthModal, userProfile, searchUser,
       activeMatch, activeMatchDetail, isMatchDetailLoading, openMatchDetail, closeMatchDetail,
       visibleMatchCount, loadMoreMatches, isLoadingMore,

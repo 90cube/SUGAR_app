@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../state/AppContext';
 import { communityService } from '../services/communityService';
-import { CommunityPost, BoardType, CommunityComment } from '../types';
+import { CommunityPost, BoardType } from '../types';
 
 type TabType = 'balance' | 'keuk' | 'stream' | 'temp';
 type ViewMode = 'MAIN' | 'UPDATE_ARCHIVE' | 'POST_DETAIL';
@@ -51,6 +51,35 @@ export const CommunityPanel: React.FC = () => {
     setIsWriteFormOpen(true);
   };
 
+  const handleAdminAction = async (postId: string, action: 'DELETE' | 'TEMP') => {
+    if (!window.confirm("정말 처리하시겠습니까?")) return;
+    const success = action === 'DELETE' ? await communityService.deletePost(postId) : await communityService.movePostToTemp(postId);
+    if (success) {
+        alert("완료되었습니다.");
+        fetchTabContent(activeTab);
+        communityService.getPosts('update').then(setUpdatePosts);
+        if (selectedPost?.id === postId) setSelectedPost(null);
+    }
+    setOpenAdminMenuId(null);
+  };
+
+  const AdminPostMenu = ({ postId }: { postId: string }) => {
+    const isOpen = openAdminMenuId === postId;
+    return (
+      <div className="relative">
+        <button onClick={(e) => { e.stopPropagation(); setOpenAdminMenuId(isOpen ? null : postId); }} className="w-8 h-8 flex items-center justify-center bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white/40 transition-all">
+          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" /></svg>
+        </button>
+        {isOpen && (
+          <div className="absolute right-0 mt-2 w-32 bg-white rounded-xl shadow-2xl z-50 overflow-hidden border border-slate-100">
+            <button onClick={(e) => { e.stopPropagation(); handleAdminAction(postId, 'TEMP'); }} className="w-full px-4 py-2 text-left text-[10px] font-bold hover:bg-slate-50 border-b">임시이동</button>
+            <button onClick={(e) => { e.stopPropagation(); handleAdminAction(postId, 'DELETE'); }} className="w-full px-4 py-2 text-left text-[10px] font-bold text-red-600 hover:bg-red-50">영구삭제</button>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const submitPost = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!writeTitle.trim() || !writeContent.trim() || isSubmitting) return;
@@ -84,60 +113,65 @@ export const CommunityPanel: React.FC = () => {
                       <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
                   </button>
               )}
-              <h2 className="text-xl font-black text-slate-800 tracking-tight flex items-center gap-2">
-                <span className="text-yellow-500 text-2xl">●</span> 
-                {viewMode === 'UPDATE_ARCHIVE' ? '공지사항 히스토리' : '커뮤니티'}
+              <h2 className="text-lg font-black text-slate-800 tracking-tight flex items-center gap-2">
+                <span className="text-yellow-500 text-xl">●</span> 
+                {viewMode === 'UPDATE_ARCHIVE' ? 'Notice Archive' : 'Community'}
               </h2>
            </div>
-           <button onClick={closeCommunity} className="w-10 h-10 flex items-center justify-center bg-slate-100 rounded-full text-slate-500 active:scale-90 transition-transform">
-             <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+           <button onClick={closeCommunity} className="w-9 h-9 flex items-center justify-center bg-slate-100 rounded-full text-slate-500 active:scale-90 transition-transform">
+             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
            </button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-5 pb-32 space-y-10">
            {viewMode === 'MAIN' ? (
              <>
-               {/* 16:9 Hero Update Section (Only for Admins to Write) */}
+               {/* 16:9 Hero Update Section */}
                <section className="space-y-4">
                   <div className="flex items-center justify-between px-1">
-                     <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                        <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full"></span>
-                        OFFICIAL UPDATE
+                     <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                        <span className="w-1 h-1 bg-yellow-400 rounded-full"></span>
+                        Official Notice
                      </h3>
                      <div className="flex gap-2">
                         {isAdmin && (
-                            <button onClick={() => openWriteForm('update')} className="text-[10px] font-black bg-yellow-400 text-slate-900 px-4 py-2 rounded-xl shadow-lg active:scale-95 transition-all">공지 작성</button>
+                            <button onClick={() => openWriteForm('update')} className="text-[9px] font-black bg-yellow-400 text-slate-900 px-3 py-1.5 rounded-xl shadow-lg active:scale-95 transition-all">POST UPDATE</button>
                         )}
-                        <button onClick={() => setViewMode('UPDATE_ARCHIVE')} className="text-[10px] font-black bg-slate-900 text-white px-4 py-2 rounded-xl shadow-lg active:scale-95 transition-all">목록보기</button>
+                        <button onClick={() => setViewMode('UPDATE_ARCHIVE')} className="text-[9px] font-black bg-slate-900 text-white px-3 py-1.5 rounded-xl shadow-lg active:scale-95 transition-all">목록보기</button>
                      </div>
                   </div>
                   
                   {latestUpdate ? (
-                      <div onClick={() => { setSelectedPost(latestUpdate); setViewMode('POST_DETAIL'); }} className="relative aspect-video rounded-[2.5rem] overflow-hidden shadow-2xl border-4 border-white group cursor-pointer transition-transform active:scale-[0.98]">
+                      <div onClick={() => { setSelectedPost(latestUpdate); setViewMode('POST_DETAIL'); }} className="relative aspect-video rounded-[2rem] overflow-hidden shadow-2xl border border-white/20 group cursor-pointer transition-transform active:scale-[0.98]">
                           {latestUpdate.thumbnail ? (
                               <img src={latestUpdate.thumbnail} className="absolute inset-0 w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110" alt="" />
                           ) : (
-                              <div className="absolute inset-0 bg-slate-900 flex items-center justify-center text-white/5 font-black text-2xl italic">NO IMAGE</div>
+                              <div className="absolute inset-0 bg-slate-900 flex items-center justify-center text-white/5 font-black text-2xl italic">SUGAR NOTICE</div>
                           )}
                           <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent"></div>
-                          <div className="absolute bottom-0 left-0 p-8 w-full">
-                              <span className="inline-block px-3 py-1 bg-yellow-400 text-slate-900 text-[9px] font-black rounded-lg uppercase tracking-widest mb-3">NEW NOTICE</span>
-                              <h4 className="text-white text-2xl font-black leading-tight drop-shadow-2xl line-clamp-2">{latestUpdate.title}</h4>
+                          <div className="absolute bottom-0 left-0 p-6 w-full">
+                              <span className="inline-block px-3 py-1 bg-yellow-400 text-slate-900 text-[8px] font-black rounded-lg uppercase tracking-widest mb-2">New Update</span>
+                              <h4 className="text-white text-xl font-black leading-tight drop-shadow-2xl line-clamp-2">{latestUpdate.title}</h4>
                           </div>
+                          {isAdmin && (
+                            <div className="absolute top-4 right-4 z-20" onClick={e => e.stopPropagation()}>
+                                <AdminPostMenu postId={latestUpdate.id} />
+                            </div>
+                          )}
                       </div>
                   ) : (
-                      <div className="aspect-video rounded-[2.5rem] bg-slate-200 border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400 gap-2">
-                          <span className="font-black text-sm uppercase tracking-tighter">등록된 공지가 없습니다.</span>
+                      <div className="aspect-video rounded-[2rem] bg-slate-200 border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400 gap-2">
+                          <span className="font-black text-[10px] uppercase tracking-tighter opacity-50">등록된 공지가 없습니다.</span>
                       </div>
                   )}
                </section>
 
-               {/* Community Tabs (Balance, Keuk, Stream) */}
+               {/* Community Tabs */}
                <section className="space-y-6 pt-2">
                    <div className="sticky top-0 z-20 py-2 bg-slate-50/95 backdrop-blur-md">
                      <div className="flex p-1.5 bg-white border border-slate-200 rounded-[1.5rem] shadow-xl">
                         {generalTabs.map((tab) => (
-                            <button key={tab} onClick={() => setActiveTab(tab)} className={`flex-1 py-3.5 rounded-2xl text-[11px] font-black transition-all ${activeTab === tab ? 'bg-slate-900 text-white shadow-xl scale-[1.02]' : 'text-slate-400 hover:text-slate-600'}`}>
+                            <button key={tab} onClick={() => setActiveTab(tab)} className={`flex-1 py-3 rounded-2xl text-[10px] font-black transition-all ${activeTab === tab ? 'bg-slate-900 text-white shadow-xl scale-[1.02]' : 'text-slate-400 hover:text-slate-600'}`}>
                               {tab === 'balance' ? '밸런스' : tab === 'keuk' ? '큭큭' : tab === 'stream' ? '홍보' : '임시'}
                             </button>
                         ))}
@@ -146,16 +180,26 @@ export const CommunityPanel: React.FC = () => {
 
                    <div className="space-y-4 min-h-[400px]">
                       {isLoading ? (
-                          <div className="flex flex-col items-center justify-center py-20">
-                              <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-900 rounded-full animate-spin"></div>
+                          <div className="flex flex-col items-center justify-center py-20 opacity-30">
+                              <div className="w-8 h-8 border-3 border-slate-300 border-t-slate-900 rounded-full animate-spin"></div>
                           </div>
                       ) : tabPosts.length === 0 ? (
-                          <div className="text-center py-32 text-slate-300 font-black text-sm bg-white/40 border-4 border-dashed border-slate-200 rounded-[3rem]">게시글이 없습니다.</div>
+                          <div className="text-center py-24 text-slate-300 font-black text-xs uppercase tracking-widest bg-white/40 border-2 border-dashed border-slate-200 rounded-[2.5rem]">No Feed Found</div>
                       ) : tabPosts.map((post) => (
-                          <div key={post.id} onClick={() => { setSelectedPost(post); setViewMode('POST_DETAIL'); }} className="bg-white p-7 rounded-[2.5rem] border border-slate-200 shadow-xl relative transition-all active:scale-[0.98]">
-                              <h4 className="font-black text-slate-800 text-lg mb-4 line-clamp-2 leading-tight">{post.title}</h4>
-                              <div className="pt-5 border-t border-slate-50 flex items-center justify-between text-[11px] font-black text-slate-400">
-                                  <span className="text-slate-900">{post.author}</span>
+                          <div key={post.id} onClick={() => { setSelectedPost(post); setViewMode('POST_DETAIL'); }} className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-xl relative transition-all active:scale-[0.98] group hover:border-slate-300">
+                              {isAdmin && (
+                                <div className="absolute top-6 right-6 z-20" onClick={e => e.stopPropagation()}>
+                                    <AdminPostMenu postId={post.id} />
+                                </div>
+                              )}
+                              <h4 className="font-black text-slate-800 text-base mb-4 line-clamp-2 leading-tight group-hover:text-blue-600 transition-colors">{post.title}</h4>
+                              <div className="pt-5 border-t border-slate-50 flex items-center justify-between text-[10px] font-black text-slate-400">
+                                  <div className="flex items-center gap-2">
+                                      <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center text-[7px] font-black text-slate-500 border border-slate-200">
+                                        {post.author[0].toUpperCase()}
+                                      </div>
+                                      <span onClick={e => { e.stopPropagation(); openCommunityUserProfile(post.author); }} className="text-slate-900 hover:underline">{post.author}</span>
+                                  </div>
                                   <span>{post.createdAt.split('T')[0]}</span>
                               </div>
                           </div>
@@ -166,27 +210,27 @@ export const CommunityPanel: React.FC = () => {
            ) : viewMode === 'UPDATE_ARCHIVE' ? (
              <div className="space-y-4 animate-in fade-in slide-in-from-right duration-500">
                 {updatePosts.map((post) => (
-                    <div key={post.id} onClick={() => { setSelectedPost(post); setViewMode('POST_DETAIL'); }} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-md flex gap-4 items-center group cursor-pointer active:scale-95 transition-all">
-                        {post.thumbnail && <div className="w-20 h-20 rounded-2xl overflow-hidden flex-shrink-0 border"><img src={post.thumbnail} className="w-full h-full object-cover" alt="" /></div>}
+                    <div key={post.id} onClick={() => { setSelectedPost(post); setViewMode('POST_DETAIL'); }} className="bg-white p-5 rounded-3xl border border-slate-200 shadow-md flex gap-4 items-center group cursor-pointer active:scale-95 transition-all">
+                        {post.thumbnail && <div className="w-16 h-16 rounded-2xl overflow-hidden flex-shrink-0 border bg-slate-100"><img src={post.thumbnail} className="w-full h-full object-cover" alt="" /></div>}
                         <div className="flex-1">
-                            <span className="text-[9px] font-black text-slate-400 block mb-1 uppercase tracking-widest">{post.createdAt.split('T')[0]}</span>
-                            <h4 className="font-black text-slate-800 line-clamp-2 leading-snug group-hover:text-yellow-600">{post.title}</h4>
+                            <span className="text-[8px] font-black text-slate-400 block mb-1 uppercase tracking-widest">{post.createdAt.split('T')[0]}</span>
+                            <h4 className="font-black text-slate-800 line-clamp-2 leading-snug group-hover:text-yellow-600 text-sm">{post.title}</h4>
                         </div>
                     </div>
                 ))}
-                {updatePosts.length === 0 && <div className="text-center py-20 text-slate-400 font-bold">공지 내역이 없습니다.</div>}
+                {updatePosts.length === 0 && <div className="text-center py-20 text-slate-400 font-bold text-xs">기록된 공지가 없습니다.</div>}
              </div>
            ) : null}
         </div>
 
-        {/* Global Floating Write Button for community boards */}
+        {/* Global Floating Write Button */}
         {viewMode === 'MAIN' && (
-            <div className="absolute bottom-10 right-6 z-40">
+            <div className="absolute bottom-8 right-6 z-40">
                 <button 
                     onClick={() => openWriteForm(activeTab === 'keuk' ? 'fun' : activeTab === 'stream' ? 'stream' : 'balance')} 
-                    className="w-16 h-16 bg-blue-600 text-white rounded-full shadow-2xl flex items-center justify-center border-4 border-white active:scale-90 transition-all"
+                    className="w-14 h-14 bg-blue-600 text-white rounded-full shadow-2xl flex items-center justify-center border-4 border-white active:scale-90 transition-all hover:bg-blue-700"
                 >
-                    <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
                 </button>
             </div>
         )}
@@ -198,45 +242,46 @@ export const CommunityPanel: React.FC = () => {
                     <button onClick={() => setViewMode(selectedPost.boardType === 'update' ? 'UPDATE_ARCHIVE' : 'MAIN')} className="p-2 -ml-2 text-slate-500">
                         <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
                     </button>
-                    <h3 className="text-sm font-black text-slate-800 truncate px-4">{selectedPost.title}</h3>
+                    <h3 className="text-xs font-black text-slate-800 truncate px-4">{selectedPost.title}</h3>
                     <div className="w-10"></div>
                 </div>
                 <div className="flex-1 overflow-y-auto overscroll-contain pb-32">
                     {selectedPost.thumbnail && <div className="w-full aspect-video bg-slate-100"><img src={selectedPost.thumbnail} className="w-full h-full object-cover" /></div>}
                     <div className="p-8">
                         <div className="flex items-center gap-3 mb-8">
-                             <div className="w-10 h-10 rounded-full bg-slate-900 text-white flex items-center justify-center font-black">{selectedPost.author[0]}</div>
+                             <div className="w-10 h-10 rounded-full bg-slate-900 text-white flex items-center justify-center font-black text-xs">{selectedPost.author[0]}</div>
                              <div>
-                                 <div className="text-sm font-black text-slate-900">{selectedPost.author}</div>
-                                 <div className="text-[10px] text-slate-400 font-bold">{selectedPost.createdAt.split('T')[0]}</div>
+                                 <div className="text-xs font-black text-slate-900">{selectedPost.author}</div>
+                                 <div className="text-[9px] text-slate-400 font-bold">{selectedPost.createdAt.split('T')[0]}</div>
                              </div>
                         </div>
-                        <h1 className="text-2xl font-black text-slate-900 mb-8 leading-tight">{selectedPost.title}</h1>
-                        <div className="prose prose-slate max-w-none text-slate-600 font-medium leading-relaxed" dangerouslySetInnerHTML={{ __html: selectedPost.content }}></div>
+                        <h1 className="text-2xl font-black text-slate-900 mb-8 leading-tight tracking-tight">{selectedPost.title}</h1>
+                        <div className="prose prose-slate max-w-none text-slate-600 font-medium leading-relaxed text-sm" dangerouslySetInnerHTML={{ __html: selectedPost.content }}></div>
                     </div>
                 </div>
             </div>
         )}
 
-        {/* Admin/User Write Form Modal */}
+        {/* Write Form Modal */}
         {isWriteFormOpen && (
             <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-xl z-[300] flex items-center justify-center p-6 animate-in fade-in duration-300">
-                <div className="bg-white w-full max-w-sm rounded-[3rem] p-10 shadow-2xl relative">
-                    <div className="mb-10 text-center">
+                <div className="bg-white w-full max-w-sm rounded-[3rem] p-10 shadow-2xl relative border border-white/20">
+                    <div className="mb-8 text-center">
                         <span className={`inline-block px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${writeMode === 'update' ? 'bg-yellow-100 text-yellow-700' : 'bg-blue-100 text-blue-700'}`}>
-                           {writeMode === 'update' ? '관리자 공지 작성' : '커뮤니티 글쓰기'}
+                           {writeMode === 'update' ? 'Admin Official Notice' : 'Community Post'}
                         </span>
+                        <h3 className="text-xl font-black text-slate-900 mt-4 tracking-tighter">소식 공유하기</h3>
                     </div>
-                    <form onSubmit={submitPost} className="space-y-5">
-                        <input type="text" value={writeTitle} onChange={(e) => setWriteTitle(e.target.value)} placeholder="제목" className="w-full p-5 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-black outline-none" />
+                    <form onSubmit={submitPost} className="space-y-4">
+                        <input type="text" value={writeTitle} onChange={(e) => setWriteTitle(e.target.value)} placeholder="제목" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-black outline-none focus:bg-white transition-all" />
                         {writeMode === 'update' && (
-                            <input type="text" value={writeThumbnail} onChange={(e) => setWriteThumbnail(e.target.value)} placeholder="썸네일 URL (16:9 이미지)" className="w-full p-5 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold outline-none" />
+                            <input type="text" value={writeThumbnail} onChange={(e) => setWriteThumbnail(e.target.value)} placeholder="썸네일 URL (16:9 이미지 권장)" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl text-xs font-bold outline-none focus:bg-white" />
                         )}
-                        <textarea value={writeContent} onChange={(e) => setWriteContent(e.target.value)} placeholder="내용 (HTML 지원)" className="w-full p-5 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-medium h-48 resize-none outline-none"></textarea>
-                        <div className="flex gap-3 pt-6">
-                            <button type="button" onClick={() => setIsWriteFormOpen(false)} className="flex-1 py-5 bg-slate-100 text-slate-500 font-black text-xs rounded-2xl">취소</button>
-                            <button type="submit" disabled={!writeTitle || !writeContent || isSubmitting} className={`flex-[1.5] py-5 text-white font-black text-xs rounded-2xl ${writeMode === 'update' ? 'bg-yellow-600' : 'bg-slate-900'}`}>
-                                {isSubmitting ? '전송 중' : '등록'}
+                        <textarea value={writeContent} onChange={(e) => setWriteContent(e.target.value)} placeholder="내용을 입력하세요 (HTML 가능)" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-medium h-40 resize-none outline-none focus:bg-white transition-all"></textarea>
+                        <div className="flex gap-2 pt-4">
+                            <button type="button" onClick={() => setIsWriteFormOpen(false)} className="flex-1 py-4 bg-slate-100 text-slate-500 font-black text-[10px] rounded-2xl active:scale-95 transition-all">취소</button>
+                            <button type="submit" disabled={!writeTitle || !writeContent || isSubmitting} className={`flex-[1.5] py-4 text-white font-black text-[10px] rounded-2xl shadow-xl active:scale-95 transition-all ${writeMode === 'update' ? 'bg-yellow-600' : 'bg-slate-900'}`}>
+                                {isSubmitting ? '전송 중...' : '등록하기'}
                             </button>
                         </div>
                     </form>
