@@ -13,6 +13,7 @@ import { AdminHiddenBoardModal } from './AdminHiddenBoardModal';
 import { AdminGuillotineModal } from './AdminGuillotineModal';
 import { CommunityUserProfileModal } from './CommunityUserProfileModal';
 import { useApp } from '../state/AppContext';
+import AdminGuard from './AdminGuard';
 
 interface LayoutProps {
   children: ReactNode;
@@ -22,10 +23,18 @@ const AdminToast: React.FC = () => {
   const { isAdminToastOpen } = useApp();
   
   return (
-    <div className={`fixed bottom-10 left-1/2 -translate-x-1/2 z-[500] transition-all duration-500 transform ${isAdminToastOpen ? 'translate-y-0 opacity-100 scale-100' : 'translate-y-20 opacity-0 scale-90 pointer-events-none'}`}>
-        <div className="bg-slate-900/90 backdrop-blur-xl border-2 border-yellow-400/50 px-6 py-3 rounded-2xl shadow-[0_0_40px_rgba(250,204,21,0.2)] flex items-center gap-3">
-            <div className="w-2 h-2 bg-yellow-400 rounded-full animate-ping"></div>
-            <span className="text-yellow-400 font-black tracking-tight text-sm">관리자 계정접속</span>
+    <div className={`fixed bottom-12 left-1/2 -translate-x-1/2 z-[1000] transition-all duration-700 cubic-bezier(0.19, 1, 0.22, 1) transform ${isAdminToastOpen ? 'translate-y-0 opacity-100 scale-100' : 'translate-y-24 opacity-0 scale-90 pointer-events-none'}`}>
+        <div className="bg-slate-900/90 backdrop-blur-2xl border-2 border-yellow-400/60 px-8 py-4 rounded-[2rem] shadow-[0_20px_50px_rgba(250,204,21,0.3)] flex items-center gap-4 group">
+            <div className="relative">
+                <div className="w-3 h-3 bg-yellow-400 rounded-full animate-ping absolute inset-0"></div>
+                <div className="w-3 h-3 bg-yellow-500 rounded-full relative z-10 shadow-[0_0_10px_rgba(250,204,21,0.8)]"></div>
+            </div>
+            <div className="flex flex-col">
+                <span className="text-yellow-400 font-black tracking-tight text-sm uppercase">Access Granted</span>
+                <span className="text-white font-bold text-[11px] opacity-80">관리자 계정접속 완료</span>
+            </div>
+            <div className="ml-2 w-px h-6 bg-white/20"></div>
+            <div className="text-white/40 text-[10px] font-mono font-bold tracking-tighter">MASTER</div>
         </div>
     </div>
   );
@@ -49,14 +58,19 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       {/* Community Panel Overlay (z-160) */}
       <CommunityPanel />
 
-      {/* Global Modals (z-index managed internally, placed here to escape 'main' stacking context) */}
+      {/* Global Modals */}
       <AuthModal />
       <MatchDetailModal />
       <RecapModal />
       <AnalysisModal />
-      <AdminEditor />
-      <AdminHiddenBoardModal />
-      <AdminGuillotineModal />
+      
+      {/* Admin Specific Guards */}
+      <AdminGuard>
+        <AdminEditor />
+        <AdminHiddenBoardModal />
+        <AdminGuillotineModal />
+      </AdminGuard>
+
       <CommunityUserProfileModal />
       <VirtualMatchingModal />
       <DirectMessageModal />

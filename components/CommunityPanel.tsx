@@ -199,18 +199,18 @@ export const CommunityPanel: React.FC = () => {
           <div className="relative">
               <button 
                   onClick={(e) => { e.stopPropagation(); setOpenAdminMenuId(isOpen ? null : postId); }}
-                  className={`w-9 h-9 flex items-center justify-center rounded-full transition-all ${isOpen ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-400 hover:text-slate-900 hover:bg-slate-200'}`}
+                  className={`w-9 h-9 flex items-center justify-center rounded-full transition-all ${isOpen ? 'bg-slate-900 text-white shadow-lg' : 'bg-white/80 backdrop-blur-md text-slate-400 hover:text-slate-900 border border-slate-200'}`}
               >
                   <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" /></svg>
               </button>
               
               {isOpen && (
-                  <div className="absolute right-0 mt-2 w-32 bg-white/95 backdrop-blur-xl border border-slate-200 rounded-2xl shadow-2xl z-[200] overflow-hidden animate-in zoom-in-95 duration-200 ring-4 ring-black/5">
+                  <div className="absolute right-0 mt-2 w-32 bg-white/95 backdrop-blur-xl border border-slate-200 rounded-2xl shadow-2xl z-[300] overflow-hidden animate-in zoom-in-95 duration-200 ring-4 ring-black/5">
                       <button 
                         onClick={(e) => handleAdminAction(e, postId, 'hide')}
                         className="w-full px-4 py-3 text-left text-xs font-bold text-slate-700 hover:bg-slate-50 border-b border-slate-100 flex items-center gap-2"
                       >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" /></svg>
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88(9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" /></svg>
                         임시조치
                       </button>
                       <button 
@@ -248,7 +248,7 @@ export const CommunityPanel: React.FC = () => {
            <button onClick={() => setSelectedPost(null)} className="w-10 h-10 flex items-center justify-center -ml-2 text-slate-600 hover:text-slate-900 active:scale-90 transition-transform"><svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg></button>
            <h3 className="text-sm font-black text-slate-800 truncate max-w-[180px]">{selectedPost.title}</h3>
            <div className="flex items-center gap-2">
-               <AdminPostMenu postId={selectedPost.id} />
+               {isAdminUser && <AdminPostMenu postId={selectedPost.id} />}
            </div>
         </div>
 
@@ -306,7 +306,7 @@ export const CommunityPanel: React.FC = () => {
                 {updatePosts.length > 0 ? (
                     displayedUpdates.map(post => (
                         <div key={post.id} onClick={() => setSelectedPost(post)} className="w-full flex flex-col bg-white rounded-2xl overflow-hidden shadow-md border border-slate-200 group relative animate-in fade-in slide-in-from-bottom-2 duration-300">
-                            {isAdminUser && <div className="absolute top-3 right-3 z-10"><AdminPostMenu postId={post.id} /></div>}
+                            {isAdminUser && <div className="absolute top-3 right-3 z-20"><AdminPostMenu postId={post.id} /></div>}
                             {post.thumbnail && <div className="w-full aspect-video bg-slate-200 overflow-hidden"><img src={post.thumbnail} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" /></div>}
                             <div className="p-5">
                                 <h4 className="font-black text-slate-900 text-lg mb-1 leading-tight">{post.title}</h4>
@@ -331,7 +331,7 @@ export const CommunityPanel: React.FC = () => {
               {isLoading ? [1,2,3].map(i => <div key={i} className="h-28 bg-white border border-slate-100 rounded-2xl animate-pulse"/>) : (
                   tabPosts.map(post => (
                       <div key={post.id} onClick={() => setSelectedPost(post)} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm relative group hover:border-slate-300 transition-colors active:scale-[0.99]">
-                          {isAdminUser && <div className="absolute top-4 right-4 z-10"><AdminPostMenu postId={post.id} /></div>}
+                          {isAdminUser && <div className="absolute top-4 right-4 z-20"><AdminPostMenu postId={post.id} /></div>}
                           <div className="flex justify-between items-start mb-3 pr-10">
                               <span className={`px-2.5 py-1 text-[10px] font-black rounded-lg uppercase tracking-wider ${activeTab === 'keuk' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>{activeTab === 'keuk' ? '유머' : '토론'}</span>
                               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{formatTime(post.createdAt)}</span>

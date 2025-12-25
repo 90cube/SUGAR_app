@@ -6,9 +6,10 @@ import { ProfileCard } from '../components/ProfileCard';
 import { TierCard } from '../components/TierCard';
 import { RecentTrend } from '../components/RecentTrend';
 import { RecentMatches } from '../components/RecentMatches';
+import AdminGuard from '../components/AdminGuard';
 
 export const Home: React.FC = () => {
-  const { status, userProfile, searchUser, isLoggedIn, openAuthModal, performAnomalyCheck, pageContent, isAdminUser, openAdminEditor } = useApp();
+  const { status, userProfile, searchUser, isLoggedIn, openAuthModal, performAnomalyCheck, pageContent, openAdminEditor } = useApp();
   const [nickname, setNickname] = useState('');
 
   const handleSearch = (e: React.FormEvent) => {
@@ -27,10 +28,8 @@ export const Home: React.FC = () => {
 
   return (
     <div className="w-full max-w-md mx-auto space-y-6 pb-24 relative">
-      {/* Modals have been moved to Layout.tsx to ensure proper z-index layering */}
-
       {/* Admin Floating Action Button */}
-      {isAdminUser && (
+      <AdminGuard>
           <button 
             onClick={openAdminEditor}
             className="fixed bottom-24 right-4 z-50 w-12 h-12 bg-slate-900 text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 transition-transform active:scale-90 border-2 border-yellow-400"
@@ -38,56 +37,24 @@ export const Home: React.FC = () => {
           >
              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
           </button>
-      )}
+      </AdminGuard>
       
       {/* Section 0: Search Panel & Title */}
       <section className="space-y-8 pt-12 animate-in fade-in slide-in-from-bottom-8 duration-700">
         
-        {/* Title Container - Group for hover effects */}
+        {/* Title Container */}
         <div className="group relative flex flex-col items-center justify-center select-none cursor-default z-20 w-full">
-            
-            {/* Letters: Maximized Spacing (justify-between), Forced Single Line (flex-nowrap) */}
             <div className="flex justify-between items-end w-full px-4 sm:px-10 flex-nowrap transition-transform duration-500 group-hover:scale-105">
-                {/* S - White */}
                 <div className="text-5xl sm:text-7xl font-[900] text-white drop-shadow-[0_5px_0_rgba(0,0,0,0.15)] transform -rotate-6 group-hover:-translate-y-2 transition-transform duration-300 flex-shrink-0">S</div>
-                
-                {/* U - Yellow */}
                 <div className="text-5xl sm:text-7xl font-[900] text-yellow-400 drop-shadow-[0_5px_0_rgba(234,179,8,0.4)] transform rotate-3 group-hover:-translate-y-2 transition-transform duration-300 delay-75 flex-shrink-0">U</div>
-                
-                {/* G - Yellow */}
                 <div className="text-5xl sm:text-7xl font-[900] text-yellow-400 drop-shadow-[0_5px_0_rgba(234,179,8,0.4)] transform -rotate-3 group-hover:-translate-y-2 transition-transform duration-300 delay-100 flex-shrink-0">G</div>
-                
-                {/* A - White */}
                 <div className="text-5xl sm:text-7xl font-[900] text-white drop-shadow-[0_5px_0_rgba(0,0,0,0.15)] transform rotate-6 group-hover:-translate-y-2 transition-transform duration-300 delay-150 flex-shrink-0">A</div>
-                
-                {/* R - Yellow */}
                 <div className="text-5xl sm:text-7xl font-[900] text-yellow-400 drop-shadow-[0_5px_0_rgba(234,179,8,0.4)] transform -rotate-2 group-hover:-translate-y-2 transition-transform duration-300 delay-200 flex-shrink-0">R</div>
             </div>
             
-            {/* Interactive Description Animation */}
-            {/* Positioned absolutely to drop down without reflow */}
             <div className="absolute top-[100%] left-1/2 -translate-x-1/2 mt-4 flex justify-center w-full px-2">
-                <div className="
-                    flex items-center justify-center overflow-hidden
-                    bg-slate-300/60 backdrop-blur-sm
-                    rounded-full
-                    w-12 h-1.5
-                    transition-all duration-500 cubic-bezier(0.34, 1.56, 0.64, 1)
-                    group-hover:w-full sm:group-hover:w-auto
-                    group-hover:h-auto group-hover:min-h-[36px]
-                    group-hover:bg-slate-900/90 group-hover:border group-hover:border-white/20
-                    group-hover:rounded-2xl
-                    group-hover:shadow-xl
-                    group-hover:translate-y-2
-                ">
-                    {/* Inner Text - Hidden by default, Reveals on Hover */}
-                    <div className="
-                        opacity-0 scale-90 translate-y-2
-                        group-hover:opacity-100 group-hover:scale-100 group-hover:translate-y-0
-                        transition-all duration-300 delay-100
-                        text-[9px] sm:text-xs font-bold tracking-widest uppercase
-                        flex flex-nowrap items-center justify-center gap-x-2 sm:gap-x-3 p-2 sm:p-3
-                    ">
+                <div className="flex items-center justify-center overflow-hidden bg-slate-300/60 backdrop-blur-sm rounded-full w-12 h-1.5 transition-all duration-500 cubic-bezier(0.34, 1.56, 0.64, 1) group-hover:w-full sm:group-hover:w-auto group-hover:h-auto group-hover:min-h-[36px] group-hover:bg-slate-900/90 group-hover:border group-hover:border-white/20 group-hover:rounded-2xl group-hover:shadow-xl group-hover:translate-y-2">
+                    <div className="opacity-0 scale-90 translate-y-2 group-hover:opacity-100 group-hover:scale-100 group-hover:translate-y-0 transition-all duration-300 delay-100 text-[9px] sm:text-xs font-bold tracking-widest uppercase flex flex-nowrap items-center justify-center gap-x-2 sm:gap-x-3 p-2 sm:p-3">
                         <span className="whitespace-nowrap flex-shrink-0"><span className="text-white text-xs sm:text-sm">S</span><span className="text-slate-400">udden Attack</span></span>
                         <span className="whitespace-nowrap flex-shrink-0"><span className="text-yellow-400 text-xs sm:text-sm">U</span><span className="text-slate-400">ser</span></span>
                         <span className="whitespace-nowrap flex-shrink-0"><span className="text-yellow-400 text-xs sm:text-sm">G</span><span className="text-slate-400">ameplay</span></span>
@@ -98,7 +65,6 @@ export const Home: React.FC = () => {
             </div>
         </div>
         
-        {/* Spacer for the dropped description to not overlap search bar too much if expanded */}
         <div className="h-4"></div>
 
         <form onSubmit={handleSearch} className="space-y-4 px-2 relative z-10">
@@ -146,31 +112,22 @@ export const Home: React.FC = () => {
         </form>
       </section>
 
-      {/* Results Section - Staggered Animations */}
+      {/* Results Section */}
       {status === AppStatus.SUCCESS && userProfile && (
         <div className="space-y-5">
-          
-          {/* 2. Player Identity */}
           <div className="animate-in fade-in slide-in-from-bottom-8 duration-700 fill-mode-backwards" style={{ animationDelay: '100ms' }}>
             <ProfileCard profile={userProfile} />
           </div>
-          
-          {/* 3. Tier (Solo & Party) */}
           <div className="grid grid-cols-2 gap-3 animate-in fade-in slide-in-from-bottom-8 duration-700 fill-mode-backwards" style={{ animationDelay: '200ms' }}>
             <TierCard type="Solo" tier={userProfile.soloTier} />
             <TierCard type="Party" tier={userProfile.partyTier} />
           </div>
-
-          {/* 4. Recent Trend Stats */}
           <div className="animate-in fade-in slide-in-from-bottom-8 duration-700 fill-mode-backwards" style={{ animationDelay: '300ms' }}>
             <RecentTrend stats={userProfile.recentStats} />
           </div>
-          
-          {/* 5. Recent Matches */}
           <div className="animate-in fade-in slide-in-from-bottom-8 duration-700 fill-mode-backwards" style={{ animationDelay: '400ms' }}>
             <RecentMatches matches={userProfile.recentMatches} />
           </div>
-
         </div>
       )}
 

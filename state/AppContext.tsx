@@ -5,6 +5,7 @@ import { nexonService } from '../services/nexonService';
 import { cloudStorageService } from '../services/cloudStorageService';
 import { geminiService } from '../services/geminiService';
 import { authService } from '../services/authService';
+import { supabase } from '../services/supabaseClient';
 import { UI_STRINGS, ADMIN_EMAILS } from '../constants';
 import { jwtDecode } from "jwt-decode";
 import { communityService } from '../services/communityService';
@@ -21,7 +22,7 @@ interface AppContextType {
   register: (data: { loginId: string; email: string; pw: string; nickname: string; phone: string }) => Promise<boolean>;
   logout: () => void;
   isAdminUser: boolean; 
-  isAdminToastOpen: boolean; // 관리자 접속 알림 상태
+  isAdminToastOpen: boolean; 
   
   isAuthModalOpen: boolean;
   openAuthModal: () => void;
@@ -110,73 +111,82 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
-  // Content State
   const [pageContent, setPageContent] = useState<PageContent>(cloudStorageService.getDefaultContent());
   const [isAdminEditorOpen, setIsAdminEditorOpen] = useState(false);
   const [isSavingContent, setIsSavingContent] = useState(false);
 
-  // Admin Modals State
   const [isAdminHiddenBoardOpen, setIsAdminHiddenBoardOpen] = useState(false);
   const [isAdminGuillotineOpen, setIsAdminGuillotineOpen] = useState(false);
 
-  // Community User Profile State
   const [selectedCommunityUser, setSelectedCommunityUser] = useState<CommunityUserProfile | null>(null);
 
-  // Pagination State
   const [visibleMatchCount, setVisibleMatchCount] = useState(10);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
 
-  // Match Detail State
   const [activeMatch, setActiveMatch] = useState<Match | null>(null);
   const [activeMatchDetail, setActiveMatchDetail] = useState<MatchDetail | null>(null);
   const [isMatchDetailLoading, setIsMatchDetailLoading] = useState(false);
 
-  // Recap State
   const [isRecapModalOpen, setIsRecapModalOpen] = useState(false);
   const [recapStats, setRecapStats] = useState<RecapStats | null>(null);
   const [isRecapLoading, setIsRecapLoading] = useState(false);
 
-  // Analysis State
   const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState(false);
   const [anomalyReport, setAnomalyReport] = useState<AnomalyReport | null>(null);
   const [isAnomalyLoading, setIsAnomalyLoading] = useState(false);
 
-  // Community State
   const [isCommunityOpen, setIsCommunityOpen] = useState(false);
-
-  // Virtual Matching State
   const [isVirtualMatchingModalOpen, setIsVirtualMatchingModalOpen] = useState(false);
-
-  // Direct Message State
   const [isDMModalOpen, setIsDMModalOpen] = useState(false);
   const [activeDMUser, setActiveDMUser] = useState<string | null>(null);
 
   const showAdminToast = () => {
     setIsAdminToastOpen(true);
-    setTimeout(() => setIsAdminToastOpen(false), 3000);
+    setTimeout(() => setIsAdminToastOpen(false), 3500);
+  };
+
+  const recoverSession = async () => {
+    try {
+      const profile = await authService.fetchMyProfile();
+      if (profile) {
+          console.log("[AppContext] Auth Profile Restored:", profile.email);
+          setAuthUser(profile);
+          setIsLoggedIn(true);
+          const isAdmin = profile.role === 'admin';
+          setIsAdminUser(isAdmin);
+          if (isAdmin) showAdminToast();
+      } else {
+          setAuthUser(null);
+          setIsLoggedIn(false);
+          setIsAdminUser(false);
+      }
+    } catch (e) {
+      console.error("[AppContext] Session recovery failed", e);
+    }
   };
 
   useEffect(() => {
      cloudStorageService.fetchContentConfig().then(setPageContent);
-     
-     // 세션 복구 로직
-     authService.getSession().then((user) => {
-         if (user) {
-             console.log("[AppContext] Session Restored:", user.email);
-             setAuthUser(user);
-             setIsLoggedIn(true);
-             const isAdmin = user.role === 'admin';
-             setIsAdminUser(isAdmin);
-             if (isAdmin) showAdminToast();
+     recoverSession();
+
+     if (supabase) {
+       const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+         if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session) {
+            recoverSession();
+         } else if (event === 'SIGNED_OUT') {
+            setAuthUser(null);
+            setIsLoggedIn(false);
+            setIsAdminUser(false);
+            setIsAdminToastOpen(false);
          }
-     });
+       });
+       return () => subscription.unsubscribe();
+     }
   }, []);
 
-  const handleGoogleLoginSuccess = (credential: string) => {
+  const handleGoogleLoginSuccess = async (credential: string) => {
     try {
       const decoded: any = jwtDecode(credential);
-      console.log("[AppContext] Google Login Success:", decoded.email);
-      
       const isAdmin = ADMIN_EMAILS.includes(decoded.email);
       
       const user: AuthUser = {
@@ -219,14 +229,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           const result = await authService.register(data);
           if (result.needsEmailConfirm) return false;
           
-          const user = await authService.getSession();
-          if (user) {
-              setAuthUser(user);
-              setIsLoggedIn(true);
-              const isAdmin = user.role === 'admin';
-              setIsAdminUser(isAdmin);
-              if (isAdmin) showAdminToast();
-          }
+          await recoverSession();
           setIsAuthModalOpen(false);
           return true;
       } catch (e: any) {
@@ -246,6 +249,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setIsAdminHiddenBoardOpen(false);
         setIsAdminGuillotineOpen(false);
         setIsAdminEditorOpen(false);
+        setIsAdminToastOpen(false);
     }
   };
 
@@ -329,67 +333,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setIsLoadingMore(false);
   };
 
-  const calculateRecap = async (date: string) => {
-    if (!userProfile) return;
-    setIsRecapLoading(true);
-    setRecapStats(null);
-    try {
-      const G_today = userProfile.recentMatches.filter(m => m.rawDate.startsWith(date));
-      const G_rest = userProfile.recentMatches.filter(m => !m.rawDate.startsWith(date));
-      const G_ranked = userProfile.recentMatches.filter(m => m.matchType.includes("랭크") || m.matchMode.includes("랭크"));
-      const stats: RecapStats = {
-          date,
-          totalMatches: G_today.length,
-          winRate: calculateWinRate(G_today),
-          kd: calculateKD(G_today),
-          topWeapon: "N/A",
-          comparison: {
-              restWinRate: calculateWinRate(G_rest),
-              restKd: calculateKD(G_rest),
-              rankedWinRate: calculateWinRate(G_ranked),
-              rankedKd: calculateKD(G_ranked)
-          }
-      };
-      if (G_today.length > 0) {
-          try {
-             const analysis = await geminiService.analyzeDailyRecap(stats);
-             stats.aiAnalysis = analysis;
-          } catch {
-             stats.aiAnalysis = "AI Analysis unavailable.";
-          }
-      } else {
-          stats.aiAnalysis = "No matches played on this date.";
-      }
-      setRecapStats(stats);
-    } finally {
-      setIsRecapLoading(false);
-    }
-  };
-
-  const performAnomalyCheck = async () => {
-    if (!userProfile) return;
-    setIsAnomalyLoading(true);
-    setAnomalyReport(null);
-    openAnalysisModal(); 
-    try {
-        await wait(1500);
-        let selectedDateKST = new Date().toISOString().split('T')[0];
-        if (userProfile.recentMatches.length > 0) {
-            selectedDateKST = userProfile.recentMatches[0].rawDate.split('T')[0];
-        }
-        const report = await nexonService.runAnomalyDetection(userProfile.nickname, selectedDateKST, userProfile.recentMatches);
-        setAnomalyReport(report);
-    } catch {
-        setAnomalyReport({
-            status: "ERROR", label: "Normal", suspicion_score: 0, deviation_level: 0,
-            message: "An unexpected error occurred.", reasons: [],
-            evidence: { last10_kd: 0, today_kd: 0, baseline_kd_mean: 0, baseline_kd_std: 0, today_match_count: 0 }
-        });
-    } finally {
-        setIsAnomalyLoading(false);
-    }
-  };
-
   const calculateWinRate = (matches: Match[]) => {
     if (matches.length === 0) return 0;
     const wins = matches.filter(m => m.result === MatchResult.WIN).length;
@@ -401,6 +344,65 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     matches.forEach(m => { kills += m.kill; deaths += m.death; });
     if (deaths === 0) return kills > 0 ? 100 : 0;
     return parseFloat(((kills / deaths) * 100).toFixed(1));
+  };
+
+  const calculateRecap = async (date: string) => {
+    if (!userProfile) return;
+    setIsRecapLoading(true);
+    setRecapStats(null);
+    try {
+      const matchesOnDate = userProfile.recentMatches.filter(m => m.rawDate.startsWith(date));
+      const restMatches = userProfile.recentMatches.filter(m => !m.rawDate.startsWith(date));
+      const rankedMatches = userProfile.recentMatches.filter(m => m.matchType === "랭크전");
+
+      const stats: RecapStats = {
+        date,
+        totalMatches: matchesOnDate.length,
+        winRate: calculateWinRate(matchesOnDate),
+        kd: calculateKD(matchesOnDate),
+        topWeapon: "N/A",
+        comparison: {
+          restWinRate: calculateWinRate(restMatches),
+          restKd: calculateKD(restMatches),
+          rankedWinRate: calculateWinRate(rankedMatches),
+          rankedKd: calculateKD(rankedMatches)
+        }
+      };
+
+      if (stats.totalMatches > 0) {
+        const feedback = await geminiService.analyzeDailyRecap(stats);
+        stats.aiAnalysis = feedback;
+      }
+      setRecapStats(stats);
+    } catch (e) {
+      console.error("[AppContext] Recap calculation failed", e);
+    } finally {
+      setIsRecapLoading(false);
+    }
+  };
+
+  const performAnomalyCheck = async () => {
+    if (!userProfile) return;
+    setIsAnomalyLoading(true);
+    setAnomalyReport(null);
+    openAnalysisModal();
+
+    try {
+      const now = new Date();
+      const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+      const kstDate = new Date(utc + (9 * 60 * 60 * 1000)).toISOString().split('T')[0];
+      
+      const report = await nexonService.runAnomalyDetection(
+        userProfile.nickname,
+        kstDate,
+        userProfile.recentMatches
+      );
+      setAnomalyReport(report);
+    } catch (e) {
+      console.error("[AppContext] Anomaly detection failed", e);
+    } finally {
+      setIsAnomalyLoading(false);
+    }
   };
 
   useEffect(() => {

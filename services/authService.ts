@@ -10,10 +10,55 @@ class AuthService {
   }
 
   /**
+   * Supabase Auth 유저 정보를 바탕으로 DB의 profiles 테이블에서 상세 정보(role 등)를 조회합니다.
+   */
+  async fetchMyProfile(): Promise<AuthUser | null> {
+    if (!supabase) return null;
+
+    try {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError || !user) return null;
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, login_id, email, role, nickname')
+        .eq('id', user.id)
+        .single();
+
+      if (error) {
+        console.error('fetchMyProfile error', error);
+        // 프로필이 없는 경우 최소한 Auth 유저 정보라도 반환
+        return {
+            id: user.id,
+            email: user.email!,
+            name: user.user_metadata?.nickname || 'Unknown',
+            role: this.isAdminEmail(user.email!) ? 'admin' : 'user',
+            isEmailVerified: !!user.email_confirmed_at
+        };
+      }
+
+      return {
+          id: data.id,
+          loginId: data.login_id,
+          email: data.email,
+          name: data.nickname || 'Unknown',
+          role: data.role || (this.isAdminEmail(data.email) ? 'admin' : 'user'),
+          isEmailVerified: !!user.email_confirmed_at
+      };
+    } catch (e) {
+      console.error("[AuthService] Exception in fetchMyProfile:", e);
+      return null;
+    }
+  }
+
+  /**
    * 아이디 중복 확인
    */
   async isIdAvailable(loginId: string): Promise<{available: boolean, message: string}> {
-    // 1. 형식 검사
     const idRegex = /^[a-zA-Z0-9_]{4,15}$/;
     if (!loginId || loginId.length < 4) return { available: false, message: "4자 이상 입력" };
     if (!idRegex.test(loginId)) return { available: false, message: "영문/숫자/_만 가능" };
@@ -21,7 +66,6 @@ class AuthService {
     if (!supabase) return { available: true, message: "오프라인 모드" }; 
 
     try {
-        // 2. DB 중복 체크
         const { data, error } = await supabase
             .from('profiles')
             .select('login_id')
@@ -29,25 +73,12 @@ class AuthService {
             .maybeSingle();
         
         if (error) {
-            // 테이블이 없는 경우(42P01)는 첫 가입자 상황으로 간주
-            if (error.code === '42P01') {
-                console.warn("[AuthService] 'profiles' 테이블이 없습니다. DB 설정을 확인하세요.");
-                return { available: true, message: "사용 가능 (첫 가입)" };
-            }
-            // 그 외 에러 로깅 (문자열 변환 방지)
-            console.error("ID Check Error Details:", error);
-            const errorMsg = error.message || "서버 응답 오류";
+            if (error.code === '42P01') return { available: true, message: "사용 가능 (첫 가입)" };
             return { available: true, message: `연결 확인 중...` }; 
         }
-
-        // data가 존재하면 중복
-        if (data) {
-            return { available: false, message: "이미 사용 중인 아이디" };
-        }
-        
+        if (data) return { available: false, message: "이미 사용 중인 아이디" };
         return { available: true, message: "사용 가능한 아이디" };
     } catch (e: any) {
-        console.error("ID Check Exception:", e);
         return { available: true, message: "확인 완료" };
     }
   }
@@ -70,14 +101,9 @@ class AuthService {
         
         if (error) {
             if (error.code === '42P01') return { available: true, message: "사용 가능" };
-            console.error("Email Check Error Details:", error);
             return { available: true, message: "연결 확인 중..." };
         }
-        
-        if (data) {
-            return { available: false, message: "이미 가입된 이메일" };
-        }
-
+        if (data) return { available: false, message: "이미 가입된 이메일" };
         return { available: true, message: "사용 가능한 이메일" };
     } catch (e: any) {
         return { available: true, message: "확인 완료" };
@@ -99,7 +125,7 @@ class AuthService {
             emailToUse = profileData.email;
         }
 
-        const { data, error } = await supabase.auth.signInWithPassword({
+        const { error } = await supabase.auth.signInWithPassword({
             email: emailToUse,
             password: pw,
         });
@@ -109,17 +135,9 @@ class AuthService {
             throw new Error("아이디 또는 비밀번호를 확인해주세요.");
         }
 
-        if (data.user) {
-            const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.user.id).single();
-            return {
-                id: data.user.id,
-                loginId: profile?.login_id || 'N/A',
-                email: data.user.email!,
-                name: profile?.nickname || 'Unknown',
-                role: (profile?.role === 'admin' || this.isAdminEmail(data.user.email!)) ? 'admin' : 'user',
-                isEmailVerified: !!data.user.email_confirmed_at
-            };
-        }
+        const profile = await this.fetchMyProfile();
+        if (!profile) throw new Error("프로필 정보를 불러올 수 없습니다.");
+        return profile;
     }
     throw new Error("서버 연결 실패");
   }
@@ -138,42 +156,24 @@ class AuthService {
 
     if (authError) {
         if (authError.message.includes("already registered")) throw new Error("이미 가입된 이메일입니다.");
-        if (authError.message.includes("confirmation email")) throw new Error("인증 메일 발송 한도 초과 (잠시 후 시도)");
         throw new Error(authError.message);
     }
 
     if (authData.user) {
-        const { error: profileError } = await supabase.from('profiles').insert({
+        await supabase.from('profiles').insert({
             id: authData.user.id,
             login_id: data.loginId,
             email: data.email,
             nickname: data.nickname,
             role: this.isAdminEmail(data.email) ? 'admin' : 'user'
         });
-        
-        if (profileError) {
-            console.error("Profile creation error:", profileError.message);
-        }
     }
 
     return { needsEmailConfirm: !authData.session };
   }
 
   async getSession(): Promise<AuthUser | null> {
-      if (!supabase) return null;
-      const { data } = await supabase.auth.getSession();
-      if (data.session?.user) {
-         const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.session.user.id).single();
-         return {
-            id: data.session.user.id,
-            loginId: profile?.login_id || 'Unknown',
-            email: data.session.user.email!,
-            name: profile?.nickname || 'Unknown',
-            role: (profile?.role === 'admin' || this.isAdminEmail(data.session.user.email!)) ? 'admin' : 'user',
-            isEmailVerified: !!data.session.user.email_confirmed_at
-         };
-      }
-      return null;
+      return await this.fetchMyProfile();
   }
 
   async logout(): Promise<void> {

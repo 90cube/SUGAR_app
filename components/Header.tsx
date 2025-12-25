@@ -2,12 +2,12 @@
 import React from 'react';
 import { NEXON_SA_LOGO_URL, UI_STRINGS } from '../constants';
 import { useApp } from '../state/AppContext';
+import AdminGuard from './AdminGuard';
 
 export const Header: React.FC = () => {
-  const { isLoggedIn, openAuthModal, openCommunity, isAdminUser, openAdminHiddenBoard, openAdminGuillotine } = useApp();
+  const { openAuthModal, openCommunity, openAdminHiddenBoard, openAdminGuillotine } = useApp();
 
   const handleCommunityClick = () => {
-    // Open community immediately regardless of login status
     openCommunity();
   };
 
@@ -44,15 +44,14 @@ export const Header: React.FC = () => {
 
         {/* Right: Admin Icons & Community */}
         <div className="flex items-center gap-3 z-10">
-            {isAdminUser && (
-                <>
+            <AdminGuard>
+                <div className="flex items-center gap-3">
                     {/* Hidden Board (Hood Icon) */}
                     <button 
                         onClick={openAdminHiddenBoard}
                         className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
                         title="비밀 게시판"
                     >
-                         {/* Simple Hood/Spy Icon */}
                         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                             <path fillRule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 5a1 1 0 011-1h6a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
                         </svg>
@@ -70,8 +69,8 @@ export const Header: React.FC = () => {
                     </button>
                     
                     <div className="w-px h-4 bg-slate-700 mx-1"></div>
-                </>
-            )}
+                </div>
+            </AdminGuard>
 
             <button 
               onClick={handleCommunityClick}
