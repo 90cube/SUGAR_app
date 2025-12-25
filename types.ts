@@ -1,7 +1,5 @@
 
 // Global application types
-
-// Extend Window interface for Google Identity Services
 declare global {
   interface Window {
     google: any;
@@ -60,7 +58,6 @@ export interface AuthUser {
   email: string;
   picture?: string;
   role: 'admin' | 'user';
-  // Added missing fields for authentication and profile management
   isEmailVerified?: boolean;
   isPhoneVerified?: boolean;
   phone?: string;
@@ -116,24 +113,35 @@ export interface AnomalyReport {
   };
 }
 
-// Defined BoardType for community boards
 export type BoardType = 'update' | 'balance' | 'fun' | 'stream' | 'hidden';
 
 export interface CommunityPost {
   id: string;
-  boardType: BoardType; // Updated to use BoardType instead of inline literal union
+  boardType: BoardType;
   title: string;
   content: string;
   author: string;
   authorRole: 'admin' | 'user';
   createdAt: string;
-  heads: number;
-  halfshots: number;
+  heads: number; // 추천 (헤드샷)
+  halfshots: number; // 비추천 (반샷)
+  blueVotes: number; // 밸런스 투표 BLUE
+  redVotes: number; // 밸런스 투표 RED
   views: number;
   thumbnail?: string;
   commentCount: number;
   status: 'APPROVED' | 'PENDING' | 'HIDDEN'; 
   isHidden?: boolean;
+}
+
+export interface CommunityComment {
+  id: string;
+  postId: string;
+  authorId: string;
+  authorNickname: string;
+  content: string;
+  createdAt: string;
+  teamType: 'BLUE' | 'RED' | 'GRAY';
 }
 
 export interface CommunityUserProfile {

@@ -10,9 +10,9 @@ interface AdminGuardProps {
  * AdminGuard: 관리자(admin) 권한이 있는 사용자에게만 자식 요소를 노출합니다.
  */
 const AdminGuard: React.FC<AdminGuardProps> = ({ children }) => {
-  const { isAdminUser } = useApp();
+  const { isAdmin } = useApp();
 
-  if (!isAdminUser) return null;
+  if (!isAdmin) return null;
 
   return <>{children}</>;
 };

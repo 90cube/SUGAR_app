@@ -1,382 +1,308 @@
 
-import { CommunityPost, BoardType, CommunityUserProfile } from '../types';
+import { CommunityPost, BoardType, CommunityUserProfile, CommunityComment } from '../types';
 import { supabase } from './supabaseClient';
 
 class CommunityService {
   
-  // --- Check Connection ---
   async checkConnection(): Promise<boolean> {
-      if (!supabase) return false;
-      try {
-          const { count, error } = await supabase.from('posts').select('*', { count: 'exact', head: true });
-          if (error) return false;
-          console.log(`[Supabase] Connection OK. Post count: ${count}`);
-          return true;
-      } catch (e) {
-          return false;
-      }
+    if (!supabase) return false;
+    try {
+      const { error } = await supabase.from('posts').select('id').limit(1);
+      return !error;
+    } catch {
+      return false;
+    }
   }
 
-  // --- Fallback Mock Data ---
-  private getMockPosts(boardType: BoardType = 'balance'): CommunityPost[] {
-      const systemNotice: CommunityPost = {
-          id: 'sys_notice_1',
-          boardType: 'update',
-          title: '[System] Database Setup Required',
-          content: '<p>Supabase에 <strong>public.posts</strong> 테이블이 없습니다.<br/>SQL Editor에서 테이블 생성 쿼리를 실행해주세요. 현재는 임시 데이터가 표시됩니다.</p>',
-          author: 'System',
-          authorRole: 'admin',
-          createdAt: new Date().toISOString(),
-          heads: 999,
-          halfshots: 0,
-          views: 0,
-          commentCount: 0,
-          status: 'APPROVED',
-          thumbnail: 'https://placehold.co/600x338/334155/FFF?text=DB+Setup+Required'
-      };
-
-      const mockBalance: CommunityPost = {
-          id: 'mock_balance_1',
-          boardType: 'balance',
-          title: '[예시] 에임지옥 vs 3보급창고',
-          content: '연습하기 어디가 더 좋나요?',
-          author: 'TestUser',
-          authorRole: 'user',
-          createdAt: new Date(Date.now() - 3600000).toISOString(),
-          heads: 5,
-          halfshots: 2,
-          views: 42,
-          commentCount: 0,
-          status: 'APPROVED'
-      };
-
-      const items = [systemNotice, mockBalance];
-      return items.filter(i => i.boardType === boardType || i.boardType === 'update');
-  }
-
-  // --- Read Posts ---
   async getPosts(boardType?: BoardType): Promise<CommunityPost[]> {
-    if (!supabase) {
-        return this.getMockPosts(boardType); 
-    }
-
-    try {
-        let query = supabase
-            .from('posts')
-            .select(`
-                *,
-                votes ( vote_type )
-            `)
-            .order('created_at', { ascending: false });
-
-        if (boardType) {
-            query = query.eq('board_type', boardType);
-        }
-        
-        if (boardType !== 'hidden') {
-            query = query.neq('status', 'HIDDEN');
-        }
-
-        const { data, error } = await query;
-
-        if (error) {
-            if (error.code === 'PGRST205' || error.code === '42P01') {
-                console.warn("[CommunityService] Tables missing in Supabase. Returning mock data.");
-                return this.getMockPosts(boardType);
-            }
-            console.warn(`[Supabase] Fetch Warning: ${error.message}`);
-            return [];
-        }
-
-        return data.map((row: any) => this.mapRowToPost(row));
-    } catch (e) {
-        console.error("[CommunityService] Exception in getPosts:", e);
-        return this.getMockPosts(boardType);
-    }
-  }
-
-  // --- Admin Post Actions ---
-  
-  async updatePostStatus(postId: string, status: 'APPROVED' | 'PENDING' | 'HIDDEN'): Promise<boolean> {
-      if (!supabase) return false;
-      try {
-          const { error } = await supabase
-              .from('posts')
-              .update({ status })
-              .eq('id', postId);
-          
-          if (error) throw error;
-          return true;
-      } catch (e) {
-          console.error("[CommunityService] Failed to update post status", e);
-          return false;
-      }
-  }
-
-  async deletePost(postId: string): Promise<boolean> {
-      if (!supabase) return false;
-      try {
-          // 먼저 투표 기록 삭제 (Foreign Key 제약 조건이 있을 경우 대비)
-          await supabase.from('votes').delete().eq('post_id', postId);
-          
-          const { error } = await supabase
-              .from('posts')
-              .delete()
-              .eq('id', postId);
-          
-          if (error) throw error;
-          return true;
-      } catch (e) {
-          console.error("[CommunityService] Failed to delete post", e);
-          return false;
-      }
-  }
-
-  // --- Other Methods ---
-
-  async getPostsByAuthor(nickname: string): Promise<CommunityPost[]> {
-      if (!supabase) return [];
-      
-      try {
-        const { data, error } = await supabase
-            .from('posts')
-            .select(`*, votes(vote_type)`)
-            .eq('author_nickname', nickname)
-            .neq('status', 'HIDDEN')
-            .order('created_at', { ascending: false });
-            
-        if (error) return [];
-
-        return (data || []).map((row: any) => this.mapRowToPost(row));
-      } catch (e) {
-          return [];
-      }
-  }
-
-  async getPopularPosts(boardType: BoardType): Promise<CommunityPost[]> {
     if (!supabase) return [];
-
     try {
-        const { data, error } = await supabase
-            .from('posts')
-            .select(`*, votes(vote_type)`)
-            .eq('board_type', boardType)
-            .eq('status', 'APPROVED')
-            .order('created_at', { ascending: false })
-            .limit(20);
-            
-        if (error) {
-            if (error.code === 'PGRST205' || error.code === '42P01') {
-                return this.getMockPosts(boardType).slice(0, 3);
-            }
-            return [];
-        }
+      let query = supabase
+        .from('posts')
+        .select(`*, votes ( vote_type ), comments ( id )`)
+        .order('created_at', { ascending: false });
 
-        if (!data) return [];
+      if (boardType && boardType !== 'hidden') {
+        query = query.eq('board_type', boardType);
+      }
 
-        const mapped = data.map((row: any) => this.mapRowToPost(row));
-        return mapped.sort((a, b) => b.heads - a.heads).slice(0, 3);
+      const { data, error } = await query;
+      if (error) throw error;
+      
+      return data.map((row: any) => this.mapRowToPost(row));
     } catch (e) {
-        return [];
+      console.error("[CommunityService] getPosts error", e);
+      return [];
     }
+  }
+
+  async getComments(postId: string): Promise<CommunityComment[]> {
+    if (!supabase) return [];
+    try {
+      const { data, error } = await supabase
+        .from('comments')
+        .select('*')
+        .eq('post_id', postId)
+        .order('created_at', { ascending: true });
+      
+      if (error) throw error;
+      
+      return data.map((c: any) => ({
+        id: c.id,
+        postId: c.post_id,
+        authorId: c.author_id,
+        authorNickname: c.author_nickname,
+        content: c.content,
+        createdAt: c.created_at,
+        teamType: (c.team_type as 'BLUE' | 'RED' | 'GRAY') || 'GRAY'
+      }));
+    } catch (e) {
+      console.error("[CommunityService] getComments error", e);
+      return [];
+    }
+  }
+
+  async createComment(postId: string, content: string, nickname: string): Promise<boolean> {
+    if (!supabase) return false;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return false;
+
+      const { data: vote } = await supabase
+        .from('votes')
+        .select('vote_type')
+        .eq('post_id', postId)
+        .eq('user_id', user.id)
+        .in('vote_type', ['BLUE', 'RED'])
+        .maybeSingle();
+
+      const teamType = vote?.vote_type === 'BLUE' ? 'BLUE' : vote?.vote_type === 'RED' ? 'RED' : 'GRAY';
+
+      const { error } = await supabase.from('comments').insert({
+        post_id: postId,
+        author_id: user.id,
+        author_nickname: nickname,
+        content: content,
+        team_type: teamType
+      });
+
+      return !error;
+    } catch (e) {
+      console.error("[CommunityService] createComment error", e);
+      return false;
+    }
+  }
+
+  async castBalanceVote(postId: string, team: 'BLUE' | 'RED'): Promise<{ blue: number; red: number; userVote: 'BLUE' | 'RED' | null; error?: string }> {
+    if (!supabase) return { blue: 0, red: 0, userVote: null };
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return { blue: 0, red: 0, userVote: null };
+
+      const { data: existing } = await supabase
+        .from('votes')
+        .select('*')
+        .eq('post_id', postId)
+        .eq('user_id', user.id)
+        .in('vote_type', ['BLUE', 'RED'])
+        .maybeSingle();
+
+      if (existing) {
+        return { blue: 0, red: 0, userVote: existing.vote_type as any, error: "투표는 번복할 수 없습니다." };
+      }
+
+      await supabase.from('votes').insert({
+        post_id: postId,
+        user_id: user.id,
+        vote_type: team
+      });
+
+      const { data: allVotes } = await supabase.from('votes').select('vote_type').eq('post_id', postId).in('vote_type', ['BLUE', 'RED']);
+      const blue = allVotes?.filter((v: any) => v.vote_type === 'BLUE').length || 0;
+      const red = allVotes?.filter((v: any) => v.vote_type === 'RED').length || 0;
+
+      return { blue, red, userVote: team };
+    } catch (e) {
+      return { blue: 0, red: 0, userVote: null, error: "투표 실패" };
+    }
+  }
+
+  async toggleReaction(postId: string, type: 'HEAD' | 'HALF'): Promise<{ heads: number; halfs: number }> {
+    if (!supabase) return { heads: 0, halfs: 0 };
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return { heads: 0, halfs: 0 };
+
+      const { data: existing } = await supabase
+        .from('votes')
+        .select('*')
+        .eq('post_id', postId)
+        .eq('user_id', user.id)
+        .in('vote_type', ['HEAD', 'HALF'])
+        .maybeSingle();
+
+      if (existing) {
+        if (existing.vote_type === type) {
+          await supabase.from('votes').delete().eq('id', existing.id);
+        } else {
+          await supabase.from('votes').update({ vote_type: type }).eq('id', existing.id);
+        }
+      } else {
+        await supabase.from('votes').insert({ post_id: postId, user_id: user.id, vote_type: type });
+      }
+
+      const { data: all } = await supabase.from('votes').select('vote_type').eq('post_id', postId);
+      return {
+        heads: all?.filter((v: any) => v.vote_type === 'HEAD').length || 0,
+        halfs: all?.filter((v: any) => v.vote_type === 'HALF').length || 0
+      };
+    } catch {
+      return { heads: 0, halfs: 0 };
+    }
+  }
+
+  async getBalanceVoteStatus(postId: string): Promise<'BLUE' | 'RED' | null> {
+    if (!supabase) return null;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+    const { data } = await supabase.from('votes').select('vote_type').eq('post_id', postId).eq('user_id', user.id).in('vote_type', ['BLUE', 'RED']).maybeSingle();
+    return data ? data.vote_type as any : null;
   }
 
   async createPost(post: { title: string; content: string; author: string; boardType: BoardType; thumbnail?: string }): Promise<boolean> {
-      if (!supabase) {
-          return false;
-      }
-      
-      try {
-          const { data: { user } } = await supabase.auth.getUser();
-          const userId = user?.id;
-
-          if (!userId) {
-              console.error("[Community] Cannot create post without auth.");
-              return false;
-          }
-
-          const payload = {
-              title: post.title,
-              content: post.content,
-              board_type: post.boardType,
-              author_id: userId,
-              author_nickname: post.author,
-              status: post.boardType === 'hidden' ? 'HIDDEN' : 'APPROVED',
-              thumbnail: post.thumbnail || null
-          };
-
-          const { error } = await supabase
-              .from('posts')
-              .insert(payload)
-              .select(); 
-
-          if (error) {
-              console.error(`[Supabase] Insert Failed: ${error.message} (Code: ${error.code})`);
-              return false;
-          }
-          
-          return true;
-      } catch (e) {
-          console.error("[CommunityService] createPost Exception:", e);
-          return false;
-      }
+    if (!supabase) return false;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return false;
+      const { error } = await supabase.from('posts').insert({
+        title: post.title,
+        content: post.content,
+        board_type: post.boardType,
+        author_id: user.id,
+        author_nickname: post.author,
+        thumbnail: post.thumbnail || null,
+        status: post.boardType === 'hidden' ? 'HIDDEN' : 'APPROVED'
+      });
+      return !error;
+    } catch {
+      return false;
+    }
   }
 
-  async requestStreamPost(postData: { title: string, content: string, author: string }): Promise<CommunityPost | null> {
-      if (!supabase) return null;
-      
-      try {
-          const { data: { user } } = await supabase.auth.getUser();
-          const userId = user?.id;
-          if (!userId) return null;
-
-          const { data, error } = await supabase
-              .from('posts')
-              .insert({
-                  title: postData.title,
-                  content: postData.content,
-                  board_type: 'stream',
-                  author_id: userId,
-                  author_nickname: postData.author,
-                  status: 'PENDING',
-                  thumbnail: 'stream_pending'
-              })
-              .select()
-              .single();
-
-          if (error) {
-              console.error("[Supabase] Stream Request Error:", error.message);
-              return null;
-          }
-          return this.mapRowToPost(data);
-      } catch {
-          return null;
-      }
+  async updatePostStatus(postId: string, status: 'APPROVED' | 'PENDING' | 'HIDDEN'): Promise<boolean> {
+    if (!supabase) return false;
+    const { error } = await supabase.from('posts').update({ status }).eq('id', postId);
+    return !error;
   }
 
-  async getUserVote(postId: string, nickname: string): Promise<'head' | 'half' | null> {
-      if (!supabase) return null;
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return null;
-
-        const { data, error } = await supabase
-            .from('votes')
-            .select('vote_type')
-            .eq('post_id', postId)
-            .eq('user_id', user.id)
-            .single();
-        
-        if (error) return null;
-        return data?.vote_type as 'head' | 'half' | null;
-      } catch {
-          return null;
-      }
-  }
-
-  async toggleVote(postId: string, nickname: string, type: 'head' | 'half'): Promise<{ heads: number; halfshots: number; userVote: 'head' | 'half' | null }> {
-      if (!supabase) return { heads: 0, halfshots: 0, userVote: null };
-
-      try {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (!user) return { heads: 0, halfshots: 0, userVote: null };
-
-          const { data: existing, error } = await supabase
-              .from('votes')
-              .select('*')
-              .eq('post_id', postId)
-              .eq('user_id', user.id)
-              .single();
-          
-          if (error && error.code !== 'PGRST116') { 
-               if (error.code === 'PGRST205' || error.code === '42P01') {
-                   return { heads: 1, halfshots: 0, userVote: type };
-               }
-          }
-
-          let finalUserVote: 'head' | 'half' | null = type;
-
-          if (existing) {
-              if (existing.vote_type === type) {
-                  await supabase.from('votes').delete().eq('id', existing.id);
-                  finalUserVote = null;
-              } else {
-                  await supabase.from('votes').update({ vote_type: type }).eq('id', existing.id);
-              }
-          } else {
-              await supabase.from('votes').insert({
-                  post_id: postId,
-                  user_id: user.id,
-                  vote_type: type
-              });
-          }
-
-          const { count: heads } = await supabase.from('votes').select('*', { count: 'exact', head: true }).eq('post_id', postId).eq('vote_type', 'head');
-          const { count: halfs } = await supabase.from('votes').select('*', { count: 'exact', head: true }).eq('post_id', postId).eq('vote_type', 'half');
-
-          return {
-              heads: heads || 0,
-              halfshots: halfs || 0,
-              userVote: finalUserVote
-          };
-      } catch (e) {
-          return { heads: 0, halfshots: 0, userVote: null };
-      }
-  }
-
-  async reportPost(postId: string, nickname: string): Promise<boolean> {
-      return true;
+  async deletePost(postId: string): Promise<boolean> {
+    if (!supabase) return false;
+    const { error } = await supabase.from('posts').delete().eq('id', postId);
+    return !error;
   }
 
   async getCommunityUserProfile(nickname: string): Promise<CommunityUserProfile> {
-      let postCount = 0;
-      if (supabase) {
-          const { count, error } = await supabase.from('posts').select('*', { count: 'exact', head: true }).eq('author_nickname', nickname);
-          if (!error) postCount = count || 0;
-      }
-
-      return {
-          nickname,
-          joinDate: 'Unknown',
-          postCount,
-          commentCount: 0, 
-          guillotineCount: 0
-      };
+    if (!supabase) return { nickname, joinDate: 'Unknown', postCount: 0, commentCount: 0, guillotineCount: 0 };
+    const { count: postCount } = await supabase.from('posts').select('*', { count: 'exact', head: true }).eq('author_nickname', nickname);
+    const { count: commentCount } = await supabase.from('comments').select('*', { count: 'exact', head: true }).eq('author_nickname', nickname);
+    const { data: profile } = await supabase.from('profiles').select('joined_at, nickname, guillotine_count').eq('nickname', nickname).maybeSingle();
+    return {
+      nickname,
+      joinDate: profile?.joined_at ? profile.joined_at.split('T')[0] : 'Unknown',
+      postCount: postCount || 0,
+      commentCount: commentCount || 0,
+      guillotineCount: profile?.guillotine_count || 0
+    };
   }
 
   async executeGuillotine(nickname: string): Promise<number> {
-      return 1;
+    if (!supabase) return 0;
+    try {
+      const { data: profile } = await supabase.from('profiles').select('guillotine_count').eq('nickname', nickname).maybeSingle();
+      const currentCount = profile?.guillotine_count || 0;
+      const newCount = currentCount + 1;
+      await supabase.from('profiles').update({ guillotine_count: newCount }).eq('nickname', nickname);
+      return newCount;
+    } catch (e) {
+      console.error("[CommunityService] executeGuillotine error", e);
+      return 0;
+    }
   }
 
   async getHighGuillotineUsers(): Promise<CommunityUserProfile[]> {
+    if (!supabase) return [];
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .gt('guillotine_count', 0)
+        .order('guillotine_count', { ascending: false })
+        .limit(10);
+      if (error) throw error;
+
+      return await Promise.all((data || []).map(async (u: any) => {
+        const { count: postCount } = await supabase.from('posts').select('*', { count: 'exact', head: true }).eq('author_nickname', u.nickname);
+        const { count: commentCount } = await supabase.from('comments').select('*', { count: 'exact', head: true }).eq('author_nickname', u.nickname);
+        return {
+          nickname: u.nickname,
+          joinDate: u.joined_at ? u.joined_at.split('T')[0] : 'Unknown',
+          postCount: postCount || 0,
+          commentCount: commentCount || 0,
+          guillotineCount: u.guillotine_count || 0
+        };
+      }));
+    } catch (e) {
+      console.error("[CommunityService] getHighGuillotineUsers error", e);
       return [];
+    }
   }
 
   async getHighHalfshotPosts(): Promise<CommunityPost[]> {
+    if (!supabase) return [];
+    try {
+      const { data, error } = await supabase
+        .from('posts')
+        .select(`*, votes(vote_type), comments(id)`);
+      if (error) throw error;
+      const mapped = (data || []).map((row: any) => this.mapRowToPost(row));
+      return mapped
+        .filter((p: any) => p.halfshots > 0)
+        .sort((a: any, b: any) => b.halfshots - a.halfshots)
+        .slice(0, 10);
+    } catch (e) {
+      console.error("[CommunityService] getHighHalfshotPosts error", e);
       return [];
+    }
+  }
+
+  async getPostsByAuthor(nickname: string): Promise<CommunityPost[]> {
+    if (!supabase) return [];
+    const { data } = await supabase.from('posts').select(`*, votes(vote_type), comments(id)`).eq('author_nickname', nickname).order('created_at', { ascending: false });
+    return (data || []).map((row: any) => this.mapRowToPost(row));
   }
 
   private mapRowToPost(row: any): CommunityPost {
-      const votes = row.votes || [];
-      const heads = votes.filter((v: any) => v.vote_type === 'head').length;
-      const halfshots = votes.filter((v: any) => v.vote_type === 'half').length;
-
-      return {
-          id: row.id,
-          boardType: row.board_type as BoardType,
-          title: row.title,
-          content: row.content,
-          author: row.author_nickname || 'Unknown',
-          authorRole: 'user', 
-          createdAt: row.created_at,
-          heads: heads,
-          halfshots: halfshots,
-          views: row.views,
-          commentCount: 0,
-          status: row.status,
-          thumbnail: row.thumbnail,
-          isHidden: row.status === 'HIDDEN'
-      };
+    const votes = row.votes || [];
+    const comments = row.comments || [];
+    
+    return {
+      id: row.id,
+      boardType: row.board_type as BoardType,
+      title: row.title,
+      content: row.content,
+      author: row.author_nickname || 'Unknown',
+      authorRole: 'user', 
+      createdAt: row.created_at,
+      heads: votes.filter((v: any) => v.vote_type === 'HEAD').length,
+      halfshots: votes.filter((v: any) => v.vote_type === 'HALF').length,
+      blueVotes: votes.filter((v: any) => v.vote_type === 'BLUE').length,
+      redVotes: votes.filter((v: any) => v.vote_type === 'RED').length,
+      views: row.views || 0,
+      commentCount: comments.length,
+      status: row.status,
+      thumbnail: row.thumbnail,
+      isHidden: row.status === 'HIDDEN'
+    };
   }
 }
 

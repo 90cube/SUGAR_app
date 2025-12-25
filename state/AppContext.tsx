@@ -21,7 +21,7 @@ interface AppContextType {
   login: (id: string, pw: string) => Promise<boolean>;
   register: (data: { loginId: string; email: string; pw: string; nickname: string; phone: string }) => Promise<boolean>;
   logout: () => void;
-  isAdminUser: boolean; 
+  isAdmin: boolean; // role === 'admin' 체크용 축약 상태
   isAdminToastOpen: boolean; 
   
   isAuthModalOpen: boolean;
@@ -105,7 +105,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [status, setStatus] = useState<AppStatus>(AppStatus.IDLE);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
-  const [isAdminUser, setIsAdminUser] = useState(false);
   const [isAdminToastOpen, setIsAdminToastOpen] = useState(false);
   
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -140,25 +139,27 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [isDMModalOpen, setIsDMModalOpen] = useState(false);
   const [activeDMUser, setActiveDMUser] = useState<string | null>(null);
 
+  const isAdmin = authUser?.role === 'admin';
+
   const showAdminToast = () => {
     setIsAdminToastOpen(true);
     setTimeout(() => setIsAdminToastOpen(false), 3500);
   };
 
+  /**
+   * 새로고침 시 세션을 복구하고 프로필(role 포함)을 로드합니다.
+   */
   const recoverSession = async () => {
     try {
       const profile = await authService.fetchMyProfile();
       if (profile) {
-          console.log("[AppContext] Auth Profile Restored:", profile.email);
+          console.log("[AppContext] Session Restored Profile:", profile.email);
           setAuthUser(profile);
           setIsLoggedIn(true);
-          const isAdmin = profile.role === 'admin';
-          setIsAdminUser(isAdmin);
-          if (isAdmin) showAdminToast();
+          if (profile.role === 'admin') showAdminToast();
       } else {
           setAuthUser(null);
           setIsLoggedIn(false);
-          setIsAdminUser(false);
       }
     } catch (e) {
       console.error("[AppContext] Session recovery failed", e);
@@ -171,12 +172,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
      if (supabase) {
        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+         console.log(`[Supabase] Auth Event: ${event}`);
          if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session) {
             recoverSession();
          } else if (event === 'SIGNED_OUT') {
             setAuthUser(null);
             setIsLoggedIn(false);
-            setIsAdminUser(false);
             setIsAdminToastOpen(false);
          }
        });
@@ -187,22 +188,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const handleGoogleLoginSuccess = async (credential: string) => {
     try {
       const decoded: any = jwtDecode(credential);
-      const isAdmin = ADMIN_EMAILS.includes(decoded.email);
+      const isAdminEmail = ADMIN_EMAILS.includes(decoded.email);
       
       const user: AuthUser = {
         id: decoded.sub,
         name: decoded.name,
         email: decoded.email,
         picture: decoded.picture,
-        role: isAdmin ? 'admin' : 'user',
+        role: isAdminEmail ? 'admin' : 'user',
         isEmailVerified: true
       };
       
       setAuthUser(user);
       setIsLoggedIn(true);
-      setIsAdminUser(isAdmin);
       setIsAuthModalOpen(false);
-      if (isAdmin) showAdminToast();
+      if (user.role === 'admin') showAdminToast();
     } catch (e) {
       console.error("[AppContext] Google Login Failed", e);
       alert("로그인 처리에 실패했습니다.");
@@ -214,10 +214,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           const user = await authService.login(id, pw);
           setAuthUser(user);
           setIsLoggedIn(true);
-          const isAdmin = user.role === 'admin';
-          setIsAdminUser(isAdmin);
           setIsAuthModalOpen(false);
-          if (isAdmin) showAdminToast();
+          if (user.role === 'admin') showAdminToast();
           return true;
       } catch (e: any) {
           throw e;
@@ -242,7 +240,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         await authService.logout();
     } finally {
         setIsLoggedIn(false);
-        setIsAdminUser(false);
         setAuthUser(null);
         setStatus(AppStatus.IDLE);
         setIsCommunityOpen(false);
@@ -413,7 +410,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   return (
     <AppContext.Provider value={{ 
-      status, setStatus, isLoggedIn, authUser, handleGoogleLoginSuccess, login, register, logout, isAdminUser, isAdminToastOpen,
+      status, setStatus, isLoggedIn, authUser, handleGoogleLoginSuccess, login, register, logout, isAdmin, isAdminToastOpen,
       isAuthModalOpen, openAuthModal, closeAuthModal, userProfile, searchUser,
       activeMatch, activeMatchDetail, isMatchDetailLoading, openMatchDetail, closeMatchDetail,
       visibleMatchCount, loadMoreMatches, isLoadingMore,

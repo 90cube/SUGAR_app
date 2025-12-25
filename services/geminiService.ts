@@ -1,29 +1,15 @@
 
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 import { DEFAULT_GEMINI_MODEL } from "../constants";
 import { UserProfile, RecapStats } from "../types";
 
 export class GeminiService {
-  private ai: GoogleGenAI | null = null;
-
-  constructor(apiKey?: string) {
-    if (apiKey) {
-      this.ai = new GoogleGenAI({ apiKey });
-    } else if (process.env.API_KEY) {
-      this.ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    }
-  }
-
-  public initialize(apiKey: string): void {
-    this.ai = new GoogleGenAI({ apiKey });
+  // Always create a new instance when needed to ensure the latest API Key is used.
+  private get ai() {
+    return new GoogleGenAI({ apiKey: process.env.API_KEY });
   }
 
   public async generateText(prompt: string): Promise<string> {
-    if (!this.ai) {
-      console.warn("Gemini Service: API Key not found. Returning mock response for scaffold.");
-      return "Gemini service is not initialized with an API key yet.";
-    }
-
     try {
       const response = await this.ai.models.generateContent({
         model: DEFAULT_GEMINI_MODEL,
@@ -66,8 +52,6 @@ export class GeminiService {
   }
 
   public async analyzeTeamMatchup(teamA: UserProfile[], teamB: UserProfile[]): Promise<string> {
-    if (!this.ai) return "Gemini API Key is missing. Cannot perform analysis.";
-
     // 1. Master the data (Summarize)
     const teamAData = teamA.map(p => this.masterPlayerData(p)).join('\n');
     const teamBData = teamB.map(p => this.masterPlayerData(p)).join('\n');
@@ -120,8 +104,6 @@ export class GeminiService {
   }
 
   public async analyzeDailyRecap(stats: RecapStats): Promise<string> {
-      if (!this.ai) return "AI Service not initialized.";
-
       const prompt = `
         당신은 서든어택 전문 개인 코치입니다.
         아래는 플레이어의 '오늘의 경기 요약' 통계입니다. 이 데이터를 바탕으로 오늘의 퍼포먼스를 피드백해주세요.
@@ -151,23 +133,13 @@ export class GeminiService {
       }
   }
 
-  // --- New Method for Admin Update Notices ---
+  // --- New Method for Admin Update Notices using responseSchema for better reliability ---
   public async summarizeGameUpdate(rawText: string, masterPrompt: string): Promise<{ title: string; content: string }> {
-      if (!this.ai) throw new Error("AI Service Not Initialized");
-
       const prompt = `
         ${masterPrompt}
 
         [Raw Update Text]
         ${rawText}
-
-        OUTPUT FORMAT:
-        You must return a valid JSON object string. Do not use Markdown code blocks.
-        JSON Structure:
-        {
-          "title": "A short, catchy title summarizing the main update (Max 20 chars)",
-          "content": "HTML formatted body content. Use <br/> for line breaks, NOT </br>. Use <h3>, <ul>, <li>, <p>, <strong>."
-        }
       `;
 
       try {
@@ -175,15 +147,26 @@ export class GeminiService {
               model: DEFAULT_GEMINI_MODEL,
               contents: prompt,
               config: {
-                responseMimeType: "application/json" 
+                responseMimeType: "application/json",
+                responseSchema: {
+                  type: Type.OBJECT,
+                  properties: {
+                    title: {
+                      type: Type.STRING,
+                      description: 'A short, catchy title summarizing the main update (Max 20 chars)',
+                    },
+                    content: {
+                      type: Type.STRING,
+                      description: 'HTML formatted body content. Use <br/> for line breaks, NOT </br>. Use <h3>, <ul>, <li>, <p>, <strong>.',
+                    },
+                  },
+                  required: ["title", "content"],
+                  propertyOrdering: ["title", "content"],
+                }
               }
           });
           
           let jsonStr = response.text || "{}";
-          
-          // Cleanup: Remove markdown code blocks if present (Gemini sometimes adds them despite JSON mode)
-          jsonStr = jsonStr.replace(/```json/g, '').replace(/```/g, '').trim();
-
           let result = JSON.parse(jsonStr);
 
           // Post-processing: Fix common HTML tag errors from LLM

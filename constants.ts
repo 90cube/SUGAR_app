@@ -4,31 +4,33 @@
 export const APP_NAME = "SUGAR";
 export const API_VERSION = "v1";
 
-// Corrected API Key from prompt
+// Nexon API Key
 export const NEXON_API_KEY = "test_93beb7a0e000d7813a59226b7cc14b6334bd53cbcdcae5b7bf30cbb05817015befe8d04e6d233bd35cf2fabdeb93fb0d";
 
-// Corrected Base URL: open.api.nexon.com instead of openapi.nexon.com
+// Nexon API Base URL
 export const NEXON_API_BASE_URL = "https://open.api.nexon.com/suddenattack/v1";
 
-// Using a placeholder for the Nexon Sudden Attack logo
+// Logo URL
 export const NEXON_SA_LOGO_URL = "https://rs.nxfs.nexon.com/common/logo/logo_suddenattack.png"; 
 
-// Default model for Gemini Service
+// Default Gemini Model
 export const DEFAULT_GEMINI_MODEL = "gemini-3-flash-preview";
 
-// --- Google OAuth Config ---
-// 발급받은 Google Client ID를 아래에 입력하세요.
+// Google OAuth Config
 export const GOOGLE_CLIENT_ID = "770615003528-nbag5q4n1d8vcpnsjkuqqa0t57csbjm3.apps.googleusercontent.com";
 
-// --- Admin Config ---
-// 관리자 권한을 부여할 이메일 목록입니다.
-// 구글 로그인 후 이 리스트에 본인 이메일이 있으면 자동으로 'admin' 권한이 부여됩니다.
+/**
+ * [중요] 관리자 권한 설정
+ * 여기에 본인이 사용할 이메일 주소를 입력하세요.
+ * 구글 로그인 또는 일반 회원가입 시 이 목록에 있는 이메일은 'admin' 권한을 갖게 됩니다.
+ */
 export const ADMIN_EMAILS = [
     "admin@sugar.com",
-    "your_email@gmail.com" // 여기에 본인의 실제 이메일을 추가하세요!
+    "your_real_email@gmail.com", // <-- 여기에 본인 이메일을 넣으세요!
+    "test@test.com"
 ];
 
-// --- Supabase Config (DB) ---
+// Supabase Config
 export const SUPABASE_URL = "https://uwjjnncbpyhwslnipons.supabase.co"; 
 export const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV3ampubmNicHlod3Nsbmlwb25zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY1Mjc2MjUsImV4cCI6MjA4MjEwMzYyNX0.CGahTXEhj1kPCnU389xrquf_TMd7q1XLvnNmAEqxGqc";
 
