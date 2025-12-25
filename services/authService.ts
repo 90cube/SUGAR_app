@@ -3,7 +3,7 @@ import { AuthUser } from "../types";
 import { supabase } from "./supabaseClient";
 import { ADMIN_EMAILS } from "../constants";
 
-// --- Mock Data (Fallback & Dev Backdoor) ---
+// --- Mock Data (Fallback) ---
 const USERS_DB: AuthUser[] = [];
 
 class AuthService {
@@ -45,29 +45,7 @@ class AuthService {
 
   async login(idOrEmail: string, pw: string): Promise<AuthUser> {
     
-    // 1. Dev Backdoor (Master Account)
-    if (idOrEmail === 'sugar' && (pw === 'attack' || pw === 'attack@@')) {
-       // Try to get a real session if possible
-       if (supabase) {
-           try {
-               await supabase.auth.signInWithPassword({
-                   email: 'admin@sugar.com',
-                   password: pw
-               });
-           } catch (e) {}
-       }
-       return {
-           id: 'admin_sugar',
-           loginId: 'sugar',
-           email: 'admin@sugar.com',
-           name: '슈가 어드민',
-           role: 'admin',
-           isEmailVerified: true,
-           isPhoneVerified: true
-       };
-    }
-
-    // 2. Real DB Login (Supabase)
+    // Real DB Login (Supabase)
     if (supabase) {
         let emailToUse = idOrEmail;
 
@@ -125,7 +103,7 @@ class AuthService {
         }
     }
 
-    // 3. Fallback to Mock DB
+    // Fallback to Mock DB
     const user = USERS_DB.find(u => u.email === idOrEmail || u.loginId === idOrEmail);
     if (user && pw.length >= 6) return user;
 
@@ -136,7 +114,6 @@ class AuthService {
     
     // 1. Real DB Register
     if (supabase) {
-        // A. Check duplicate ID
         const { data: existingId } = await supabase
             .from('profiles')
             .select('login_id')
@@ -147,7 +124,6 @@ class AuthService {
             throw new Error("이미 사용 중인 아이디입니다.");
         }
 
-        // B. Create Auth User
         const { data: authData, error: authError } = await supabase.auth.signUp({
             email: data.email,
             password: data.pw,
@@ -173,12 +149,10 @@ class AuthService {
             throw new Error("인증 메일이 발송되었습니다. 이메일 확인 후 로그인해주세요.");
         }
 
-        // C. Create Profile Row
         if (authData.session) {
-            // Check if this email is in our ADMIN_EMAILS list
             const role = this.isAdminEmail(data.email) ? 'admin' : 'user';
 
-            const { error: profileError } = await supabase
+            await supabase
                 .from('profiles')
                 .insert({
                     id: authData.user.id,
@@ -186,12 +160,8 @@ class AuthService {
                     email: data.email,
                     nickname: data.nickname,
                     phone: data.phone,
-                    role: role // Try to set admin role on creation
+                    role: role 
                 });
-
-            if (profileError) {
-                console.warn("Profile creation failed (likely RLS). User created in Auth only.");
-            }
         }
 
         return {
@@ -206,7 +176,6 @@ class AuthService {
         };
     }
 
-    // 2. Fallback
     const newUser: AuthUser = {
         id: `user_${Date.now()}`,
         loginId: data.loginId,
@@ -219,7 +188,6 @@ class AuthService {
     return newUser;
   }
 
-  // Restore Session
   async getSession(): Promise<AuthUser | null> {
       if (supabase) {
           const { data } = await supabase.auth.getSession();

@@ -12,7 +12,6 @@ export const AuthModal: React.FC = () => {
   const [mode, setMode] = useState<AuthMode>('LOGIN');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const [copyFeedback, setCopyFeedback] = useState(false);
   
   const googleButtonRef = useRef<HTMLDivElement>(null);
 
@@ -100,12 +99,6 @@ export const AuthModal: React.FC = () => {
     setSignupPhone(''); setPhoneCode(''); setIsPhoneSent(false); setIsPhoneVerified(false);
     setSignupNickname('');
     setIsLoading(false);
-  };
-
-  const copyOrigin = () => {
-      navigator.clipboard.writeText(window.location.origin);
-      setCopyFeedback(true);
-      setTimeout(() => setCopyFeedback(false), 2000);
   };
 
   const handleSafeError = (e: any) => {
@@ -273,32 +266,11 @@ export const AuthModal: React.FC = () => {
                 <div className="space-y-5 animate-in slide-in-from-right duration-300">
                     
                     {/* Google Login Button */}
-                    <div className="w-full flex flex-col items-center gap-3">
-                        <div className="w-full flex justify-center min-h-[40px]" ref={googleButtonRef}></div>
-                        
-                        {/* Help Box for 401 Error */}
-                        <div className="w-full p-4 bg-blue-50 border border-blue-100 rounded-2xl">
-                             <h4 className="text-[10px] font-bold text-blue-600 uppercase mb-2">구글 401 오류 해결 방법 (Developer Guide)</h4>
-                             <p className="text-[10px] text-slate-500 leading-relaxed mb-3">
-                                구글 콘솔의 <strong>'승인된 JavaScript 출처'</strong>에 아래 주소를 추가해야 로그인이 가능합니다. (aistudio 주소가 아닙니다!)
-                             </p>
-                             <div className="flex items-center gap-2">
-                                <code className="flex-1 p-2 bg-white border border-blue-100 rounded-lg text-[10px] text-blue-800 font-mono truncate">
-                                    {window.location.origin}
-                                </code>
-                                <button 
-                                    onClick={copyOrigin}
-                                    className="px-3 py-2 bg-blue-600 text-white text-[10px] font-bold rounded-lg hover:bg-blue-500 transition-colors active:scale-95"
-                                >
-                                    {copyFeedback ? '복사됨!' : '복사'}
-                                </button>
-                             </div>
-                        </div>
-                    </div>
+                    <div className="w-full flex justify-center min-h-[40px]" ref={googleButtonRef}></div>
 
                     <div className="flex items-center gap-2">
                         <div className="h-px bg-slate-200 flex-1"></div>
-                        <span className="text-[10px] text-slate-400 font-bold uppercase">Or use master account</span>
+                        <span className="text-[10px] text-slate-400 font-bold uppercase">Or use account ID</span>
                         <div className="h-px bg-slate-200 flex-1"></div>
                     </div>
 
@@ -307,14 +279,14 @@ export const AuthModal: React.FC = () => {
                             type="text" 
                             value={loginId}
                             onChange={(e) => setLoginId(e.target.value)}
-                            placeholder="아이디: sugar"
+                            placeholder="아이디 (ID) 또는 이메일"
                             className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/10 placeholder:text-slate-400"
                         />
                         <input 
                             type="password" 
                             value={loginPw}
                             onChange={(e) => setLoginPw(e.target.value)}
-                            placeholder="비밀번호: attack@@"
+                            placeholder="비밀번호 (Password)"
                             className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/10 placeholder:text-slate-400"
                         />
                         
@@ -325,7 +297,7 @@ export const AuthModal: React.FC = () => {
                             disabled={isLoading}
                             className="w-full py-3.5 bg-slate-900 text-white font-bold rounded-xl shadow-lg active:scale-95 transition-all hover:bg-slate-800 disabled:opacity-50"
                         >
-                            {isLoading ? '로그인 중...' : '아이디로 로그인 (Sign In)'}
+                            {isLoading ? '로그인 중...' : '로그인 (Sign In)'}
                         </button>
                     </form>
                 </div>
