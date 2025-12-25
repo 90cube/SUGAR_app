@@ -47,10 +47,10 @@ export const Header: React.FC = () => {
   const displayName = authUser?.name !== 'Unknown' ? authUser?.name : authUser?.email.split('@')[0];
 
   return (
-    <header className="sticky top-0 z-[140] w-full bg-slate-900/90 backdrop-blur-xl border-b border-white/5 shadow-2xl">
+    <header className="sticky top-0 z-[140] w-full bg-slate-900/95 backdrop-blur-xl border-b border-white/10 shadow-2xl">
       <div className="container max-w-md mx-auto h-16 flex items-center justify-between px-5">
         
-        {/* Left: Brand - 텍스트 로고만 남김 */}
+        {/* Left: Brand */}
         <button 
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
           className="text-xl font-black tracking-tighter flex items-center group active:scale-95 transition-transform"
@@ -62,13 +62,13 @@ export const Header: React.FC = () => {
           <span className="text-yellow-400">R</span>
         </button>
 
-        {/* Right: Actions - 겹침 방지를 위해 flex-1 justify-end 설정 */}
-        <div className="flex items-center gap-4">
+        {/* Right: Actions */}
+        <div className="flex items-center gap-5">
           <button 
             onClick={openCommunity}
-            className="text-[11px] font-black text-slate-400 hover:text-white transition-colors uppercase tracking-widest py-2"
+            className="text-[10px] font-black text-slate-400 hover:text-yellow-400 transition-colors uppercase tracking-[0.2em] py-2"
           >
-            Comm.
+            COMMUNITY
           </button>
 
           {isLoggedIn ? (
