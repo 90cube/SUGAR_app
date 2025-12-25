@@ -77,7 +77,7 @@ export const CommunityPanel: React.FC = () => {
             halfshots: type === 'HALF' ? prev.halfshots + 1 : prev.halfshots
         } : null);
     } else {
-        alert("이미 투표하셨거나 처리 중 오류가 발생했습니다.");
+        alert("이미 참여하셨거나 처리 중 오류가 발생했습니다.");
     }
   };
 
@@ -98,8 +98,14 @@ export const CommunityPanel: React.FC = () => {
   const submitPost = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
-    if (writeMode === 'balance' && (!blueOption.trim() || !redOption.trim())) return;
-    if (writeMode !== 'balance' && !writeTitle.trim()) return;
+    if (writeMode === 'balance' && (!blueOption.trim() || !redOption.trim())) {
+      alert("양쪽 선택지를 모두 입력해주세요.");
+      return;
+    }
+    if (writeMode !== 'balance' && !writeTitle.trim()) {
+      alert("제목을 입력해주세요.");
+      return;
+    }
     
     setIsSubmitting(true);
     const author = userProfile?.nickname || authUser?.name || 'Unknown';
@@ -110,6 +116,8 @@ export const CommunityPanel: React.FC = () => {
     if (success) {
       resetWriteForm();
       fetchTabContent(activeTab);
+    } else {
+      alert("등록 중 오류가 발생했습니다.");
     }
     setIsSubmitting(false);
   };
@@ -146,9 +154,6 @@ export const CommunityPanel: React.FC = () => {
     );
   };
 
-  const latestUpdate = updatePosts[0];
-  const generalTabs: TabType[] = isAdmin ? ['balance', 'keuk', 'stream', 'temp'] : ['balance', 'keuk', 'stream'];
-
   return (
     <>
       <div className={`fixed inset-0 bg-black/70 backdrop-blur-md z-[150] transition-opacity duration-500 ${isCommunityOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} onClick={closeCommunity}></div>
@@ -173,15 +178,15 @@ export const CommunityPanel: React.FC = () => {
                         <button onClick={() => setViewMode('UPDATE_ARCHIVE')} className="text-[9px] font-black bg-slate-900 text-white px-3 py-1.5 rounded-xl shadow-lg">목록보기</button>
                      </div>
                   </div>
-                  {latestUpdate && (
-                      <div onClick={() => { setSelectedPost(latestUpdate); setViewMode('POST_DETAIL'); }} className="relative aspect-video rounded-[2rem] overflow-hidden shadow-2xl border border-white/20 cursor-pointer transition-transform active:scale-[0.98]">
-                          {latestUpdate.thumbnail ? <img src={latestUpdate.thumbnail} className="absolute inset-0 w-full h-full object-cover" alt="" /> : <div className="absolute inset-0 bg-slate-900 flex items-center justify-center text-white/5 font-black text-2xl italic">NOTICE</div>}
+                  {updatePosts[0] && (
+                      <div onClick={() => { setSelectedPost(updatePosts[0]); setViewMode('POST_DETAIL'); }} className="relative aspect-video rounded-[2rem] overflow-hidden shadow-2xl border border-white/20 cursor-pointer transition-transform active:scale-[0.98]">
+                          {updatePosts[0].thumbnail ? <img src={updatePosts[0].thumbnail} className="absolute inset-0 w-full h-full object-cover" alt="" /> : <div className="absolute inset-0 bg-slate-900 flex items-center justify-center text-white/5 font-black text-2xl italic">NOTICE</div>}
                           <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent"></div>
                           <div className="absolute bottom-0 left-0 p-6 w-full">
                               <span className="inline-block px-3 py-1 bg-yellow-400 text-slate-900 text-[8px] font-black rounded-lg uppercase tracking-widest mb-2">New Update</span>
-                              <h4 className="text-white text-xl font-black leading-tight line-clamp-2">{latestUpdate.title}</h4>
+                              <h4 className="text-white text-xl font-black leading-tight line-clamp-2">{updatePosts[0].title}</h4>
                           </div>
-                          <div className="absolute top-4 right-4 z-20" onClick={e => e.stopPropagation()}><AdminPostMenu postId={latestUpdate.id} /></div>
+                          <div className="absolute top-4 right-4 z-20" onClick={e => e.stopPropagation()}><AdminPostMenu postId={updatePosts[0].id} /></div>
                       </div>
                   )}
                </section>
@@ -189,8 +194,8 @@ export const CommunityPanel: React.FC = () => {
                <section className="space-y-6 pt-2">
                    <div className="sticky top-0 z-20 py-2 bg-slate-50/95 backdrop-blur-md">
                      <div className="flex p-1.5 bg-white border border-slate-200 rounded-[1.5rem] shadow-xl">
-                        {generalTabs.map((tab) => (
-                            <button key={tab} onClick={() => setActiveTab(tab)} className={`flex-1 py-3 rounded-2xl text-[10px] font-black transition-all ${activeTab === tab ? 'bg-slate-900 text-white shadow-xl scale-[1.02]' : 'text-slate-400 hover:text-slate-600'}`}>
+                        {(isAdmin ? ['balance', 'keuk', 'stream', 'temp'] : ['balance', 'keuk', 'stream']).map((tab) => (
+                            <button key={tab} onClick={() => setActiveTab(tab as TabType)} className={`flex-1 py-3 rounded-2xl text-[10px] font-black transition-all ${activeTab === tab ? 'bg-slate-900 text-white shadow-xl scale-[1.02]' : 'text-slate-400 hover:text-slate-600'}`}>
                               {tab === 'balance' ? '밸런스' : tab === 'keuk' ? '큭큭' : tab === 'stream' ? '홍보' : '임시'}
                             </button>
                         ))}
@@ -200,7 +205,9 @@ export const CommunityPanel: React.FC = () => {
                       {isLoading ? <div className="flex justify-center py-20 opacity-30"><div className="w-8 h-8 border-3 border-slate-300 border-t-slate-900 rounded-full animate-spin"></div></div> : tabPosts.length === 0 ? <div className="text-center py-24 text-slate-300 font-black text-xs uppercase tracking-widest bg-white/40 border-2 border-dashed border-slate-200 rounded-[2.5rem]">No Feed Found</div> : tabPosts.map((post) => (
                           <div key={post.id} onClick={() => { setSelectedPost(post); setViewMode('POST_DETAIL'); }} className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-xl relative transition-all active:scale-[0.98] group hover:border-slate-300">
                               <div className="absolute top-6 right-6 z-20" onClick={e => e.stopPropagation()}><AdminPostMenu postId={post.id} /></div>
-                              <h4 className="font-black text-slate-800 text-base mb-4 line-clamp-2 leading-tight group-hover:text-blue-600 transition-colors">{post.title}</h4>
+                              <h4 className="font-black text-slate-800 text-base mb-4 line-clamp-2 leading-tight group-hover:text-blue-600 transition-colors">
+                                {post.boardType === 'balance' ? `${post.blueOption} vs ${post.redOption}` : post.title}
+                              </h4>
                               <div className="pt-5 border-t border-slate-50 flex items-center justify-between text-[10px] font-black text-slate-400">
                                   <div className="flex items-center gap-2">
                                       <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center text-[7px] font-black text-slate-500 border border-slate-200">{post.author[0].toUpperCase()}</div>
@@ -233,7 +240,7 @@ export const CommunityPanel: React.FC = () => {
             <div className="absolute inset-0 bg-white z-[200] flex flex-col animate-in slide-in-from-right duration-500 overflow-hidden">
                 <div className="flex-shrink-0 h-16 border-b flex items-center justify-between px-4 sticky top-0 z-50 bg-white/80 backdrop-blur-md">
                     <button onClick={() => setViewMode(selectedPost.boardType === 'update' ? 'UPDATE_ARCHIVE' : 'MAIN')} className="p-2 -ml-2 text-slate-500"><svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg></button>
-                    <h3 className="text-xs font-black text-slate-800 truncate px-4">{selectedPost.title}</h3>
+                    <h3 className="text-xs font-black text-slate-800 truncate px-4">{selectedPost.boardType === 'balance' ? '밸런스 게임' : selectedPost.title}</h3>
                     <div className="w-10"></div>
                 </div>
                 <div className="flex-1 overflow-y-auto pb-32">
@@ -248,7 +255,7 @@ export const CommunityPanel: React.FC = () => {
                              </div>
                         </div>
 
-                        {/* Balance Content (Blue vs Red) */}
+                        {/* Balance Content */}
                         {selectedPost.boardType === 'balance' && (
                             <div className="mb-8 space-y-4">
                                 <div className="grid grid-cols-2 gap-3 relative">
@@ -265,20 +272,21 @@ export const CommunityPanel: React.FC = () => {
                             </div>
                         )}
 
-                        <h1 className="text-2xl font-black text-slate-900 mb-6 leading-tight tracking-tight">{selectedPost.title}</h1>
+                        {selectedPost.boardType !== 'balance' && <h1 className="text-2xl font-black text-slate-900 mb-6 leading-tight tracking-tight">{selectedPost.title}</h1>}
                         <div className="prose prose-slate max-w-none text-slate-600 font-medium leading-relaxed text-sm mb-12" dangerouslySetInnerHTML={{ __html: selectedPost.content }}></div>
                         
-                        {/* Vote Buttons */}
+                        {/* Action Buttons */}
                         <div className="flex gap-2 mb-12">
                             <button onClick={() => handleVote('HEAD')} className="flex-1 py-4 bg-slate-900 text-white rounded-2xl font-black text-[11px] shadow-xl active:scale-95 transition-all flex flex-col items-center gap-1">
-                                <span>🎯 헤드샷 (추천)</span>
-                                <span className="text-[14px] text-yellow-400">{selectedPost.heads}</span>
+                                <span>🎯 헤드샷 {selectedPost.heads}</span>
                             </button>
                             <button onClick={() => handleVote('HALF')} className="flex-1 py-4 bg-slate-100 text-slate-400 rounded-2xl font-black text-[11px] active:scale-95 transition-all flex flex-col items-center gap-1">
-                                <span>🛡️ 반샷 (비추천)</span>
-                                <span>{selectedPost.halfshots}</span>
+                                <span>🛡️ 반샷 {selectedPost.halfshots}</span>
                             </button>
                             <button onClick={handleShare} className="w-14 py-4 bg-slate-50 text-slate-400 rounded-2xl flex items-center justify-center hover:bg-slate-100 transition-all"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 100-2.684 3 3 0 000 2.684zm0 12.684a3 3 0 100-2.684 3 3 0 000 2.684z" /></svg></button>
+                            {(isAdmin || selectedPost.author === (authUser?.name || userProfile?.nickname)) && (
+                                <button onClick={() => handleAdminAction(selectedPost.id, 'DELETE')} className="w-14 py-4 bg-red-50 text-red-400 rounded-2xl flex items-center justify-center hover:bg-red-100" title="길로틴">⚔️</button>
+                            )}
                         </div>
 
                         {/* Comment Section */}
@@ -288,15 +296,15 @@ export const CommunityPanel: React.FC = () => {
                             {/* Comment Input */}
                             <form onSubmit={handleCommentSubmit} className="space-y-3">
                                 <div className="flex gap-2 p-1.5 bg-slate-100 rounded-2xl">
-                                    <button type="button" onClick={() => setCommentTeam('BLUE')} className={`flex-1 py-2 text-[9px] font-black rounded-xl transition-all ${commentTeam === 'BLUE' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400'}`}>BLUE</button>
+                                    <button type="button" onClick={() => setCommentTeam('BLUE')} className={`flex-1 py-2 text-[9px] font-black rounded-xl transition-all ${commentTeam === 'BLUE' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400'}`}>BLUE TEAM</button>
                                     <button type="button" onClick={() => setCommentTeam('GRAY')} className={`flex-1 py-2 text-[9px] font-black rounded-xl transition-all ${commentTeam === 'GRAY' ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400'}`}>NONE</button>
-                                    <button type="button" onClick={() => setCommentTeam('RED')} className={`flex-1 py-2 text-[9px] font-black rounded-xl transition-all ${commentTeam === 'RED' ? 'bg-red-600 text-white shadow-lg' : 'text-slate-400'}`}>RED</button>
+                                    <button type="button" onClick={() => setCommentTeam('RED')} className={`flex-1 py-2 text-[9px] font-black rounded-xl transition-all ${commentTeam === 'RED' ? 'bg-red-600 text-white shadow-lg' : 'text-slate-400'}`}>RED TEAM</button>
                                 </div>
-                                <div className={`relative p-1 bg-white border-2 rounded-2xl transition-all ${commentTeam === 'BLUE' ? 'border-blue-500 shadow-blue-500/10' : commentTeam === 'RED' ? 'border-red-500 shadow-red-500/10' : 'border-slate-100'}`}>
+                                <div className={`relative p-1 bg-white border-2 rounded-2xl transition-all ${commentTeam === 'BLUE' ? 'border-blue-500' : commentTeam === 'RED' ? 'border-red-500' : 'border-slate-100'}`}>
                                     <textarea 
                                         value={commentInput} 
                                         onChange={(e) => setCommentInput(e.target.value)} 
-                                        placeholder="의견을 남겨주세요 (최대 2000자)" 
+                                        placeholder="매너 있는 댓글로 건전한 토론을 이어가세요 (최대 2000자)" 
                                         maxLength={2000}
                                         className="w-full p-4 text-sm font-medium focus:outline-none min-h-[100px] bg-transparent"
                                     ></textarea>
@@ -310,7 +318,7 @@ export const CommunityPanel: React.FC = () => {
                             {/* Comment List */}
                             <div className="space-y-4 pt-4">
                                 {comments.map(comment => (
-                                    <div key={comment.id} className={`p-4 bg-white border-2 rounded-2xl ${comment.teamType === 'BLUE' ? 'border-blue-100 bg-blue-50/20' : comment.teamType === 'RED' ? 'border-red-100 bg-red-50/20' : 'border-slate-50'}`}>
+                                    <div key={comment.id} className={`p-4 bg-white border-2 rounded-2xl transition-colors ${comment.teamType === 'BLUE' ? 'border-blue-100 bg-blue-50/10' : comment.teamType === 'RED' ? 'border-red-100 bg-red-50/10' : 'border-slate-50'}`}>
                                         <div className="flex justify-between items-center mb-2">
                                             <div className="flex items-center gap-2">
                                                 <span className={`px-2 py-0.5 text-[8px] font-black rounded text-white ${comment.teamType === 'BLUE' ? 'bg-blue-600' : comment.teamType === 'RED' ? 'bg-red-600' : 'bg-slate-400'}`}>{comment.teamType}</span>
@@ -328,7 +336,7 @@ export const CommunityPanel: React.FC = () => {
             </div>
         )}
 
-        {/* Global Floating Write Button */}
+        {/* Floating Write Button - Everyone can write Balance games */}
         {viewMode === 'MAIN' && (
             <div className="absolute bottom-8 right-6 z-40">
                 <button 
@@ -343,33 +351,42 @@ export const CommunityPanel: React.FC = () => {
         {/* Write Form Modal */}
         {isWriteFormOpen && (
             <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-xl z-[300] flex items-center justify-center p-6 animate-in fade-in duration-300">
-                <div className="bg-white w-full max-w-sm rounded-[3rem] p-8 shadow-2xl relative border border-white/20 max-h-[90vh] overflow-y-auto">
+                <div className="bg-white w-full max-w-sm rounded-[3rem] p-8 shadow-2xl relative border border-white/20 max-h-[95vh] overflow-y-auto">
                     <div className="mb-8 text-center">
                         <span className={`inline-block px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${writeMode === 'balance' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-700'}`}>
-                           {writeMode === 'balance' ? 'Balance Game' : 'Community Post'}
+                           {writeMode === 'balance' ? 'Balance Game' : 'Post Content'}
                         </span>
-                        <h3 className="text-xl font-black text-slate-900 mt-4 tracking-tighter">소식 공유하기</h3>
+                        <h3 className="text-xl font-black text-slate-900 mt-4 tracking-tighter">새로운 소식 작성</h3>
                     </div>
                     <form onSubmit={submitPost} className="space-y-4">
                         {writeMode === 'balance' ? (
-                            <div className="space-y-3">
-                                <div className="relative">
-                                    <input type="text" value={blueOption} onChange={(e) => setBlueOption(e.target.value)} placeholder="Blue 선택지 (최대 200자)" maxLength={200} className="w-full p-4 bg-blue-50 border-2 border-blue-100 rounded-2xl text-sm font-black text-blue-900 outline-none focus:border-blue-500 transition-all" />
-                                    <span className="absolute bottom-3 right-3 text-[8px] font-black text-blue-300">{blueOption.length}/200</span>
+                            <div className="space-y-4">
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black text-blue-500 uppercase ml-2">Team Blue Option (200자)</label>
+                                    <div className="relative">
+                                        <input type="text" value={blueOption} onChange={(e) => setBlueOption(e.target.value)} placeholder="파란색 팀 선택지" maxLength={200} className="w-full p-4 bg-blue-50 border-2 border-blue-100 rounded-2xl text-sm font-black text-blue-900 outline-none focus:border-blue-500 transition-all" />
+                                        <span className="absolute bottom-3 right-3 text-[8px] font-black text-blue-300">{blueOption.length}/200</span>
+                                    </div>
                                 </div>
                                 <div className="text-center font-black italic text-slate-300 text-xs">VS</div>
-                                <div className="relative">
-                                    <input type="text" value={redOption} onChange={(e) => setRedOption(e.target.value)} placeholder="Red 선택지 (최대 200자)" maxLength={200} className="w-full p-4 bg-red-50 border-2 border-red-100 rounded-2xl text-sm font-black text-red-900 outline-none focus:border-red-500 transition-all" />
-                                    <span className="absolute bottom-3 right-3 text-[8px] font-black text-red-300">{redOption.length}/200</span>
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black text-red-500 uppercase ml-2">Team Red Option (200자)</label>
+                                    <div className="relative">
+                                        <input type="text" value={redOption} onChange={(e) => setRedOption(e.target.value)} placeholder="빨간색 팀 선택지" maxLength={200} className="w-full p-4 bg-red-50 border-2 border-red-100 rounded-2xl text-sm font-black text-red-900 outline-none focus:border-red-500 transition-all" />
+                                        <span className="absolute bottom-3 right-3 text-[8px] font-black text-red-300">{redOption.length}/200</span>
+                                    </div>
                                 </div>
                             </div>
                         ) : (
-                            <input type="text" value={writeTitle} onChange={(e) => setWriteTitle(e.target.value)} placeholder="제목" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-black outline-none focus:bg-white transition-all" />
+                            <input type="text" value={writeTitle} onChange={(e) => setWriteTitle(e.target.value)} placeholder="제목 (필수)" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-black outline-none focus:bg-white transition-all" />
                         )}
                         
-                        <div className="relative">
-                            <textarea value={writeContent} onChange={(e) => setWriteContent(e.target.value)} placeholder={writeMode === 'balance' ? "추가 설명을 입력하세요 (최대 2000자)" : "내용을 입력하세요"} maxLength={2000} className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-medium h-40 resize-none outline-none focus:bg-white transition-all"></textarea>
-                            <span className="absolute bottom-3 right-3 text-[8px] font-black text-slate-300">{writeContent.length}/2000</span>
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black text-slate-400 uppercase ml-2">{writeMode === 'balance' ? 'Description (2000자)' : 'Content'}</label>
+                            <div className="relative">
+                                <textarea value={writeContent} onChange={(e) => setWriteContent(e.target.value)} placeholder={writeMode === 'balance' ? "투표 참여자들에게 전할 상세 설명을 입력하세요." : "내용을 입력하세요"} maxLength={2000} className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-medium h-40 resize-none outline-none focus:bg-white transition-all"></textarea>
+                                <span className="absolute bottom-3 right-3 text-[8px] font-black text-slate-300">{writeContent.length}/2000</span>
+                            </div>
                         </div>
                         
                         <div className="flex gap-2 pt-4">

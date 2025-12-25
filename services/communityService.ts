@@ -19,7 +19,9 @@ class CommunityService {
           query = query.eq('author_id', currentUserId);
         }
       } else if (boardType && boardType !== 'hidden') {
-        query = query.eq('board_type', boardType);
+        // 'balance'는 소문자로 처리 (DB와 일치 확인)
+        const targetBoard = boardType.toLowerCase();
+        query = query.eq('board_type', targetBoard === 'balance' ? 'BALANCE' : boardType);
       } else if (boardType === 'hidden') {
         query = query.eq('status', 'HIDDEN');
       }
@@ -43,8 +45,8 @@ class CommunityService {
     
     return {
       id: row.id,
-      boardType: row.board_type as BoardType,
-      title: row.title || (row.board_type === 'balance' ? `${row.blue_option} vs ${row.red_option}` : 'Untitled'),
+      boardType: (row.board_type === 'BALANCE' ? 'balance' : row.board_type) as BoardType,
+      title: row.title || (row.board_type === 'BALANCE' ? `${row.blue_option} vs ${row.red_option}` : 'Untitled'),
       content: row.content || row.extra_content || '',
       author: row.author_nickname || 'Unknown',
       authorRole: 'user', 
@@ -56,7 +58,7 @@ class CommunityService {
       views: row.views || 0,
       commentCount: comments.length,
       status: row.status,
-      thumbnail: row.thumbnail,
+      thumbnail: row.thumbnail || null,
       isHidden: row.status === 'HIDDEN',
       blueOption: row.blue_option,
       redOption: row.red_option
@@ -68,26 +70,32 @@ class CommunityService {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return false;
 
+    // 400 Bad Request 방지를 위해 모든 필드를 명시적으로 매핑
     const payload: any = {
       author_id: user.id,
       author_nickname: post.author,
-      board_type: post.boardType,
+      board_type: post.boardType === 'balance' ? 'BALANCE' : post.boardType,
       status: 'APPROVED',
-      thumbnail: post.thumbnail
+      thumbnail: post.thumbnail || null
     };
 
     if (post.boardType === 'balance') {
-      payload.blue_option = post.blueOption;
-      payload.red_option = post.redOption;
-      payload.extra_content = post.content;
-      payload.title = `${post.blueOption} vs ${post.redOption}`;
+      payload.blue_option = post.blueOption || '';
+      payload.red_option = post.redOption || '';
+      payload.extra_content = post.content || '';
+      payload.title = ''; // 밸런스 글은 제목을 비워둠
+      payload.content = ''; // 기존 content 대신 extra_content 사용
     } else {
-      payload.title = post.title;
-      payload.content = post.content;
+      payload.title = post.title || '';
+      payload.content = post.content || '';
     }
 
     const { error } = await supabase.from('posts').insert(payload);
-    return !error;
+    if (error) {
+      console.error("[CommunityService] Create Post Failed:", error);
+      return false;
+    }
+    return true;
   }
 
   async votePost(postId: string, voteType: 'HEAD' | 'HALF') {
@@ -95,7 +103,6 @@ class CommunityService {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return false;
 
-    // Check existing vote
     const { data: existing } = await supabase
       .from('votes')
       .select('id')
