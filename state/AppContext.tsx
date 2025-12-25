@@ -21,6 +21,7 @@ interface AppContextType {
   register: (data: { loginId: string; email: string; pw: string; nickname: string; phone: string }) => Promise<boolean>;
   logout: () => void;
   isAdminUser: boolean; 
+  isAdminToastOpen: boolean; // 관리자 접속 알림 상태
   
   isAuthModalOpen: boolean;
   openAuthModal: () => void;
@@ -104,6 +105,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [isAdminUser, setIsAdminUser] = useState(false);
+  const [isAdminToastOpen, setIsAdminToastOpen] = useState(false);
   
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -149,15 +151,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [isDMModalOpen, setIsDMModalOpen] = useState(false);
   const [activeDMUser, setActiveDMUser] = useState<string | null>(null);
 
+  const showAdminToast = () => {
+    setIsAdminToastOpen(true);
+    setTimeout(() => setIsAdminToastOpen(false), 3000);
+  };
+
   useEffect(() => {
      cloudStorageService.fetchContentConfig().then(setPageContent);
      
+     // 세션 복구 로직
      authService.getSession().then((user) => {
          if (user) {
              console.log("[AppContext] Session Restored:", user.email);
              setAuthUser(user);
              setIsLoggedIn(true);
-             setIsAdminUser(user.role === 'admin');
+             const isAdmin = user.role === 'admin';
+             setIsAdminUser(isAdmin);
+             if (isAdmin) showAdminToast();
          }
      });
   }, []);
@@ -182,6 +192,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setIsLoggedIn(true);
       setIsAdminUser(isAdmin);
       setIsAuthModalOpen(false);
+      if (isAdmin) showAdminToast();
     } catch (e) {
       console.error("[AppContext] Google Login Failed", e);
       alert("로그인 처리에 실패했습니다.");
@@ -193,8 +204,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           const user = await authService.login(id, pw);
           setAuthUser(user);
           setIsLoggedIn(true);
-          setIsAdminUser(user.role === 'admin');
+          const isAdmin = user.role === 'admin';
+          setIsAdminUser(isAdmin);
           setIsAuthModalOpen(false);
+          if (isAdmin) showAdminToast();
           return true;
       } catch (e: any) {
           throw e;
@@ -210,7 +223,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           if (user) {
               setAuthUser(user);
               setIsLoggedIn(true);
-              setIsAdminUser(user.role === 'admin');
+              const isAdmin = user.role === 'admin';
+              setIsAdminUser(isAdmin);
+              if (isAdmin) showAdminToast();
           }
           setIsAuthModalOpen(false);
           return true;
@@ -396,7 +411,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   return (
     <AppContext.Provider value={{ 
-      status, setStatus, isLoggedIn, authUser, handleGoogleLoginSuccess, login, register, logout, isAdminUser,
+      status, setStatus, isLoggedIn, authUser, handleGoogleLoginSuccess, login, register, logout, isAdminUser, isAdminToastOpen,
       isAuthModalOpen, openAuthModal, closeAuthModal, userProfile, searchUser,
       activeMatch, activeMatchDetail, isMatchDetailLoading, openMatchDetail, closeMatchDetail,
       visibleMatchCount, loadMoreMatches, isLoadingMore,

@@ -12,10 +12,24 @@ import { AdminEditor } from './AdminEditor';
 import { AdminHiddenBoardModal } from './AdminHiddenBoardModal';
 import { AdminGuillotineModal } from './AdminGuillotineModal';
 import { CommunityUserProfileModal } from './CommunityUserProfileModal';
+import { useApp } from '../state/AppContext';
 
 interface LayoutProps {
   children: ReactNode;
 }
+
+const AdminToast: React.FC = () => {
+  const { isAdminToastOpen } = useApp();
+  
+  return (
+    <div className={`fixed bottom-10 left-1/2 -translate-x-1/2 z-[500] transition-all duration-500 transform ${isAdminToastOpen ? 'translate-y-0 opacity-100 scale-100' : 'translate-y-20 opacity-0 scale-90 pointer-events-none'}`}>
+        <div className="bg-slate-900/90 backdrop-blur-xl border-2 border-yellow-400/50 px-6 py-3 rounded-2xl shadow-[0_0_40px_rgba(250,204,21,0.2)] flex items-center gap-3">
+            <div className="w-2 h-2 bg-yellow-400 rounded-full animate-ping"></div>
+            <span className="text-yellow-400 font-black tracking-tight text-sm">관리자 계정접속</span>
+        </div>
+    </div>
+  );
+};
 
 export const Layout: React.FC<LayoutProps> = ({ children }) => {
   return (
@@ -46,6 +60,9 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       <CommunityUserProfileModal />
       <VirtualMatchingModal />
       <DirectMessageModal />
+      
+      {/* Admin Notification Toast */}
+      <AdminToast />
     </div>
   );
 };
