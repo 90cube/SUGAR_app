@@ -5,7 +5,8 @@ import { ADMIN_EMAILS } from "../constants";
 
 class AuthService {
   /**
-   * Supabase Auth 유저 정보를 바탕으로 DB의 profiles 테이블에서 상세 정보(role 등)를 조회합니다.
+   * Supabase Auth 유저 정보를 바탕으로 프로필 정보를 가져옵니다.
+   * 특정 컬럼이 없어서 발생하는 400 에러를 방지하기 위해 유연하게 대처합니다.
    */
   async fetchMyProfile(): Promise<AuthUser | null> {
     if (!supabase) return null;
@@ -14,35 +15,26 @@ class AuthService {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError || !user) return null;
 
-      // Profiles 테이블에서 최신 role과 정보를 가져옴
-      let { data, error } = await supabase
+      const isAdmin = ADMIN_EMAILS.includes(user.email || "");
+
+      // 400 에러 방지: 존재하는 컬럼만 안전하게 가져오기 위해 먼저 전체 조회 시도
+      const { data, error } = await supabase
         .from('profiles')
-        .select('id, login_id, email, role, nickname')
+        .select('*')
         .eq('id', user.id)
-        .single();
+        .maybeSingle();
 
-      // 프로필이 없는 경우(최초 소셜 로그인 등) 기본값으로 생성 시도 또는 소셜 데이터 활용
-      if (error || !data) {
-        const isAdmin = ADMIN_EMAILS.includes(user.email || "");
-        return {
-          id: user.id,
-          name: user.user_metadata?.full_name || user.user_metadata?.nickname || 'Unknown',
-          email: user.email || '',
-          role: isAdmin ? 'admin' : 'user',
-          isEmailVerified: !!user.email_confirmed_at
-        };
-      }
-
+      // 프로필이 없거나 에러가 나더라도 Auth 세션 정보로 최소한의 유저 객체 반환
       return {
-        id: data.id,
-        loginId: data.login_id,
-        email: data.email,
-        name: data.nickname || 'Unknown',
-        role: data.role as 'admin' | 'user',
+        id: user.id,
+        loginId: data?.login_id || user.user_metadata?.login_id || '',
+        email: user.email || '',
+        name: data?.nickname || user.user_metadata?.nickname || user.user_metadata?.full_name || 'Unknown',
+        role: (data?.role as 'admin' | 'user') || (isAdmin ? 'admin' : 'user'),
         isEmailVerified: !!user.email_confirmed_at
       };
     } catch (e) {
-      console.error("[AuthService] fetchMyProfile failed:", e);
+      console.error("[AuthService] fetchMyProfile failed, returning session defaults:", e);
       return null;
     }
   }
@@ -62,6 +54,7 @@ class AuthService {
     if (!supabase) throw new Error("서버 연결 실패");
 
     let emailToUse = idOrEmail;
+    // 아이디 로그인 대응: 이메일이 아닌 경우 profiles에서 이메일 조회
     if (!idOrEmail.includes('@')) {
       const { data } = await supabase
         .from('profiles')
@@ -105,14 +98,22 @@ class AuthService {
 
   async isIdAvailable(loginId: string): Promise<{available: boolean, message: string}> {
     if (!supabase) return { available: true, message: "Offline" };
-    const { data } = await supabase.from('profiles').select('login_id').eq('login_id', loginId).maybeSingle();
-    return { available: !data, message: data ? "이미 사용 중인 아이디" : "사용 가능" };
+    try {
+      const { data } = await supabase.from('profiles').select('login_id').eq('login_id', loginId).maybeSingle();
+      return { available: !data, message: data ? "이미 사용 중인 아이디" : "사용 가능" };
+    } catch {
+      return { available: true, message: "검증 불가" };
+    }
   }
 
   async isEmailAvailable(email: string): Promise<{available: boolean, message: string}> {
     if (!supabase) return { available: true, message: "Offline" };
-    const { data } = await supabase.from('profiles').select('email').eq('email', email).maybeSingle();
-    return { available: !data, message: data ? "이미 가입된 이메일" : "사용 가능" };
+    try {
+      const { data } = await supabase.from('profiles').select('email').eq('email', email).maybeSingle();
+      return { available: !data, message: data ? "이미 가입된 이메일" : "사용 가능" };
+    } catch {
+      return { available: true, message: "검증 불가" };
+    }
   }
 }
 
