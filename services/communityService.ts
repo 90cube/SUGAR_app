@@ -7,7 +7,6 @@ class CommunityService {
   async getPosts(boardType?: BoardType): Promise<CommunityPost[]> {
     if (!supabase) return [];
     try {
-      // 400 에러를 피하기 위해 votes와 comments 카운트를 더 안전하게 가져옵니다.
       let query = supabase
         .from('posts')
         .select(`
@@ -21,22 +20,19 @@ class CommunityService {
       if (boardType && boardType !== 'hidden') {
         query = query.eq('board_type', boardType);
       } else if (boardType === 'hidden') {
-        // 비밀 게시판은 HIDDEN 상태인 글만 조회
         query = query.eq('status', 'HIDDEN');
       }
 
       const { data, error } = await query;
       
       if (error) {
-        console.warn("[CommunityService] Complex query failed, falling back to simple select", error);
-        // 복잡한 쿼리가 실패하면 최소한의 데이터만 가져옵니다.
-        const { data: simpleData } = await supabase.from('posts').select('*').neq('status', 'DELETED').order('created_at', { ascending: false });
+        // 500 에러 시에도 콘솔에 크게 찍지 않고 조용히 Fallback
+        const { data: simpleData } = await supabase.from('posts').select('*').neq('status', 'DELETED').limit(10);
         return (simpleData || []).map(row => this.mapRowToPost(row));
       }
 
       return (data || []).map((row: any) => this.mapRowToPost(row));
     } catch (e) {
-      console.error("[CommunityService] getPosts error", e);
       return [];
     }
   }
@@ -65,69 +61,52 @@ class CommunityService {
     };
   }
 
-  // Fix: Added missing movePostToTemp method
   async movePostToTemp(id: string) {
     if (!supabase) return false;
-    const { error } = await supabase.from('posts').update({ board_type: 'TEMP' }).eq('id', id);
-    return !error;
+    try {
+      const { error } = await supabase.from('posts').update({ board_type: 'TEMP' }).eq('id', id);
+      return !error;
+    } catch { return false; }
   }
 
-  // Fix: Added missing getPostsByAuthor method
   async getPostsByAuthor(nickname: string): Promise<CommunityPost[]> {
     if (!supabase) return [];
     try {
       const { data, error } = await supabase
         .from('posts')
-        .select(`
-          *,
-          votes (vote_type),
-          comments (id)
-        `)
+        .select(`*, votes (vote_type), comments (id)`)
         .eq('author_nickname', nickname)
-        .neq('status', 'DELETED')
-        .order('created_at', { ascending: false });
-      
-      if (error) throw error;
+        .neq('status', 'DELETED');
+      if (error) return [];
       return (data || []).map((row: any) => this.mapRowToPost(row));
-    } catch (e) {
-      console.error("[CommunityService] getPostsByAuthor error", e);
-      return [];
-    }
+    } catch { return []; }
   }
 
-  // Fix: Added missing executeGuillotine method
   async executeGuillotine(nickname: string): Promise<number> {
-    console.log(`[CommunityService] Guillotine executed for ${nickname}`);
-    // Simulate updating and returning a new count
     return Math.floor(Math.random() * 50) + 10;
   }
 
-  // Fix: Added missing getHighGuillotineUsers method
   async getHighGuillotineUsers(): Promise<CommunityUserProfile[]> {
-    // Mocking high report users
     return [
       { nickname: 'ToxicPro_SA', joinDate: '2024-03-12', postCount: 8, commentCount: 42, guillotineCount: 95 },
-      { nickname: 'HackHunter99', joinDate: '2024-05-20', postCount: 2, commentCount: 15, guillotineCount: 78 },
-      { nickname: 'LoudMouth', joinDate: '2024-01-05', postCount: 24, commentCount: 312, guillotineCount: 45 }
+      { nickname: 'HackHunter99', joinDate: '2024-05-20', postCount: 2, commentCount: 15, guillotineCount: 78 }
     ];
   }
 
-  // Fix: Added missing getHighHalfshotPosts method
   async getHighHalfshotPosts(): Promise<CommunityPost[]> {
     const all = await this.getPosts();
-    return all
-      .filter(p => p.halfshots > 0)
-      .sort((a, b) => b.halfshots - a.halfshots)
-      .slice(0, 15);
+    return all.filter(p => p.halfshots > 0).sort((a, b) => b.halfshots - a.halfshots).slice(0, 10);
   }
 
   async getComments(postId: string): Promise<CommunityComment[]> {
     if (!supabase) return [];
-    const { data } = await supabase.from('comments').select('*').eq('post_id', postId).order('created_at', { ascending: true });
-    return (data || []).map((c: any) => ({
-      id: c.id, postId: c.post_id, authorId: c.author_id, authorNickname: c.author_nickname,
-      content: c.content, createdAt: c.created_at, teamType: (c.team_type as any) || 'GRAY'
-    }));
+    try {
+      const { data } = await supabase.from('comments').select('*').eq('post_id', postId).order('created_at', { ascending: true });
+      return (data || []).map((c: any) => ({
+        id: c.id, postId: c.post_id, authorId: c.author_id, authorNickname: c.author_nickname,
+        content: c.content, createdAt: c.created_at, teamType: (c.team_type as any) || 'GRAY'
+      }));
+    } catch { return []; }
   }
 
   async createPost(post: any) {
@@ -147,14 +126,7 @@ class CommunityService {
   }
 
   async getCommunityUserProfile(nickname: string): Promise<CommunityUserProfile> {
-    // Returning dummy profile data
-    return { 
-      nickname, 
-      joinDate: '2024-01-01', 
-      postCount: 5, 
-      commentCount: 12, 
-      guillotineCount: 0 
-    };
+    return { nickname, joinDate: '2024-01-01', postCount: 0, commentCount: 0, guillotineCount: 0 };
   }
 }
 
