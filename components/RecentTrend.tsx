@@ -23,7 +23,7 @@ export const RecentTrend: React.FC<RecentTrendProps> = ({ stats }) => {
         {items.map((item) => (
           <div key={item.label} className="flex flex-col items-center justify-center px-1 group cursor-default">
             <span className={`text-sm sm:text-base font-black transition-transform duration-300 group-hover:scale-110 ${item.color}`}>
-              {item.value}%
+              {typeof item.value === 'number' ? item.value.toFixed(1) : item.value}%
             </span>
             <span className="text-[10px] font-bold text-slate-400 uppercase mt-2 tracking-tight truncate w-full text-center group-hover:text-slate-600 transition-colors">
               {item.label}

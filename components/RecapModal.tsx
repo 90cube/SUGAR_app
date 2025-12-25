@@ -27,7 +27,7 @@ export const RecapModal: React.FC = () => {
     return (
         <div className="bg-white/60 backdrop-blur-md p-3 rounded-2xl border border-white/60 text-center flex flex-col items-center justify-center h-full shadow-sm hover:shadow-md transition-shadow">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">{label}</span>
-            <span className="text-xl font-black text-slate-900 mt-1">{value}{suffix}</span>
+            <span className="text-xl font-black text-slate-900 mt-1">{value.toFixed(1)}{suffix}</span>
             {compareValue !== undefined && (
                  <span className={`text-[10px] font-bold mt-1 ${isPositive ? 'text-blue-500' : 'text-red-500'}`}>
                     {isPositive ? '▲' : '▼'} {Math.abs(diff).toFixed(1)}{suffix}
@@ -52,8 +52,6 @@ export const RecapModal: React.FC = () => {
         </div>
 
         <div className="p-6 overflow-y-auto space-y-6 overscroll-contain">
-            
-            {/* Controls */}
             <div className="flex gap-2">
                 <input 
                     type="date" 
@@ -70,10 +68,8 @@ export const RecapModal: React.FC = () => {
                 </button>
             </div>
 
-            {/* Results */}
             {recapStats ? (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
-                    
                     <div className="text-center bg-slate-50/50 p-4 rounded-2xl border border-white/50">
                         <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">총 플레이 횟수</span>
                         <div className="text-5xl font-black text-slate-900 mt-1 drop-shadow-sm">{recapStats.totalMatches}</div>
@@ -82,7 +78,6 @@ export const RecapModal: React.FC = () => {
 
                     {recapStats.totalMatches > 0 ? (
                         <>
-                            {/* AI Analysis Block */}
                             {recapStats.aiAnalysis && (
                                 <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-5 border border-indigo-100 shadow-sm relative overflow-hidden">
                                      <div className="flex items-center gap-2 mb-3">
@@ -95,7 +90,6 @@ export const RecapModal: React.FC = () => {
                                 </div>
                             )}
 
-                            {/* Comparison Section */}
                             <div>
                                 <h3 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
                                     <span className="w-1.5 h-1.5 bg-blue-500 rounded-full shadow-[0_0_5px_rgba(59,130,246,0.5)]"></span>

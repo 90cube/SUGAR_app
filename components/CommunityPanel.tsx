@@ -62,8 +62,8 @@ export const CommunityPanel: React.FC = () => {
   const handleAdminAction = async (postId: string, action: 'DELETE' | 'TEMP') => {
     if (!selectedPost) return;
     
-    // 본인 글인 경우 경고 (관리자 제외)
     const myNickname = userProfile?.nickname || authUser?.name;
+    // 본인 글 액션 차단
     if (selectedPost.author === myNickname && !isAdmin) {
         alert("자신의 글에 추천, 비추천, 투표, 신고 할 수 없습니다.");
         return;
@@ -80,7 +80,7 @@ export const CommunityPanel: React.FC = () => {
   const handleVote = async (type: 'HEAD' | 'HALF') => {
     if (!selectedPost || !isLoggedIn) { if(!isLoggedIn) openAuthModal(); return; }
     
-    // 본인 글인 경우 투표 차단
+    // 본인 글 투표 차단
     const myNickname = userProfile?.nickname || authUser?.name;
     if (selectedPost.author === myNickname) {
         alert("자신의 글에 추천, 비추천, 투표, 신고 할 수 없습니다.");
@@ -176,7 +176,6 @@ export const CommunityPanel: React.FC = () => {
     <>
       <div className={`fixed inset-0 bg-black/70 backdrop-blur-md z-[150] transition-opacity duration-500 ${isCommunityOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} onClick={closeCommunity}></div>
       <div className={`fixed inset-0 z-[160] flex flex-col bg-slate-50 transition-transform duration-500 cubic-bezier(0.16, 1, 0.3, 1) ${isCommunityOpen ? 'translate-y-0' : '-translate-y-full'}`}>
-        {/* Header */}
         <div className="flex-shrink-0 h-16 bg-white border-b flex items-center justify-between px-4 z-30 shadow-sm">
            <div className="flex items-center gap-3">
               {viewMode !== 'MAIN' && <button onClick={() => setViewMode('MAIN')} className="p-2 -ml-2 text-slate-400 hover:text-slate-900"><svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg></button>}
@@ -264,7 +263,6 @@ export const CommunityPanel: React.FC = () => {
                 <div className="flex-1 overflow-y-auto pb-32">
                     {selectedPost.thumbnail && <div className="w-full aspect-video bg-slate-100"><img src={selectedPost.thumbnail} className="w-full h-full object-cover" /></div>}
                     <div className="p-6">
-                        {/* Author Info */}
                         <div className="flex items-center gap-3 mb-6">
                              <div className="w-10 h-10 rounded-full bg-slate-900 text-white flex items-center justify-center font-black text-xs">{selectedPost.author[0]}</div>
                              <div>
@@ -273,7 +271,6 @@ export const CommunityPanel: React.FC = () => {
                              </div>
                         </div>
 
-                        {/* Balance Content */}
                         {selectedPost.boardType === 'balance' && (
                             <div className="mb-8 space-y-4">
                                 <div className="grid grid-cols-2 gap-3 relative">
@@ -293,7 +290,6 @@ export const CommunityPanel: React.FC = () => {
                         {selectedPost.boardType !== 'balance' && <h1 className="text-2xl font-black text-slate-900 mb-6 leading-tight tracking-tight">{selectedPost.title}</h1>}
                         <div className="prose prose-slate max-w-none text-slate-600 font-medium leading-relaxed text-sm mb-12" dangerouslySetInnerHTML={{ __html: selectedPost.content }}></div>
                         
-                        {/* Action Buttons */}
                         <div className="flex gap-2 mb-12">
                             <button onClick={() => handleVote('HEAD')} className="flex-1 py-4 bg-slate-900 text-white rounded-2xl font-black text-[11px] shadow-xl active:scale-95 transition-all flex flex-col items-center gap-1">
                                 <span>🎯 헤드샷 {selectedPost.heads}</span>
@@ -303,15 +299,13 @@ export const CommunityPanel: React.FC = () => {
                             </button>
                             <button onClick={handleShare} className="w-14 py-4 bg-slate-50 text-slate-400 rounded-2xl flex items-center justify-center hover:bg-slate-100 transition-all"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 100-2.684 3 3 0 000 2.684zm0 12.684a3 3 0 100-2.684 3 3 0 000 2.684z" /></svg></button>
                             {(isAdmin || selectedPost.author === (authUser?.name || userProfile?.nickname)) && (
-                                <button onClick={() => handleAdminAction(selectedPost.id, 'DELETE')} className="w-14 py-4 bg-red-50 text-red-400 rounded-2xl flex items-center justify-center hover:bg-red-100" title="길로틴">⚔️</button>
+                                <button onClick={() => handleAdminAction(selectedPost.id, 'DELETE')} className="w-14 py-4 bg-red-50 text-red-400 rounded-2xl flex items-center justify-center hover:bg-red-100" title="신고/삭제">⚔️</button>
                             )}
                         </div>
 
-                        {/* Comment Section */}
                         <div className="space-y-6">
                             <h4 className="text-xs font-black text-slate-900 uppercase tracking-widest border-b pb-4">Comments ({comments.length})</h4>
                             
-                            {/* Comment Input */}
                             <form onSubmit={handleCommentSubmit} className="space-y-3">
                                 <div className="flex gap-2 p-1.5 bg-slate-100 rounded-2xl">
                                     <button type="button" onClick={() => setCommentTeam('BLUE')} className={`flex-1 py-2 text-[9px] font-black rounded-xl transition-all ${commentTeam === 'BLUE' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400'}`}>BLUE TEAM</button>
@@ -333,7 +327,6 @@ export const CommunityPanel: React.FC = () => {
                                 </div>
                             </form>
 
-                            {/* Comment List */}
                             <div className="space-y-4 pt-4">
                                 {comments.map(comment => (
                                     <div key={comment.id} className={`p-4 bg-white border-2 rounded-2xl transition-colors ${comment.teamType === 'BLUE' ? 'border-blue-100 bg-blue-50/10' : comment.teamType === 'RED' ? 'border-red-100 bg-red-50/10' : 'border-slate-50'}`}>
@@ -354,7 +347,6 @@ export const CommunityPanel: React.FC = () => {
             </div>
         )}
 
-        {/* Floating Write Button - Everyone can write Balance games */}
         {viewMode === 'MAIN' && (
             <div className="absolute bottom-8 right-6 z-40">
                 <button 
@@ -366,7 +358,6 @@ export const CommunityPanel: React.FC = () => {
             </div>
         )}
         
-        {/* Write Form Modal */}
         {isWriteFormOpen && (
             <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-xl z-[300] flex items-center justify-center p-6 animate-in fade-in duration-300">
                 <div className="bg-white w-full max-w-sm rounded-[3rem] p-8 shadow-2xl relative border border-white/20 max-h-[95vh] overflow-y-auto">

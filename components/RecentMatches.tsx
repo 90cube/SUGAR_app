@@ -45,6 +45,13 @@ export const RecentMatches: React.FC<RecentMatchesProps> = ({ matches }) => {
     openMatchDetail(match);
   };
 
+  const formatKd = (kdStr: string) => {
+      // "123%" -> 123.0%
+      const val = parseFloat(kdStr.replace('%', ''));
+      if (isNaN(val)) return kdStr;
+      return `${val.toFixed(1)}%`;
+  };
+
   if (!matches || matches.length === 0) {
     return (
        <div className="space-y-4">
@@ -89,7 +96,7 @@ export const RecentMatches: React.FC<RecentMatchesProps> = ({ matches }) => {
             <div className="flex items-center gap-4">
               <div className="text-right">
                 <div className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">K/D</div>
-                <span className="text-sm font-black text-slate-700 font-mono">{match.kd}</span>
+                <span className="text-sm font-black text-slate-700 font-mono">{formatKd(match.kd)}</span>
               </div>
               <span className={`text-[10px] font-bold px-3 py-1 rounded-full min-w-[3.5rem] text-center backdrop-blur-sm ${getResultBadge(match.result)}`}>
                 {match.result}
@@ -99,7 +106,6 @@ export const RecentMatches: React.FC<RecentMatchesProps> = ({ matches }) => {
         ))}
       </div>
 
-      {/* Load More Button */}
       {hasMore && (
         <button 
             onClick={loadMoreMatches}

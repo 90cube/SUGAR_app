@@ -7,7 +7,6 @@ export const AnalysisModal: React.FC = () => {
 
   if (!isAnalysisModalOpen) return null;
 
-  // Render Loading State
   if (isAnomalyLoading || !anomalyReport) {
     return (
       <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in duration-300" onClick={(e) => e.stopPropagation()}>
@@ -26,7 +25,6 @@ export const AnalysisModal: React.FC = () => {
   const isError = status === "ERROR";
   const isSkipped = status === "SKIPPED_LOW_IMPACT";
 
-  // Color logic
   const headerColor = isError 
     ? 'bg-slate-700/90' 
     : isSuspicious 
@@ -43,7 +41,6 @@ export const AnalysisModal: React.FC = () => {
         className="w-full max-w-md bg-white/90 backdrop-blur-2xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-300 border border-white/50"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
         <div className={`${headerColor} p-8 text-white text-center relative transition-colors duration-500 flex-shrink-0 backdrop-blur-md`}>
           <h2 className="text-3xl font-black uppercase tracking-tight mb-2 relative z-0 drop-shadow-md">이상 탐지 리포트</h2>
           <div className="inline-block px-4 py-1.5 bg-black/20 rounded-full text-xs font-bold tracking-widest backdrop-blur-sm relative z-0 border border-white/10">
@@ -60,17 +57,13 @@ export const AnalysisModal: React.FC = () => {
           </button>
         </div>
 
-        {/* Content */}
         <div className="p-6 overflow-y-auto space-y-6 overscroll-contain">
-          
-          {/* 1. Status Message */}
           <div className="text-center p-4 bg-white/50 rounded-2xl border border-white/60">
              <p className={`text-sm font-bold ${isSuspicious ? 'text-red-600' : 'text-slate-600'}`}>
                {message}
              </p>
           </div>
 
-          {/* 2. Deviation Meter (Only if OK and not skipped) */}
           {!isError && !isSkipped && (
               <div className="bg-white/60 backdrop-blur-md p-6 rounded-2xl border border-white/60 text-center shadow-sm">
                 <span className="text-xs font-bold text-slate-400 uppercase tracking-widest block mb-4">통계적 이탈 지수 (Deviation)</span>
@@ -86,42 +79,40 @@ export const AnalysisModal: React.FC = () => {
                     <span>의심</span>
                 </div>
                 <div className="mt-3 text-3xl font-black text-slate-800">
-                    {suspicion_score}<span className="text-base text-slate-400 font-medium">/100</span>
+                    {suspicion_score.toFixed(1)}<span className="text-base text-slate-400 font-medium">/100</span>
                 </div>
               </div>
           )}
 
-          {/* 3. Evidence Grid */}
           {!isError && (
               <div className="grid grid-cols-2 gap-3">
                  <div className="p-4 bg-white/60 backdrop-blur-md rounded-2xl border border-white/60 shadow-sm">
                     <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">최근 10경기 K/D</span>
                     <span className={`block text-xl font-black mt-1 ${evidence.last10_kd > 1 ? 'text-slate-900' : 'text-slate-500'}`}>
-                        {evidence.last10_kd.toFixed(2)}
+                        {evidence.last10_kd.toFixed(1)}
                     </span>
                  </div>
                  <div className="p-4 bg-white/60 backdrop-blur-md rounded-2xl border border-white/60 shadow-sm">
                     <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">평소 K/D 평균</span>
                     <span className="block text-xl font-black text-slate-900 mt-1">
-                        {evidence.baseline_kd_mean.toFixed(2)} <span className="text-xs text-slate-400 font-normal">± {evidence.baseline_kd_std.toFixed(2)}</span>
+                        {evidence.baseline_kd_mean.toFixed(1)} <span className="text-xs text-slate-400 font-normal">± {evidence.baseline_kd_std.toFixed(1)}</span>
                     </span>
                  </div>
                  {status !== "SKIPPED_LOW_IMPACT" && (
                     <>
                         <div className="p-4 bg-white/60 backdrop-blur-md rounded-2xl border border-white/60 shadow-sm">
                             <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">오늘 K/D</span>
-                            <span className="block text-xl font-black text-slate-900 mt-1">{evidence.today_kd.toFixed(2)}</span>
+                            <span className="block text-xl font-black text-slate-900 mt-1">{evidence.today_kd.toFixed(1)}</span>
                         </div>
                          <div className="p-4 bg-white/60 backdrop-blur-md rounded-2xl border border-white/60 shadow-sm">
                             <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">최근 승률</span>
-                            <span className="block text-xl font-black text-slate-900 mt-1">{evidence.recent_win_rate}%</span>
+                            <span className="block text-xl font-black text-slate-900 mt-1">{evidence.recent_win_rate?.toFixed(1)}%</span>
                         </div>
                     </>
                  )}
               </div>
           )}
 
-          {/* 4. Reasons List */}
           {reasons.length > 0 && (
               <div className="space-y-3">
                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">탐지된 특이점</h4>
@@ -137,7 +128,6 @@ export const AnalysisModal: React.FC = () => {
           )}
         </div>
 
-        {/* Footer */}
         <div className="p-4 border-t border-slate-100/50 bg-white/60 backdrop-blur-md flex-shrink-0">
              <button onClick={closeAnalysisModal} className="w-full py-4 bg-slate-900 text-white font-bold rounded-2xl active:scale-[0.98] transition-all hover:bg-slate-800 shadow-lg shadow-slate-900/10">
                 닫기

@@ -170,9 +170,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const openAdminGuillotine = () => setIsAdminGuillotineOpen(true);
   const closeAdminGuillotine = () => setIsAdminGuillotineOpen(false);
 
-  // Fix: Do NOT call nexonService.getOuid(nickname) here. 
-  // The 'nickname' param is an internal App nickname, which may not exist in Sudden Attack.
-  // Directly fetching the community profile prevents 400/404 errors in the console.
   const openCommunityUserProfile = async (nickname: string) => {
       const profile = await communityService.getCommunityUserProfile(nickname);
       setSelectedCommunityUser(profile);
