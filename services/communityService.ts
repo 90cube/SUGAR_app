@@ -95,6 +95,45 @@ class CommunityService {
     }
   }
 
+  // --- Admin Post Actions ---
+  
+  async updatePostStatus(postId: string, status: 'APPROVED' | 'PENDING' | 'HIDDEN'): Promise<boolean> {
+      if (!supabase) return false;
+      try {
+          const { error } = await supabase
+              .from('posts')
+              .update({ status })
+              .eq('id', postId);
+          
+          if (error) throw error;
+          return true;
+      } catch (e) {
+          console.error("[CommunityService] Failed to update post status", e);
+          return false;
+      }
+  }
+
+  async deletePost(postId: string): Promise<boolean> {
+      if (!supabase) return false;
+      try {
+          // 먼저 투표 기록 삭제 (Foreign Key 제약 조건이 있을 경우 대비)
+          await supabase.from('votes').delete().eq('post_id', postId);
+          
+          const { error } = await supabase
+              .from('posts')
+              .delete()
+              .eq('id', postId);
+          
+          if (error) throw error;
+          return true;
+      } catch (e) {
+          console.error("[CommunityService] Failed to delete post", e);
+          return false;
+      }
+  }
+
+  // --- Other Methods ---
+
   async getPostsByAuthor(nickname: string): Promise<CommunityPost[]> {
       if (!supabase) return [];
       
@@ -142,25 +181,20 @@ class CommunityService {
     }
   }
 
-  // --- Interactions ---
-
   async createPost(post: { title: string; content: string; author: string; boardType: BoardType; thumbnail?: string }): Promise<boolean> {
       if (!supabase) {
           return false;
       }
       
       try {
-          // 1. Get User ID
           const { data: { user } } = await supabase.auth.getUser();
           const userId = user?.id;
 
           if (!userId) {
-              // No user -> fail
               console.error("[Community] Cannot create post without auth.");
               return false;
           }
 
-          // 2. Insert
           const payload = {
               title: post.title,
               content: post.content,
@@ -178,18 +212,6 @@ class CommunityService {
 
           if (error) {
               console.error(`[Supabase] Insert Failed: ${error.message} (Code: ${error.code})`);
-              
-              if (error.code === '42501') {
-                  // RLS Error
-                  alert("권한이 없습니다 (RLS Policy). \n\n[해결방법] Supabase SQL Editor에서 본인 계정의 role을 'admin'으로 변경하세요:\nUPDATE profiles SET role = 'admin' WHERE id = '...';");
-                  return false;
-              }
-
-              if (error.code === 'PGRST205' || error.code === '42P01') {
-                  alert("데이터베이스 테이블(posts)이 존재하지 않습니다.");
-                  return false;
-              }
-              
               return false;
           }
           
@@ -231,8 +253,6 @@ class CommunityService {
           return null;
       }
   }
-
-  // --- Voting System (Real DB) ---
 
   async getUserVote(postId: string, nickname: string): Promise<'head' | 'half' | null> {
       if (!supabase) return null;
@@ -307,8 +327,6 @@ class CommunityService {
   async reportPost(postId: string, nickname: string): Promise<boolean> {
       return true;
   }
-
-  // --- Profile & Stats ---
 
   async getCommunityUserProfile(nickname: string): Promise<CommunityUserProfile> {
       let postCount = 0;

@@ -5,7 +5,7 @@ import { nexonService } from '../services/nexonService';
 import { cloudStorageService } from '../services/cloudStorageService';
 import { geminiService } from '../services/geminiService';
 import { authService } from '../services/authService';
-import { UI_STRINGS } from '../constants';
+import { UI_STRINGS, ADMIN_EMAILS } from '../constants';
 import { jwtDecode } from "jwt-decode";
 import { communityService } from '../services/communityService';
 
@@ -17,8 +17,8 @@ interface AppContextType {
   // Login Methods
   authUser: AuthUser | null;
   handleGoogleLoginSuccess: (credential: string) => void;
-  login: (id: string, pw: string) => Promise<boolean>; // Updated signature
-  register: (data: { loginId: string; email: string; pw: string; nickname: string; phone: string }) => Promise<boolean>; // New
+  login: (id: string, pw: string) => Promise<boolean>;
+  register: (data: { loginId: string; email: string; pw: string; nickname: string; phone: string }) => Promise<boolean>;
   logout: () => void;
   isAdminUser: boolean; 
   
@@ -149,71 +149,63 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [isDMModalOpen, setIsDMModalOpen] = useState(false);
   const [activeDMUser, setActiveDMUser] = useState<string | null>(null);
 
-  // Load Content on Mount & Restore Session
   useEffect(() => {
-     // 1. Content
      cloudStorageService.fetchContentConfig().then(setPageContent);
      
-     // 2. Auth Session
      authService.getSession().then((user) => {
          if (user) {
-             console.log("[AppContext] 세션 복원됨:", user.email);
+             console.log("[AppContext] Session Restored:", user.email);
              setAuthUser(user);
              setIsLoggedIn(true);
              setIsAdminUser(user.role === 'admin');
-         } else {
-             console.log("[AppContext] 활성 세션 없음");
          }
      });
   }, []);
 
-  // --- Login Logic ---
-
   const handleGoogleLoginSuccess = (credential: string) => {
     try {
       const decoded: any = jwtDecode(credential);
-      console.log("[AppContext] 구글 로그인 성공:", decoded.email);
+      console.log("[AppContext] Google Login Success:", decoded.email);
+      
+      const isAdmin = ADMIN_EMAILS.includes(decoded.email);
+      
       const user: AuthUser = {
         id: decoded.sub,
         name: decoded.name,
         email: decoded.email,
         picture: decoded.picture,
-        role: 'user',
+        role: isAdmin ? 'admin' : 'user',
         isEmailVerified: true
       };
+      
       setAuthUser(user);
       setIsLoggedIn(true);
+      setIsAdminUser(isAdmin);
       setIsAuthModalOpen(false);
     } catch (e) {
-      console.error("[AppContext] 구글 토큰 디코드 실패", e);
-      alert("구글 로그인 확인에 실패했습니다.");
+      console.error("[AppContext] Google Login Failed", e);
+      alert("로그인 처리에 실패했습니다.");
     }
   };
 
   const login = async (id: string, pw: string) => {
       try {
           const user = await authService.login(id, pw);
-          console.log("[AppContext] 로그인 완료:", user.email);
           setAuthUser(user);
           setIsLoggedIn(true);
           setIsAdminUser(user.role === 'admin');
           setIsAuthModalOpen(false);
           return true;
       } catch (e: any) {
-          console.error("[AppContext] 로그인 에러 발생:", e.message);
-          throw e; // Pass error to UI
+          throw e;
       }
   };
 
   const register = async (data: { loginId: string; email: string; pw: string; nickname: string; phone: string }) => {
       try {
           const result = await authService.register(data);
-          if (result.needsEmailConfirm) {
-              console.log("[AppContext] 가입 요청 성공. 이메일 인증 대기 중.");
-              // AuthModal에서 VERIFY_SENT 모드로 전환될 수 있도록 false 반환
-              return false;
-          }
-          // 인증이 필요 없는 경우 즉시 로그인 처리 (실제로는 Supabase 설정에 따라 다름)
+          if (result.needsEmailConfirm) return false;
+          
           const user = await authService.getSession();
           if (user) {
               setAuthUser(user);
@@ -223,25 +215,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           setIsAuthModalOpen(false);
           return true;
       } catch (e: any) {
-          console.error("[AppContext] 가입 에러 발생:", e.message);
           throw e;
       }
   };
 
   const logout = async () => {
     try {
-        console.log("[AppContext] 로그아웃 시도...");
         await authService.logout();
-    } catch (e) {
-        console.warn("[AppContext] 로그아웃 중 네트워크 오류:", e);
     } finally {
-        console.log("[AppContext] 클라이언트 세션 초기화 완료");
         setIsLoggedIn(false);
         setIsAdminUser(false);
         setAuthUser(null);
         setStatus(AppStatus.IDLE);
-        
-        // Close sensitive modals
         setIsCommunityOpen(false);
         setIsAdminHiddenBoardOpen(false);
         setIsAdminGuillotineOpen(false);
@@ -251,61 +236,37 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const openAuthModal = () => setIsAuthModalOpen(true);
   const closeAuthModal = () => setIsAuthModalOpen(false);
-
-  // --- CMS & Admin Logic ---
   const openAdminEditor = () => setIsAdminEditorOpen(true);
   const closeAdminEditor = () => setIsAdminEditorOpen(false);
   
   const updatePageContent = async (newContent: PageContent) => {
       setIsSavingContent(true);
       const success = await cloudStorageService.saveContentConfig(newContent);
-      if (success) {
-          setPageContent(newContent);
-      }
+      if (success) setPageContent(newContent);
       setIsSavingContent(false);
   };
 
   const openAdminHiddenBoard = () => setIsAdminHiddenBoardOpen(true);
   const closeAdminHiddenBoard = () => setIsAdminHiddenBoardOpen(false);
-
   const openAdminGuillotine = () => setIsAdminGuillotineOpen(true);
   const closeAdminGuillotine = () => setIsAdminGuillotineOpen(false);
 
-  // --- Community User Profile ---
   const openCommunityUserProfile = async (nickname: string) => {
       const profile = await communityService.getCommunityUserProfile(nickname);
       setSelectedCommunityUser(profile);
   };
   const closeCommunityUserProfile = () => setSelectedCommunityUser(null);
 
-  // --- Existing Logic ---
-  
   const openRecapModal = () => setIsRecapModalOpen(true);
-  const closeRecapModal = () => {
-    setIsRecapModalOpen(false);
-    setRecapStats(null); 
-  };
-
+  const closeRecapModal = () => { setIsRecapModalOpen(false); setRecapStats(null); };
   const openAnalysisModal = () => setIsAnalysisModalOpen(true);
-  const closeAnalysisModal = () => {
-    setIsAnalysisModalOpen(false);
-    setAnomalyReport(null); 
-  };
-
+  const closeAnalysisModal = () => { setIsAnalysisModalOpen(false); setAnomalyReport(null); };
   const openCommunity = () => setIsCommunityOpen(true);
   const closeCommunity = () => setIsCommunityOpen(false);
-
   const openVirtualMatchingModal = () => setIsVirtualMatchingModalOpen(true);
   const closeVirtualMatchingModal = () => setIsVirtualMatchingModalOpen(false);
-
-  const openDMModal = (username: string) => {
-    setActiveDMUser(username);
-    setIsDMModalOpen(true);
-  };
-  const closeDMModal = () => {
-    setIsDMModalOpen(false);
-    setActiveDMUser(null);
-  };
+  const openDMModal = (username: string) => { setActiveDMUser(username); setIsDMModalOpen(true); };
+  const closeDMModal = () => { setIsDMModalOpen(false); setActiveDMUser(null); };
 
   const openMatchDetail = async (match: Match) => {
     setActiveMatch(match);
@@ -316,18 +277,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const fullDetail: MatchDetail = { ...match, RawData: detailData };
       setActiveMatchDetail(fullDetail);
     } catch (e) {
-      console.error("Error fetching match detail", e);
       setActiveMatchDetail({ ...match }); 
     } finally {
       setIsMatchDetailLoading(false);
     }
   };
 
-  const closeMatchDetail = () => {
-    setActiveMatch(null);
-    setActiveMatchDetail(null);
-  };
-
+  const closeMatchDetail = () => { setActiveMatch(null); setActiveMatchDetail(null); };
   const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
   const searchUser = async (nickname: string) => {
@@ -345,7 +301,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setStatus(AppStatus.ERROR);
       }
     } catch (e) {
-      console.error(e);
       setStatus(AppStatus.ERROR);
     }
   };
@@ -363,20 +318,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (!userProfile) return;
     setIsRecapLoading(true);
     setRecapStats(null);
-    
     try {
       const G_today = userProfile.recentMatches.filter(m => m.rawDate.startsWith(date));
       const G_rest = userProfile.recentMatches.filter(m => !m.rawDate.startsWith(date));
-      const G_ranked = userProfile.recentMatches.filter(m => 
-        m.matchType.includes("랭크") || m.matchMode.includes("랭크")
-      );
-      
+      const G_ranked = userProfile.recentMatches.filter(m => m.matchType.includes("랭크") || m.matchMode.includes("랭크"));
       const stats: RecapStats = {
           date,
           totalMatches: G_today.length,
           winRate: calculateWinRate(G_today),
           kd: calculateKD(G_today),
-          topWeapon: "N/A (API Limit)",
+          topWeapon: "N/A",
           comparison: {
               restWinRate: calculateWinRate(G_rest),
               restKd: calculateKD(G_rest),
@@ -384,24 +335,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               rankedKd: calculateKD(G_ranked)
           }
       };
-
       if (G_today.length > 0) {
-          // Send summarized stats to Gemini for qualitative analysis
           try {
              const analysis = await geminiService.analyzeDailyRecap(stats);
              stats.aiAnalysis = analysis;
-          } catch (aiErr) {
-             console.error("AI Analysis Failed", aiErr);
+          } catch {
              stats.aiAnalysis = "AI Analysis unavailable.";
           }
       } else {
           stats.aiAnalysis = "No matches played on this date.";
       }
-      
       setRecapStats(stats);
-
-    } catch (e) {
-      console.error("Recap failed", e);
     } finally {
       setIsRecapLoading(false);
     }
@@ -418,12 +362,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (userProfile.recentMatches.length > 0) {
             selectedDateKST = userProfile.recentMatches[0].rawDate.split('T')[0];
         }
-        const report = await nexonService.runAnomalyDetection(
-            userProfile.nickname, selectedDateKST, userProfile.recentMatches
-        );
+        const report = await nexonService.runAnomalyDetection(userProfile.nickname, selectedDateKST, userProfile.recentMatches);
         setAnomalyReport(report);
-    } catch (e) {
-        console.error("Anomaly Check Error", e);
+    } catch {
         setAnomalyReport({
             status: "ERROR", label: "Normal", suspicion_score: 0, deviation_level: 0,
             message: "An unexpected error occurred.", reasons: [],
@@ -449,22 +390,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   useEffect(() => {
     const anyModalOpen = isAuthModalOpen || !!activeMatch || isRecapModalOpen || isAnalysisModalOpen || isCommunityOpen || isVirtualMatchingModalOpen || isDMModalOpen || isAdminEditorOpen || isAdminHiddenBoardOpen || isAdminGuillotineOpen || !!selectedCommunityUser;
-    if (anyModalOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
-    return () => {
-      document.body.style.overflow = '';
-    };
+    document.body.style.overflow = anyModalOpen ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
   }, [isAuthModalOpen, activeMatch, isRecapModalOpen, isAnalysisModalOpen, isCommunityOpen, isVirtualMatchingModalOpen, isDMModalOpen, isAdminEditorOpen, isAdminHiddenBoardOpen, isAdminGuillotineOpen, selectedCommunityUser]);
 
   return (
     <AppContext.Provider value={{ 
-      status, setStatus, 
-      isLoggedIn, authUser, handleGoogleLoginSuccess, login, register, logout, isAdminUser,
-      isAuthModalOpen, openAuthModal, closeAuthModal,
-      userProfile, searchUser,
+      status, setStatus, isLoggedIn, authUser, handleGoogleLoginSuccess, login, register, logout, isAdminUser,
+      isAuthModalOpen, openAuthModal, closeAuthModal, userProfile, searchUser,
       activeMatch, activeMatchDetail, isMatchDetailLoading, openMatchDetail, closeMatchDetail,
       visibleMatchCount, loadMoreMatches, isLoadingMore,
       isRecapModalOpen, openRecapModal, closeRecapModal, recapStats, calculateRecap, isRecapLoading,
@@ -485,8 +418,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
 export const useApp = (): AppContextType => {
   const context = useContext(AppContext);
-  if (!context) {
-    throw new Error('useApp must be used within an AppProvider');
-  }
+  if (!context) throw new Error('useApp must be used within an AppProvider');
   return context;
 };
