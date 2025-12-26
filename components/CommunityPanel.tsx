@@ -85,22 +85,24 @@ export const CommunityPanel: React.FC = () => {
 
   const handleAdminAction = async (postId: string, action: 'DELETE' | 'TEMP') => {
     if (!selectedPost) return;
-    const myNickname = userProfile?.nickname || authUser?.name;
-    if (selectedPost.author === myNickname && !isAdmin) {
-        alert("자신의 글을 처리할 수 없습니다.");
+    if (selectedPost.authorId === authUser?.id && !isAdmin) {
+        alert("자신의 글에 추천, 비추천, 투표, 신고 할 수 없습니다.");
         return;
     }
-    if (!isAdmin && selectedPost.author !== myNickname) return;
+    if (!isAdmin && selectedPost.authorId !== authUser?.id) return;
     if (!window.confirm("정말 처리하시겠습니까?")) return;
     const success = action === 'DELETE' ? await communityService.deletePost(postId) : await communityService.movePostToTemp(postId);
-    if (success) { fetchTabContent(activeTab); if (selectedPost?.id === postId) setViewMode('MAIN'); }
+    if (success) { 
+        fetchTabContent(activeTab); 
+        if (selectedPost?.id === postId) setViewMode('MAIN'); 
+    }
     setOpenAdminMenuId(null);
   };
 
   const handleVote = async (type: 'HEAD' | 'HALF') => {
     if (!selectedPost || !isLoggedIn) { if(!isLoggedIn) openAuthModal(); return; }
-    if (selectedPost.author === (userProfile?.nickname || authUser?.name)) {
-        alert("자신의 글에 투표할 수 없습니다.");
+    if (selectedPost.authorId === authUser?.id) {
+        alert("자신의 글에 추천, 비추천, 투표, 신고 할 수 없습니다.");
         return;
     }
     const success = await communityService.votePost(selectedPost.id, type);
@@ -110,8 +112,27 @@ export const CommunityPanel: React.FC = () => {
             heads: type === 'HEAD' ? prev.heads + 1 : prev.heads,
             halfshots: type === 'HALF' ? prev.halfshots + 1 : prev.halfshots
         } : null);
-    } else {
-        alert("이미 참여하셨거나 처리 중 오류가 발생했습니다.");
+    }
+  };
+
+  const handleBalanceVote = async (side: 'BLUE' | 'RED') => {
+    if (!selectedPost || !isLoggedIn) { if(!isLoggedIn) openAuthModal(); return; }
+    
+    // 자기 글 투표 불가 체크 (사용자 편의상 프론트에서도 막음)
+    if (selectedPost.authorId === authUser?.id) {
+        alert("자신의 글에 추천, 비추천, 투표, 신고 할 수 없습니다.");
+        return;
+    }
+    
+    const success = await communityService.voteBalance(selectedPost.id, side);
+    if (success) {
+        alert(`${side}팀에 투표하셨습니다!`);
+        // UI 즉시 반영 (낙관적 갱신)
+        setSelectedPost(prev => prev ? { 
+            ...prev, 
+            blueVotes: side === 'BLUE' ? prev.blueVotes + 1 : prev.blueVotes,
+            redVotes: side === 'RED' ? prev.redVotes + 1 : prev.redVotes
+        } : null);
     }
   };
 
@@ -120,11 +141,11 @@ export const CommunityPanel: React.FC = () => {
     if (!selectedPost || !commentInput.trim() || isSubmitting) return;
     if (!isLoggedIn) { openAuthModal(); return; }
     setIsSubmitting(true);
-    const success = await communityService.addComment(selectedPost.id, commentInput, commentTeam);
-    if (success) {
+    const newComment = await communityService.addComment(selectedPost.id, commentInput, commentTeam);
+    if (newComment) {
         setCommentInput('');
-        const updated = await communityService.getComments(selectedPost.id);
-        setComments(updated);
+        // 작성 직후 댓글 목록 최하단에 추가 (즉시 반영)
+        setComments(prev => [...prev, newComment]);
     }
     setIsSubmitting(false);
   };
@@ -143,15 +164,15 @@ export const CommunityPanel: React.FC = () => {
     
     setIsSubmitting(true);
     const author = userProfile?.nickname || authUser?.name || 'Unknown';
-    const success = await communityService.createPost({ 
+    const newPost = await communityService.createPost({ 
       title: writeTitle, content: writeContent, author, boardType: writeMode, 
       thumbnail: writeThumbnail, blueOption, redOption 
     });
-    if (success) {
+    
+    if (newPost) {
       resetWriteForm();
-      fetchTabContent(activeTab);
-    } else {
-      alert("등록 중 오류가 발생했습니다.");
+      // 작성 직후 목록 최상단에 추가 (즉시 반영)
+      setTabPosts(prev => [newPost, ...prev]);
     }
     setIsSubmitting(false);
   };
@@ -266,7 +287,7 @@ export const CommunityPanel: React.FC = () => {
                                 <div className="pt-5 border-t border-slate-50 flex items-center justify-between text-[10px] font-black text-slate-400">
                                     <div className="flex items-center gap-2">
                                         <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center text-[7px] font-black text-slate-500 border border-slate-200">{post.author[0].toUpperCase()}</div>
-                                        <span onClick={e => { e.stopPropagation(); openCommunityUserProfile(post.author); }} className="text-slate-900 hover:underline">{post.author}</span>
+                                        <span onClick={e => { e.stopPropagation(); openCommunityUserProfile(post.author, post.authorId); }} className="text-slate-900 hover:underline">{post.author}</span>
                                     </div>
                                     <span>{post.createdAt.split('T')[0]}</span>
                                 </div>
@@ -302,21 +323,28 @@ export const CommunityPanel: React.FC = () => {
                             <div className="mb-8 space-y-4">
                                 <div className="grid grid-cols-2 gap-3 relative">
                                     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-900 text-white w-8 h-8 rounded-full flex items-center justify-center font-black text-[10px] z-10 border-2 border-white shadow-xl italic">VS</div>
-                                    <div className="bg-gradient-to-br from-blue-600 to-blue-400 p-6 rounded-3xl text-center shadow-xl border border-white/20">
+                                    <button 
+                                        onClick={() => handleBalanceVote('BLUE')}
+                                        className="bg-gradient-to-br from-blue-600 to-blue-400 p-6 rounded-3xl text-center shadow-xl border border-white/20 active:scale-95 transition-transform"
+                                    >
                                         <div className="text-[9px] font-black text-blue-100 uppercase tracking-widest mb-2 opacity-60">TEAM BLUE</div>
                                         <div className="text-white font-black text-base break-words leading-tight">{selectedPost.blueOption}</div>
-                                    </div>
-                                    <div className="bg-gradient-to-br from-red-600 to-red-400 p-6 rounded-3xl text-center shadow-xl border border-white/20">
+                                        <div className="mt-2 text-[8px] font-black text-blue-200">Votes: {selectedPost.blueVotes}</div>
+                                    </button>
+                                    <button 
+                                        onClick={() => handleBalanceVote('RED')}
+                                        className="bg-gradient-to-br from-red-600 to-red-400 p-6 rounded-3xl text-center shadow-xl border border-white/20 active:scale-95 transition-transform"
+                                    >
                                         <div className="text-[9px] font-black text-red-100 uppercase tracking-widest mb-2 opacity-60">TEAM RED</div>
                                         <div className="text-white font-black text-base break-words leading-tight">{selectedPost.redOption}</div>
-                                    </div>
+                                        <div className="mt-2 text-[8px] font-black text-red-200">Votes: {selectedPost.redVotes}</div>
+                                    </button>
                                 </div>
                             </div>
                         )}
 
                         {selectedPost.boardType !== 'balance' && <h1 className="text-2xl font-black text-slate-900 mb-6 leading-tight tracking-tight">{selectedPost.title}</h1>}
                         
-                        {/* Markdown Rendering for content */}
                         <div className="prose prose-slate max-w-none text-slate-600 font-medium leading-relaxed text-sm mb-12" dangerouslySetInnerHTML={{ __html: marked.parse(selectedPost.content) }}></div>
                         
                         <div className="flex gap-2 mb-12">
@@ -327,7 +355,7 @@ export const CommunityPanel: React.FC = () => {
                                 <span>🛡️ 반샷 {selectedPost.halfshots}</span>
                             </button>
                             <button onClick={handleShare} className="w-14 py-4 bg-slate-50 text-slate-400 rounded-2xl flex items-center justify-center hover:bg-slate-100 transition-all"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 100-2.684 3 3 0 000 2.684zm0 12.684a3 3 0 100-2.684 3 3 0 000 2.684z" /></svg></button>
-                            {(isAdmin || selectedPost.author === (authUser?.name || userProfile?.nickname)) && (
+                            {(isAdmin || selectedPost.authorId === authUser?.id) && (
                                 <button onClick={() => handleAdminAction(selectedPost.id, 'DELETE')} className="w-14 py-4 bg-red-50 text-red-400 rounded-2xl flex items-center justify-center hover:bg-red-100" title="신고/삭제">⚔️</button>
                             )}
                         </div>

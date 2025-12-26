@@ -11,8 +11,8 @@ export const CommunityUserProfileModal: React.FC = () => {
     const [guillotineConfirm, setGuillotineConfirm] = useState(false);
     const [localGuillotineCount, setLocalGuillotineCount] = useState(0);
 
-    // Check if the viewed profile is ME
-    const isMe = authUser?.name === selectedCommunityUser?.nickname;
+    // Check if the viewed profile is ME (Using authorId if available)
+    const isMe = selectedCommunityUser?.authorId === authUser?.id || authUser?.name === selectedCommunityUser?.nickname;
 
     useEffect(() => {
         if (selectedCommunityUser) {
@@ -26,8 +26,14 @@ export const CommunityUserProfileModal: React.FC = () => {
     if (!selectedCommunityUser) return null;
 
     const handleFetchPosts = async () => {
-        const p = await communityService.getPostsByAuthor(selectedCommunityUser.nickname);
-        setPosts(p);
+        const idToQuery = selectedCommunityUser.authorId || "";
+        if (idToQuery) {
+            const p = await communityService.getPostsByAuthorId(idToQuery);
+            setPosts(p);
+        } else {
+            const p = await communityService.getPostsByAuthor(selectedCommunityUser.nickname);
+            setPosts(p);
+        }
         setViewMode('POSTS');
     };
 
@@ -111,12 +117,16 @@ export const CommunityUserProfileModal: React.FC = () => {
                                 <span className="text-sm font-black text-slate-800">작성한 글 목록</span>
                             </div>
                             <div className="flex-1 overflow-y-auto space-y-3 pr-2 scrollbar-thin">
-                                {posts.map(post => (
-                                    <div key={post.id} className="p-4 bg-slate-50 border border-slate-100 rounded-2xl">
-                                        <h4 className="text-sm font-black text-slate-800 line-clamp-1 mb-1">{post.title}</h4>
-                                        <span className="text-[10px] font-bold text-slate-400">{post.createdAt.split('T')[0]}</span>
-                                    </div>
-                                ))}
+                                {posts.length === 0 ? (
+                                    <div className="text-center text-slate-300 text-xs py-10">작성한 글이 없습니다.</div>
+                                ) : (
+                                    posts.map(post => (
+                                        <div key={post.id} className="p-4 bg-slate-50 border border-slate-100 rounded-2xl">
+                                            <h4 className="text-sm font-black text-slate-800 line-clamp-1 mb-1">{post.title}</h4>
+                                            <span className="text-[10px] font-bold text-slate-400">{post.createdAt.split('T')[0]}</span>
+                                        </div>
+                                    ))
+                                )}
                             </div>
                         </div>
                     )}

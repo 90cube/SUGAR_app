@@ -19,7 +19,6 @@ class CommunityService {
           query = query.eq('author_id', currentUserId);
         }
       } else if (boardType && boardType !== 'hidden') {
-        // 'balance'는 소문자로 처리 (DB와 일치 확인)
         const targetBoard = boardType.toLowerCase();
         query = query.eq('board_type', targetBoard === 'balance' ? 'BALANCE' : boardType);
       } else if (boardType === 'hidden') {
@@ -27,7 +26,10 @@ class CommunityService {
       }
 
       const { data, error } = await query;
-      if (error) return [];
+      if (error) {
+        console.error("[CommunityService] Fetch Posts Error:", error);
+        return [];
+      }
       return (data || []).map((row: any) => this.mapRowToPost(row));
     } catch (e) {
       return [];
@@ -49,6 +51,7 @@ class CommunityService {
       title: row.title || (row.board_type === 'BALANCE' ? `${row.blue_option} vs ${row.red_option}` : 'Untitled'),
       content: row.content || row.extra_content || '',
       author: row.author_nickname || 'Unknown',
+      authorId: row.author_id,
       authorRole: 'user', 
       createdAt: row.created_at,
       heads: votes.filter((v: any) => v.vote_type === 'HEAD').length,
@@ -65,15 +68,18 @@ class CommunityService {
     };
   }
 
-  async createPost(post: any) {
-    if (!supabase) return false;
+  async createPost(post: any): Promise<CommunityPost | null> {
+    if (!supabase) return null;
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return false;
+    if (!user) return null;
 
-    // 400 Bad Request 방지를 위해 모든 필드를 명시적으로 매핑
+    // Profiles에서 최신 닉네임 조회 (user.id 기반)
+    const { data: profile } = await supabase.from('profiles').select('nickname').eq('id', user.id).maybeSingle();
+    const nickname = profile?.nickname || user.email?.split('@')[0] || 'Unknown';
+
     const payload: any = {
-      author_id: user.id,
-      author_nickname: post.author,
+      author_id: user.id, // 필수: auth.uid()
+      author_nickname: nickname,
       board_type: post.boardType === 'balance' ? 'BALANCE' : post.boardType,
       status: 'APPROVED',
       thumbnail: post.thumbnail || null
@@ -83,25 +89,36 @@ class CommunityService {
       payload.blue_option = post.blueOption || '';
       payload.red_option = post.redOption || '';
       payload.extra_content = post.content || '';
-      payload.title = ''; // 밸런스 글은 제목을 비워둠
-      payload.content = ''; // 기존 content 대신 extra_content 사용
+      payload.title = '';
+      payload.content = '';
     } else {
       payload.title = post.title || '';
       payload.content = post.content || '';
     }
 
-    const { error } = await supabase.from('posts').insert(payload);
+    // Insert 후 결과 행을 즉시 반환받음
+    const { data, error } = await supabase.from('posts').insert(payload).select(`*, votes (vote_type), comments (id)`).single();
+    
     if (error) {
       console.error("[CommunityService] Create Post Failed:", error);
-      return false;
+      alert(`[ERROR] 게시글 저장 실패: ${error.message}`);
+      return null;
     }
-    return true;
+    
+    return this.mapRowToPost(data);
   }
 
   async votePost(postId: string, voteType: 'HEAD' | 'HALF') {
     if (!supabase) return false;
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return false;
+
+    // 본인 글 체크
+    const { data: post } = await supabase.from('posts').select('author_id').eq('id', postId).single();
+    if (post && post.author_id === user.id) {
+        alert("자신의 글에 추천, 비추천, 투표, 신고 할 수 없습니다.");
+        return false;
+    }
 
     const { data: existing } = await supabase
       .from('votes')
@@ -110,42 +127,108 @@ class CommunityService {
       .eq('author_id', user.id)
       .maybeSingle();
 
-    if (existing) return false;
+    if (existing) {
+      alert("이미 추천/비추천을 하셨습니다.");
+      return false;
+    }
 
     const { error } = await supabase.from('votes').insert({
       post_id: postId,
       author_id: user.id,
       vote_type: voteType
     });
-    return !error;
+    
+    if (error) {
+      alert(`[ERROR] 추천 실패: ${error.message}`);
+      return false;
+    }
+    return true;
   }
 
-  async addComment(postId: string, content: string, teamType: 'BLUE' | 'RED' | 'GRAY' = 'GRAY') {
+  async voteBalance(postId: string, voteSide: 'BLUE' | 'RED') {
     if (!supabase) return false;
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return false;
 
+    // 1. 자기 글 투표 불가 체크
+    const { data: post } = await supabase.from('posts').select('author_id').eq('id', postId).single();
+    if (post && post.author_id === user.id) {
+        alert("자신의 글에 추천, 비추천, 투표, 신고 할 수 없습니다.");
+        return false;
+    }
+
+    // 2. 이미 투표했는지 체크 (중복 투표 방지)
+    const { data: existing } = await supabase
+      .from('balance_votes')
+      .select('id')
+      .eq('post_id', postId)
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (existing) {
+      alert("이미 투표에 참여하셨습니다. (번복 불가)");
+      return false;
+    }
+
+    // 3. 밸런스 투표 전용 테이블에 insert (GRAY는 호출 안함)
+    const { error } = await supabase.from('balance_votes').insert({
+      post_id: postId,
+      user_id: user.id, // auth.uid()
+      vote_side: voteSide
+    });
+
+    if (error) {
+        console.error("[CommunityService] Balance Vote Error:", error);
+        alert(`[ERROR] 투표 저장 실패: ${error.message}`);
+        return false;
+    }
+    return true;
+  }
+
+  async addComment(postId: string, content: string, teamType: 'BLUE' | 'RED' | 'GRAY' = 'GRAY'): Promise<CommunityComment | null> {
+    if (!supabase) return null;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
     const { data: profile } = await supabase.from('profiles').select('nickname').eq('id', user.id).maybeSingle();
     const nickname = profile?.nickname || user.email?.split('@')[0] || 'Unknown';
 
-    const { error } = await supabase.from('comments').insert({
+    const { data, error } = await supabase.from('comments').insert({
       post_id: postId,
-      author_id: user.id,
+      author_id: user.id, // 필수: auth.uid()
       author_nickname: nickname,
       content: content,
       team_type: teamType
-    });
-    return !error;
+    }).select().single();
+
+    if (error) {
+      console.error("[CommunityService] Add Comment Error:", error);
+      alert(`[ERROR] 댓글 저장 실패: ${error.message}`);
+      return null;
+    }
+
+    return {
+      id: data.id, 
+      postId: data.post_id, 
+      authorId: data.author_id, 
+      authorNickname: data.author_nickname,
+      content: data.content, 
+      createdAt: data.created_at, 
+      teamType: data.team_type as any || 'GRAY'
+    };
   }
 
   async getComments(postId: string): Promise<CommunityComment[]> {
     if (!supabase) return [];
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('comments')
         .select('*')
         .eq('post_id', postId)
         .order('created_at', { ascending: true });
+      
+      if (error) return [];
+      
       return (data || []).map((c: any) => ({
         id: c.id, 
         postId: c.post_id, 
@@ -158,21 +241,47 @@ class CommunityService {
     } catch { return []; }
   }
 
-  async movePostToTemp(postId: string) {
-    if (!supabase) return false;
-    const { error } = await supabase.from('posts').update({ board_type: 'TEMP' }).eq('id', postId);
-    return !error;
-  }
-
   async deletePost(postId: string) {
     if (!supabase) return false;
     const { error } = await supabase.from('posts').update({ status: 'DELETED' }).eq('id', postId);
-    return !error;
+    if (error) {
+        alert(`[ERROR] 처리 실패: ${error.message}`);
+        return false;
+    }
+    return true;
+  }
+
+  async movePostToTemp(postId: string) {
+    if (!supabase) return false;
+    const { error } = await supabase.from('posts').update({ board_type: 'TEMP' }).eq('id', postId);
+    if (error) {
+        alert(`[ERROR] 격리 실패: ${error.message}`);
+        return false;
+    }
+    return true;
+  }
+
+  async getPostsByAuthorId(authorId: string): Promise<CommunityPost[]> {
+    if (!supabase) return [];
+    // 닉네임 기반 대신 고유 ID 기반으로 정확히 필터링
+    const { data, error } = await supabase
+      .from('posts')
+      .select(`*, votes (vote_type), comments (id)`)
+      .eq('author_id', authorId)
+      .neq('status', 'DELETED');
+      
+    if (error) return [];
+    return (data || []).map((row: any) => this.mapRowToPost(row));
   }
 
   async getPostsByAuthor(nickname: string): Promise<CommunityPost[]> {
     if (!supabase) return [];
-    const { data, error } = await supabase.from('posts').select(`*, votes (vote_type), comments (id)`).eq('author_nickname', nickname).neq('status', 'DELETED');
+    const { data, error } = await supabase
+      .from('posts')
+      .select(`*, votes (vote_type), comments (id)`)
+      .eq('author_nickname', nickname)
+      .neq('status', 'DELETED');
+      
     if (error) return [];
     return (data || []).map((row: any) => this.mapRowToPost(row));
   }
@@ -181,20 +290,29 @@ class CommunityService {
     return { nickname, joinDate: '2024-01-01', postCount: 0, commentCount: 0, guillotineCount: 0 };
   }
 
-  async executeGuillotine(nickname: string): Promise<number> {
-    return Math.floor(Math.random() * 50) + 10;
-  }
-
   async getHighGuillotineUsers(): Promise<CommunityUserProfile[]> {
     return [
-      { nickname: 'ToxicPro_SA', joinDate: '2024-03-12', postCount: 8, commentCount: 42, guillotineCount: 95 },
-      { nickname: 'HackHunter99', joinDate: '2024-05-20', postCount: 2, commentCount: 15, guillotineCount: 78 }
+      { nickname: 'ToxicPlayer_01', joinDate: '2024-02-14', postCount: 5, commentCount: 142, guillotineCount: 88 }
     ];
   }
 
   async getHighHalfshotPosts(): Promise<CommunityPost[]> {
-    const all = await this.getPosts();
-    return all.filter(p => p.halfshots > 0).sort((a, b) => b.halfshots - a.halfshots).slice(0, 10);
+    if (!supabase) return [];
+    const { data, error } = await supabase
+      .from('posts')
+      .select(`*, votes (vote_type), comments (id)`)
+      .neq('status', 'DELETED')
+      .limit(20);
+      
+    if (error) return [];
+    return (data || [])
+      .map((row: any) => this.mapRowToPost(row))
+      .filter(p => p.halfshots > 0)
+      .sort((a, b) => b.halfshots - a.halfshots);
+  }
+
+  async executeGuillotine(nickname: string): Promise<number> {
+    return Math.floor(Math.random() * 50) + 10;
   }
 }
 

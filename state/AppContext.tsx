@@ -34,8 +34,8 @@ interface AppContextType {
   isAdminGuillotineOpen: boolean;
   openAdminGuillotine: () => void;
   closeAdminGuillotine: () => void;
-  selectedCommunityUser: CommunityUserProfile | null;
-  openCommunityUserProfile: (nickname: string) => void;
+  selectedCommunityUser: CommunityUserProfile & { authorId?: string } | null;
+  openCommunityUserProfile: (nickname: string, authorId?: string) => void;
   closeCommunityUserProfile: () => void;
   visibleMatchCount: number;
   loadMoreMatches: () => Promise<void>;
@@ -83,7 +83,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [isSavingContent, setIsSavingContent] = useState(false);
   const [isAdminHiddenBoardOpen, setIsAdminHiddenBoardOpen] = useState(false);
   const [isAdminGuillotineOpen, setIsAdminGuillotineOpen] = useState(false);
-  const [selectedCommunityUser, setSelectedCommunityUser] = useState<CommunityUserProfile | null>(null);
+  const [selectedCommunityUser, setSelectedCommunityUser] = useState<CommunityUserProfile & { authorId?: string } | null>(null);
   const [visibleMatchCount, setVisibleMatchCount] = useState(10);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [activeMatch, setActiveMatch] = useState<Match | null>(null);
@@ -170,9 +170,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const openAdminGuillotine = () => setIsAdminGuillotineOpen(true);
   const closeAdminGuillotine = () => setIsAdminGuillotineOpen(false);
 
-  const openCommunityUserProfile = async (nickname: string) => {
+  const openCommunityUserProfile = async (nickname: string, authorId?: string) => {
       const profile = await communityService.getCommunityUserProfile(nickname);
-      setSelectedCommunityUser(profile);
+      setSelectedCommunityUser({ ...profile, authorId: authorId || authUser?.id });
   };
   const closeCommunityUserProfile = () => setSelectedCommunityUser(null);
 
@@ -192,7 +192,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setIsMatchDetailLoading(true);
     setActiveMatchDetail(null); 
     try {
-      // Lazy Fetch: 상세 매치 정보는 클릭 시에만 호출
       const detailData = await nexonService.getMatchDetail(match.id);
       setActiveMatchDetail({ ...match, RawData: detailData });
     } catch (e) {

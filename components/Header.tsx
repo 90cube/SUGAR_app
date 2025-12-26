@@ -29,8 +29,8 @@ export const Header: React.FC = () => {
   }, []);
 
   const handleMyInfo = () => {
-    if (authUser?.name) {
-      openCommunityUserProfile(authUser.name);
+    if (authUser?.id) {
+      openCommunityUserProfile(authUser.name, authUser.id);
       setIsUserMenuOpen(false);
     }
   };
@@ -48,7 +48,6 @@ export const Header: React.FC = () => {
     <header className="sticky top-0 z-[140] w-full bg-slate-950 border-b border-cyan-500/20 shadow-[0_4px_30px_rgba(0,0,0,0.5)]">
       <div className="container max-w-md mx-auto h-16 flex items-center justify-between px-5">
         
-        {/* Left: Brand - Su-Lab */}
         <button 
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
           className="flex items-center gap-1.5 group active:scale-95 transition-transform font-mono"
@@ -60,7 +59,6 @@ export const Header: React.FC = () => {
           </div>
         </button>
 
-        {/* Right: Actions */}
         <div className="flex items-center gap-4">
           <button 
             onClick={openCommunity}
@@ -83,7 +81,6 @@ export const Header: React.FC = () => {
                 </span>
               </button>
 
-              {/* Dropdown Menu */}
               {isUserMenuOpen && (
                 <div className="absolute right-0 mt-3 w-48 bg-slate-950 border border-cyan-500/20 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                   <div className="px-5 py-4 border-b border-white/5 bg-white/5 font-mono">

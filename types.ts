@@ -141,6 +141,7 @@ export interface CommunityPost {
   title: string;
   content: string;
   author: string;
+  authorId: string; // Added to check ownership
   authorRole: 'admin' | 'user';
   createdAt: string;
   heads: number; 
