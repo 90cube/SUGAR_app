@@ -135,6 +135,33 @@ export class GeminiService {
           };
       }
   }
+
+  public async generateFormalRejection(rawReason: string): Promise<string> {
+    const prompt = `
+      당신은 서든어택 전적 연구소 'Su-Lab'의 운영 AI입니다. 
+      사용자가 신청한 스트리밍 홍보 게시 요청을 반려해야 합니다.
+      관리자가 작성한 투박한 반려 사유를 정중하고 격식 있는 '연구소 프로토콜' 말투로 다듬어주세요.
+      
+      [조건]
+      1. '반려 사유: ' 로 시작하지 말고 바로 본론을 말하세요.
+      2. 연구소, 데이터, 적합성, 가이드라인 등의 단어를 적절히 섞으세요.
+      3. 정중하지만 단호한 어조를 유지하세요.
+      4. 200자 이내로 작성하세요.
+
+      [관리자의 원문 사유]
+      "${rawReason}"
+    `;
+
+    try {
+      const response = await this.ai.models.generateContent({
+        model: DEFAULT_GEMINI_MODEL,
+        contents: prompt,
+      });
+      return response.text || "연구소 내부 기준 미달로 인해 요청이 반려되었습니다.";
+    } catch (e) {
+      return `요청이 반려되었습니다. 사유: ${rawReason}`;
+    }
+  }
 }
 
 export const geminiService = new GeminiService();

@@ -135,6 +135,22 @@ export interface AnomalyReport {
 
 export type BoardType = 'update' | 'balance' | 'fun' | 'stream' | 'hidden' | 'TEMP';
 
+export interface StreamingRequest {
+  id: string;
+  requester_id: string;
+  platform: 'CHZZK' | 'SOOP' | 'YOUTUBE';
+  stream_url: string;
+  pr_url: string;
+  description: string;
+  thumbnail_url: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  admin_message?: string;
+  reviewed_by?: string;
+  reviewed_at?: string;
+  created_at: string;
+  profiles?: { nickname: string };
+}
+
 export interface CommunityPost {
   id: string;
   boardType: BoardType;
@@ -157,6 +173,10 @@ export interface CommunityPost {
   isHidden?: boolean;
   blueOption?: string;
   redOption?: string;
+  // Streaming specific
+  streamUrl?: string;
+  prUrl?: string;
+  platform?: string;
 }
 
 export interface CommunityComment {
