@@ -31,6 +31,10 @@ export const CommunityPanel: React.FC = () => {
   const [blueOption, setBlueOption] = useState('');
   const [redOption, setRedOption] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // File Upload State
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(false);
   
   // AI Summarizer State
   const [rawUpdateText, setRawUpdateText] = useState('');
@@ -73,8 +77,8 @@ export const CommunityPanel: React.FC = () => {
     setIsSummarizing(true);
     try {
       const result = await geminiService.summarizeGameUpdate(rawUpdateText, masterPrompt);
-      setWriteTitle(result.title); // AI가 생성한 날짜 포함 제목 자동 입력
-      setWriteContent(result.content); // AI가 생성한 Markdown 본문 자동 입력
+      setWriteTitle(result.title);
+      setWriteContent(result.content);
       alert("AI 전력 분석관이 요약을 완료했습니다.");
     } catch (e) {
       console.error(e);
@@ -161,9 +165,30 @@ export const CommunityPanel: React.FC = () => {
     }
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 500 * 1024) {
+      alert("파일 용량이 너무 큽니다. (500KB 이하만 가능)");
+      e.target.value = "";
+      return;
+    }
+
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    const allowed = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+    if (!ext || !allowed.includes(ext)) {
+      alert("허용되지 않는 파일 형식입니다. (jpg, png, webp, gif)");
+      e.target.value = "";
+      return;
+    }
+
+    setSelectedFile(file);
+  };
+
   const submitPost = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isSubmitting) return;
+    if (isSubmitting || uploadProgress) return;
     if (writeMode === 'balance' && (!blueOption.trim() || !redOption.trim())) {
       alert("양쪽 선택지를 모두 입력해주세요.");
       return;
@@ -174,10 +199,32 @@ export const CommunityPanel: React.FC = () => {
     }
     
     setIsSubmitting(true);
+
+    let imageUrl = '';
+    let thumbnailUrl = '';
+
+    // Handle Image Upload for Kukkuk
+    if (writeMode === 'fun' && selectedFile) {
+        setUploadProgress(true);
+        try {
+            const urls = await communityService.uploadKukkukImage(selectedFile);
+            if (urls) {
+                imageUrl = urls.imageUrl;
+                thumbnailUrl = urls.thumbnailUrl;
+            }
+        } catch (err: any) {
+            alert(`이미지 업로드 실패: ${err.message}`);
+            setIsSubmitting(false);
+            setUploadProgress(false);
+            return;
+        }
+        setUploadProgress(false);
+    }
     
     const postData = { 
       title: writeTitle, content: writeContent, boardType: writeMode, 
-      thumbnail: writeThumbnail, blueOption, redOption 
+      thumbnail: writeThumbnail, blueOption, redOption,
+      imageUrl, thumbnailUrl
     };
 
     let result;
@@ -205,6 +252,7 @@ export const CommunityPanel: React.FC = () => {
     setWriteTitle(''); setWriteContent(''); setWriteThumbnail('');
     setBlueOption(''); setRedOption(''); setRawUpdateText('');
     setEditingPostId(null);
+    setSelectedFile(null);
     setIsWriteFormOpen(false);
   };
 
@@ -234,7 +282,6 @@ export const CommunityPanel: React.FC = () => {
 
   const AdminPostMenu = ({ post }: { post: CommunityPost }) => {
     const isOpen = openAdminMenuId === post.id;
-    // 관리자이거나 작성자 본인인 경우 메뉴 표시
     const canManage = isAdmin || post.authorId === authUser?.id;
     if (!canManage) return null;
 
@@ -326,16 +373,35 @@ export const CommunityPanel: React.FC = () => {
                         {isLoading ? <div className="flex justify-center py-20 opacity-30"><div className="w-8 h-8 border-3 border-slate-300 border-t-slate-900 rounded-full animate-spin"></div></div> : tabPosts.length === 0 ? <div className="text-center py-24 text-slate-300 font-black text-xs uppercase tracking-widest bg-white/40 border-2 border-dashed border-slate-200 rounded-[2.5rem]">No Feed Found</div> : tabPosts.map((post) => (
                             <div key={post.id} onClick={() => { setSelectedPost(post); setViewMode('POST_DETAIL'); }} className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-xl relative transition-all active:scale-[0.98] group hover:border-slate-300">
                                 <div className="absolute top-6 right-6 z-20" onClick={e => e.stopPropagation()}><AdminPostMenu post={post} /></div>
-                                <h4 className="font-black text-slate-800 text-base mb-4 line-clamp-2 leading-tight group-hover:text-blue-600 transition-colors">
-                                  {post.boardType === 'balance' ? `${post.blueOption} vs ${post.redOption}` : post.title}
-                                </h4>
-                                <div className="pt-5 border-t border-slate-50 flex items-center justify-between text-[10px] font-black text-slate-400">
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center text-[7px] font-black text-slate-500 border border-slate-200">{post.author[0].toUpperCase()}</div>
-                                        <span onClick={e => { e.stopPropagation(); openCommunityUserProfile(post.author, post.authorId); }} className="text-slate-900 hover:underline">{post.author}</span>
+                                
+                                {post.boardType === 'fun' ? (
+                                    <div className="flex gap-4 items-center">
+                                        <div className="w-16 h-16 rounded-2xl overflow-hidden bg-slate-100 border border-slate-200 flex-shrink-0">
+                                            {post.thumbnailUrl ? <img src={post.thumbnailUrl} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-[8px] font-black text-slate-300">NO IMG</div>}
+                                        </div>
+                                        <div className="flex-1">
+                                            <h4 className="font-black text-slate-800 text-sm mb-1 group-hover:text-blue-600 transition-colors line-clamp-1">{post.title}</h4>
+                                            <div className="flex items-center gap-3 text-[10px] font-black text-slate-400">
+                                                <span className="text-blue-600">🎯 {post.heads}</span>
+                                                <span onClick={e => { e.stopPropagation(); openCommunityUserProfile(post.author, post.authorId); }} className="hover:underline">{post.author}</span>
+                                                <span>{post.createdAt.split('T')[0]}</span>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <span>{post.createdAt.split('T')[0]}</span>
-                                </div>
+                                ) : (
+                                    <>
+                                        <h4 className="font-black text-slate-800 text-base mb-4 line-clamp-2 leading-tight group-hover:text-blue-600 transition-colors">
+                                        {post.boardType === 'balance' ? `${post.blueOption} vs ${post.redOption}` : post.title}
+                                        </h4>
+                                        <div className="pt-5 border-t border-slate-50 flex items-center justify-between text-[10px] font-black text-slate-400">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center text-[7px] font-black text-slate-500 border border-slate-200">{post.author[0].toUpperCase()}</div>
+                                                <span onClick={e => { e.stopPropagation(); openCommunityUserProfile(post.author, post.authorId); }} className="text-slate-900 hover:underline">{post.author}</span>
+                                            </div>
+                                            <span>{post.createdAt.split('T')[0]}</span>
+                                        </div>
+                                    </>
+                                )}
                             </div>
                         ))}
                      </div>
@@ -357,7 +423,11 @@ export const CommunityPanel: React.FC = () => {
                     </div>
                 </div>
                 <div className="flex-1 overflow-y-auto pb-32">
-                    {selectedPost.thumbnail && <div className="w-full aspect-video bg-slate-100"><img src={selectedPost.thumbnail} className="w-full h-full object-cover" /></div>}
+                    {selectedPost.imageUrl ? (
+                        <div className="w-full bg-slate-100"><img src={selectedPost.imageUrl} className="w-full h-auto" /></div>
+                    ) : selectedPost.thumbnail && (
+                        <div className="w-full aspect-video bg-slate-100"><img src={selectedPost.thumbnail} className="w-full h-full object-cover" /></div>
+                    )}
                     <div className="p-6">
                         <div className="flex items-center gap-3 mb-6">
                              <div className="w-10 h-10 rounded-full bg-slate-900 text-white flex items-center justify-center font-black text-xs">{selectedPost.author[0]}</div>
@@ -399,9 +469,11 @@ export const CommunityPanel: React.FC = () => {
                             <button onClick={() => handleVote('HEAD')} className="flex-1 py-4 bg-slate-900 text-white rounded-2xl font-black text-[11px] shadow-xl active:scale-95 transition-all flex flex-col items-center gap-1">
                                 <span>🎯 헤드샷 {selectedPost.heads}</span>
                             </button>
-                            <button onClick={() => handleVote('HALF')} className="flex-1 py-4 bg-slate-100 text-slate-400 rounded-2xl font-black text-[11px] active:scale-95 transition-all flex flex-col items-center gap-1">
-                                <span>🛡️ 반샷 {selectedPost.halfshots}</span>
-                            </button>
+                            {selectedPost.boardType !== 'fun' && (
+                                <button onClick={() => handleVote('HALF')} className="flex-1 py-4 bg-slate-100 text-slate-400 rounded-2xl font-black text-[11px] active:scale-95 transition-all flex flex-col items-center gap-1">
+                                    <span>🛡️ 반샷 {selectedPost.halfshots}</span>
+                                </button>
+                            )}
                             <button onClick={handleShare} className="w-14 py-4 bg-slate-50 text-slate-400 rounded-2xl flex items-center justify-center hover:bg-slate-100 transition-all"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 100-2.684 3 3 0 000 2.684zm0 12.684a3 3 0 100-2.684 3 3 0 000 2.684z" /></svg></button>
                             {(isAdmin || selectedPost.authorId === authUser?.id) && (
                                 <button onClick={() => handleAdminAction(selectedPost.id, 'DELETE')} className="w-14 py-4 bg-red-50 text-red-400 rounded-2xl flex items-center justify-center hover:bg-red-100" title="삭제">🗑️</button>
@@ -507,6 +579,36 @@ export const CommunityPanel: React.FC = () => {
                         </h3>
                     </div>
                     <form onSubmit={submitPost} className="space-y-4">
+                        
+                        {/* FUN Board Image Upload */}
+                        {writeMode === 'fun' && !editingPostId && (
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black text-slate-400 uppercase ml-2">Image Upload (Max 500KB)</label>
+                                <div className="p-4 bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl text-center">
+                                    <input 
+                                        type="file" 
+                                        id="fileInput"
+                                        onChange={handleFileChange}
+                                        accept=".jpg,.jpeg,.png,.webp,.gif"
+                                        className="hidden" 
+                                    />
+                                    <label htmlFor="fileInput" className="cursor-pointer">
+                                        {selectedFile ? (
+                                            <div className="space-y-2">
+                                                <div className="text-[10px] font-black text-blue-600 truncate">{selectedFile.name}</div>
+                                                <div className="text-[8px] text-slate-400">{(selectedFile.size/1024).toFixed(1)} KB</div>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-2 py-2">
+                                                <svg className="w-8 h-8 text-slate-300 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                                <span className="text-[10px] font-black text-slate-400">사진을 선택하세요</span>
+                                            </div>
+                                        )}
+                                    </label>
+                                </div>
+                            </div>
+                        )}
+
                         {writeMode === 'update' && !editingPostId && (
                             <div className="mb-6 p-4 bg-cyan-50 border border-cyan-100 rounded-2xl space-y-3">
                                 <div className="flex items-center justify-between">
@@ -589,15 +691,17 @@ export const CommunityPanel: React.FC = () => {
                             </div>
                         </div>
 
-                        <div className="space-y-1">
-                            <label className="text-[10px] font-black text-slate-400 uppercase ml-2">Thumbnail URL (Optional)</label>
-                            <input type="text" value={writeThumbnail} onChange={(e) => setWriteThumbnail(e.target.value)} placeholder="이미지 주소를 입력하세요" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl text-[10px] font-mono outline-none focus:bg-white transition-all" />
-                        </div>
+                        {writeMode !== 'fun' && (
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black text-slate-400 uppercase ml-2">Thumbnail URL (Optional)</label>
+                                <input type="text" value={writeThumbnail} onChange={(e) => setWriteThumbnail(e.target.value)} placeholder="이미지 주소를 입력하세요" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl text-[10px] font-mono outline-none focus:bg-white transition-all" />
+                            </div>
+                        )}
                         
                         <div className="flex gap-2 pt-4">
                             <button type="button" onClick={resetWriteForm} className="flex-1 py-4 bg-slate-100 text-slate-500 font-black text-[10px] rounded-2xl active:scale-95 transition-all">취소</button>
-                            <button type="submit" disabled={isSubmitting || isSummarizing} className="flex-[1.5] py-4 bg-slate-900 text-white font-black text-[10px] rounded-2xl shadow-xl active:scale-95 transition-all disabled:opacity-50">
-                                {isSubmitting ? '전송 중...' : editingPostId ? '수정하기' : '등록하기'}
+                            <button type="submit" disabled={isSubmitting || isSummarizing || uploadProgress} className="flex-[1.5] py-4 bg-slate-900 text-white font-black text-[10px] rounded-2xl shadow-xl active:scale-95 transition-all disabled:opacity-50">
+                                {uploadProgress ? '이미지 업로드 중...' : isSubmitting ? '전송 중...' : editingPostId ? '수정하기' : '등록하기'}
                             </button>
                         </div>
                     </form>

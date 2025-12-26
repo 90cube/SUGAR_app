@@ -20,7 +20,7 @@ class CommunityService {
         }
       } else if (boardType && boardType !== 'hidden') {
         const targetBoard = boardType.toLowerCase();
-        query = query.eq('board_type', targetBoard === 'balance' ? 'BALANCE' : boardType);
+        query = query.eq('board_type', targetBoard === 'balance' ? 'BALANCE' : boardType === 'fun' ? 'FUN' : boardType);
       } else if (boardType === 'hidden') {
         query = query.eq('status', 'HIDDEN');
       }
@@ -47,7 +47,7 @@ class CommunityService {
     
     return {
       id: row.id,
-      boardType: (row.board_type === 'BALANCE' ? 'balance' : row.board_type) as BoardType,
+      boardType: (row.board_type === 'BALANCE' ? 'balance' : row.board_type === 'FUN' ? 'fun' : row.board_type) as BoardType,
       title: row.title || (row.board_type === 'BALANCE' ? `${row.blue_option} vs ${row.red_option}` : 'Untitled'),
       content: row.content || row.extra_content || '',
       author: row.author_nickname || 'Unknown',
@@ -62,10 +62,71 @@ class CommunityService {
       commentCount: comments.length,
       status: row.status,
       thumbnail: row.thumbnail || null,
+      imageUrl: row.image_url,
+      thumbnailUrl: row.thumbnail_url,
       isHidden: row.status === 'HIDDEN',
       blueOption: row.blue_option,
       redOption: row.red_option
     };
+  }
+
+  // Client-side 64x64 thumbnail generation
+  private async generateThumbnail(file: File): Promise<Blob> {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 64;
+        canvas.height = 64;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return reject(new Error("Canvas context failed"));
+        
+        // Draw centered and cropped
+        const minSize = Math.min(img.width, img.height);
+        const startX = (img.width - minSize) / 2;
+        const startY = (img.height - minSize) / 2;
+        
+        ctx.drawImage(img, startX, startY, minSize, minSize, 0, 0, 64, 64);
+        canvas.toBlob((blob) => {
+          if (blob) resolve(blob);
+          else reject(new Error("Blob creation failed"));
+        }, 'image/webp', 0.8);
+      };
+      img.onerror = reject;
+      img.src = URL.createObjectURL(file);
+    });
+  }
+
+  async uploadKukkukImage(file: File): Promise<{ imageUrl: string, thumbnailUrl: string } | null> {
+    if (!supabase) return null;
+    
+    // Validations
+    if (file.size > 500 * 1024) throw new Error("파일 용량이 너무 큽니다. (500KB 이하만 가능)");
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    const allowed = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+    if (!ext || !allowed.includes(ext)) throw new Error("허용되지 않는 파일 형식입니다. (jpg, png, webp, gif)");
+
+    const userId = (await supabase.auth.getUser()).data.user?.id;
+    if (!userId) return null;
+
+    const fileId = crypto.randomUUID();
+    const originalPath = `original/${userId}/${fileId}_${file.name}`;
+    const thumbPath = `thumb/${userId}/${fileId}_thumb.webp`;
+
+    // 1. Upload original
+    const { error: upErr } = await supabase.storage.from('kukkuk-images').upload(originalPath, file);
+    if (upErr) throw upErr;
+
+    // 2. Generate and upload thumbnail
+    const thumbBlob = await this.generateThumbnail(file);
+    const { error: thumbErr } = await supabase.storage.from('kukkuk-images').upload(thumbPath, thumbBlob);
+    if (thumbErr) throw thumbErr;
+
+    // 3. Get Public URLs
+    const imageUrl = supabase.storage.from('kukkuk-images').getPublicUrl(originalPath).data.publicUrl;
+    const thumbnailUrl = supabase.storage.from('kukkuk-images').getPublicUrl(thumbPath).data.publicUrl;
+
+    return { imageUrl, thumbnailUrl };
   }
 
   async createPost(post: any): Promise<CommunityPost | null> {
@@ -79,9 +140,11 @@ class CommunityService {
     const payload: any = {
       author_id: user.id,
       author_nickname: nickname,
-      board_type: post.boardType === 'balance' ? 'BALANCE' : post.boardType,
+      board_type: post.boardType === 'balance' ? 'BALANCE' : post.boardType === 'fun' ? 'FUN' : post.boardType,
       status: 'APPROVED',
-      thumbnail: post.thumbnail || null
+      thumbnail: post.thumbnail || null,
+      image_url: post.imageUrl || null,
+      thumbnail_url: post.thumbnailUrl || null
     };
 
     if (post.boardType === 'balance') {
@@ -110,8 +173,10 @@ class CommunityService {
     if (!supabase) return null;
     
     const payload: any = {
-      board_type: post.boardType === 'balance' ? 'BALANCE' : post.boardType,
-      thumbnail: post.thumbnail || null
+      board_type: post.boardType === 'balance' ? 'BALANCE' : post.boardType === 'fun' ? 'FUN' : post.boardType,
+      thumbnail: post.thumbnail || null,
+      image_url: post.imageUrl || null,
+      thumbnail_url: post.thumbnailUrl || null
     };
 
     if (post.boardType === 'balance') {
@@ -139,6 +204,32 @@ class CommunityService {
     }
     
     return this.mapRowToPost(data);
+  }
+
+  async deletePost(postId: string) {
+    if (!supabase) return false;
+
+    // Fetch post to check for images
+    const { data: post } = await supabase.from('posts').select('image_url, thumbnail_url').eq('id', postId).single();
+    
+    if (post?.image_url) {
+        try {
+            // Extract paths from Public URLs
+            const getPath = (url: string) => url.split('/kukkuk-images/')[1];
+            const paths = [getPath(post.image_url)];
+            if (post.thumbnail_url) paths.push(getPath(post.thumbnail_url));
+            await supabase.storage.from('kukkuk-images').remove(paths);
+        } catch (e) {
+            console.warn("Storage cleanup failed during post deletion", e);
+        }
+    }
+
+    const { error } = await supabase.from('posts').update({ status: 'DELETED' }).eq('id', postId);
+    if (error) {
+        alert(`[ERROR] 처리 실패: ${error.message}`);
+        return false;
+    }
+    return true;
   }
 
   async votePost(postId: string, voteType: 'HEAD' | 'HALF') {
@@ -252,7 +343,6 @@ class CommunityService {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return false;
 
-    // 댓글 정보 조회
     const { data: comment, error: fetchError } = await supabase
       .from('comments')
       .select('author_id, author_nickname')
@@ -316,16 +406,6 @@ class CommunityService {
         isDeleted: c.is_deleted
       }));
     } catch { return []; }
-  }
-
-  async deletePost(postId: string) {
-    if (!supabase) return false;
-    const { error } = await supabase.from('posts').update({ status: 'DELETED' }).eq('id', postId);
-    if (error) {
-        alert(`[ERROR] 처리 실패: ${error.message}`);
-        return false;
-    }
-    return true;
   }
 
   async movePostToTemp(postId: string) {

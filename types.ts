@@ -141,7 +141,7 @@ export interface CommunityPost {
   title: string;
   content: string;
   author: string;
-  authorId: string; // Added to check ownership
+  authorId: string; 
   authorRole: 'admin' | 'user';
   createdAt: string;
   heads: number; 
@@ -150,6 +150,8 @@ export interface CommunityPost {
   redVotes: number; 
   views: number;
   thumbnail?: string;
+  imageUrl?: string;
+  thumbnailUrl?: string;
   commentCount: number;
   status: 'APPROVED' | 'PENDING' | 'HIDDEN' | 'DELETED'; 
   isHidden?: boolean;
