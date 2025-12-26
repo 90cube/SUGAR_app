@@ -135,7 +135,7 @@ class CommunityService {
     const thumbPath = `community/thumb/${userId}/${fileId}_thumb.webp`;
 
     const webpBlob = await this.convertToWebP(file);
-    const thumbBlob = await this.convertToWebP(file, 400, 400); // 1:1 ratio
+    const thumbBlob = await this.convertToWebP(file, 400, 400); 
 
     const { error: upErr } = await supabase.storage.from(STREAMING_BUCKET).upload(originalPath, webpBlob, { contentType: 'image/webp' });
     if (upErr) throw upErr;
@@ -264,7 +264,7 @@ class CommunityService {
     if (!user) return false;
     const { data: existing } = await supabase.from('votes').select('id').eq('post_id', postId).eq('author_id', user.id).maybeSingle();
     if (existing) return false;
-    const { error } = await supabase.from('votes').insert({ post_id: postId, author_id: user.id, vote_type: voteType });
+    const { error = null } = await supabase.from('votes').insert({ post_id: postId, author_id: user.id, vote_type: voteType });
     return !error;
   }
 
@@ -274,7 +274,7 @@ class CommunityService {
     if (!user) return false;
     const { data: existing } = await supabase.from('balance_votes').select('id').eq('post_id', postId).eq('user_id', user.id).maybeSingle();
     if (existing) return false;
-    const { error } = await supabase.from('balance_votes').insert({ post_id: postId, user_id: user.id, vote_side: voteSide });
+    const { error = null } = await supabase.from('balance_votes').insert({ post_id: postId, user_id: user.id, vote_side: voteSide });
     return !error;
   }
 
@@ -331,7 +331,7 @@ class CommunityService {
 
     const queryId = authorId ? { id: authorId } : { nickname };
 
-    // 1. profiles 기본 정보
+    // 1. Fetch profile basics
     const { data: prof } = await supabase
       .from('profiles')
       .select('created_at, id')
@@ -342,7 +342,7 @@ class CommunityService {
         joinDate = prof.created_at ? prof.created_at.split('T')[0] : '-';
         const targetOuid = prof.id;
 
-        // 2. 실시간 post_count 계산 (당분간 profiles 컬럼 불신)
+        // 2. Real-time post count (ignoring profiles.post_count for now)
         const { count: pCount } = await supabase
             .from('posts')
             .select('*', { count: 'exact', head: true })
@@ -351,7 +351,7 @@ class CommunityService {
         
         postCount = pCount || 0;
 
-        // 3. 실시간 comment_count 계산
+        // 3. Real-time comment count
         const { count: cCount } = await supabase
             .from('comments')
             .select('*', { count: 'exact', head: true })

@@ -460,6 +460,24 @@ export const CommunityPanel: React.FC = () => {
                                                     </div>
                                                 </div>
                                             </div>
+                                        ) : post.boardType === 'stream' ? (
+                                            <div className="p-6 flex items-center gap-5">
+                                               <div className="w-20 h-20 rounded-2xl overflow-hidden bg-slate-100 border-2 border-white shadow-md flex-shrink-0">
+                                                   <img src={post.thumbnailUrl} className="w-full h-full object-cover" />
+                                               </div>
+                                               <div className="flex-1 min-w-0">
+                                                   <div className="flex items-center gap-2 mb-1">
+                                                       <span className={`px-2 py-0.5 rounded-lg text-[7px] font-black text-white ${post.platform === 'CHZZK' ? 'bg-emerald-500' : post.platform === 'SOOP' ? 'bg-blue-500' : 'bg-red-500'}`}>{post.platform}</span>
+                                                       <span className="text-[9px] font-bold text-slate-400">Live_Broadcasting</span>
+                                                   </div>
+                                                   <h4 className="font-black text-slate-800 text-sm line-clamp-1">{post.author} 님의 방송</h4>
+                                                   <p className="text-[11px] text-slate-500 font-medium line-clamp-1 mt-1">{post.content}</p>
+                                               </div>
+                                               <div className="flex flex-col items-center gap-1.5">
+                                                   <div className="text-[10px] font-black text-blue-600">🎯 {post.heads}</div>
+                                                   <div className="w-1 h-4 bg-slate-100 rounded-full"></div>
+                                               </div>
+                                            </div>
                                         ) : (
                                             <div className="p-6">
                                                 <h4 className="font-black text-slate-800 text-base mb-4 line-clamp-2 leading-tight group-hover:text-blue-600 transition-colors">{post.boardType === 'balance' ? `${post.blueOption} vs ${post.redOption}` : post.title}</h4>
@@ -531,6 +549,7 @@ export const CommunityPanel: React.FC = () => {
                                </div>
                                <h2 className="text-white font-black text-xl mb-4 tracking-tight leading-tight">{selectedPost.author} 님의 방송 데이터</h2>
                                <a href={selectedPost.streamUrl} target="_blank" rel="noopener noreferrer" className="w-full py-4 bg-cyan-500 text-slate-950 rounded-2xl font-black text-[11px] flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/20 active:scale-95 transition-all">방송 보러가기 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg></a>
+                               {selectedPost.prUrl && <a href={selectedPost.prUrl} target="_blank" rel="noopener noreferrer" className="w-full mt-3 py-3 bg-white/5 text-slate-400 rounded-2xl font-black text-[10px] flex items-center justify-center border border-white/5">PR_Terminal_Open</a>}
                             </div>
                         )}
 
