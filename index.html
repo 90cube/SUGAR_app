@@ -48,6 +48,57 @@
         0% { bottom: 100%; }
         100% { bottom: -100px; }
       }
+      
+      /* SF Laboratory Animations */
+      @keyframes glitch {
+        0% { transform: translate(0); }
+        20% { transform: translate(-2px, 2px); }
+        40% { transform: translate(-2px, -2px); }
+        60% { transform: translate(2px, 2px); }
+        80% { transform: translate(2px, -2px); }
+        100% { transform: translate(0); }
+      }
+      .glitch-fx {
+        animation: glitch 0.2s infinite;
+        animation-play-state: paused;
+      }
+      .glitch-fx:hover {
+        animation-play-state: running;
+      }
+
+      @keyframes radar {
+        0% { transform: scale(1); opacity: 0.5; }
+        100% { transform: scale(2.5); opacity: 0; }
+      }
+      .radar-pulse {
+        animation: radar 2s cubic-bezier(0, 0.2, 0.8, 1) infinite;
+      }
+
+      @keyframes data-flow {
+        0% { transform: translateY(0); }
+        100% { transform: translateY(-50%); }
+      }
+      .data-stream {
+        animation: data-flow 15s linear infinite;
+      }
+
+      /* Markdown Table Styling */
+      .prose table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 1rem 0;
+        font-size: 0.875rem;
+      }
+      .prose th, .prose td {
+        border: 1px solid #e2e8f0;
+        padding: 0.75rem;
+        text-align: left;
+      }
+      .prose th {
+        background-color: #f1f5f9;
+        font-weight: 800;
+        color: #0f172a;
+      }
     </style>
   <script type="importmap">
 {
@@ -57,14 +108,15 @@
     "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
     "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
     "jwt-decode": "https://esm.sh/jwt-decode@4.0.0",
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.39.3"
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.39.3",
+    "marked": "https://esm.sh/marked@15.0.0"
   }
 }
 </script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script type="text/javascript" src="https://openapi.nexon.com/js/analytics.js?app_id=246078" async></script>
 </head>
-  <body class="bg-slate-50 text-slate-900 antialiased font-sans">
+  <body class="bg-slate-50 text-slate-900 antialiased font-sans overflow-x-hidden">
     <div class="scanline"></div>
     <div id="root"></div>
     <script type="module" src="./index.tsx"></script>

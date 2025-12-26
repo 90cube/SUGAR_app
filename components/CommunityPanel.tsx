@@ -4,6 +4,7 @@ import { useApp } from '../state/AppContext';
 import { communityService } from '../services/communityService';
 import { geminiService } from '../services/geminiService';
 import { CommunityPost, BoardType, CommunityComment } from '../types';
+import { marked } from 'marked';
 
 type TabType = 'balance' | 'keuk' | 'stream' | 'temp';
 type ViewMode = 'MAIN' | 'UPDATE_ARCHIVE' | 'POST_DETAIL';
@@ -32,8 +33,9 @@ export const CommunityPanel: React.FC = () => {
   
   // AI Summarizer State
   const [rawUpdateText, setRawUpdateText] = useState('');
-  // Fix: Renamed setIsLoading to setIsSummarizing to avoid redeclaring a block-scoped variable and to fix missing name errors.
   const [isSummarizing, setIsSummarizing] = useState(false);
+  const [masterPrompt, setMasterPrompt] = useState('당신은 서든어택 업데이트 전문 요약가입니다. 공지 원문의 모든 핵심 내용을 하나도 놓치지 마세요. 가독성을 극대화하기 위해 Markdown 문법을 사용하며, 특히 아이템 스펙이나 보상 목록은 반드시 Markdown 표(Table) 기능을 사용하여 일목요연하게 정리하세요. 제목은 유저들의 관심을 끌 수 있도록 20자 이내로 핵심만 짚으세요.');
+  const [isPromptEditorOpen, setIsPromptEditorOpen] = useState(false);
 
   // Comment Form
   const [commentInput, setCommentInput] = useState('');
@@ -69,14 +71,13 @@ export const CommunityPanel: React.FC = () => {
     if (!rawUpdateText.trim()) return;
     setIsSummarizing(true);
     try {
-      const masterPrompt = "서든어택 업데이트 공지 원문이야. 유저들이 읽기 좋게 이쁘고 세련된 HTML 형식(ul, li, h3, strong 등 활용)으로 핵심만 요약해줘. 제목은 20자 이내로 짧게 뽑아줘.";
       const result = await geminiService.summarizeGameUpdate(rawUpdateText, masterPrompt);
       setWriteTitle(result.title);
       setWriteContent(result.content);
       alert("AI 전력 분석관이 요약을 완료했습니다.");
     } catch (e) {
       console.error(e);
-      alert("AI 요약 중 오류가 발생했습니다. 직접 입력해주세요.");
+      alert("AI 요약 중 오류가 발생했습니다.");
     } finally {
       setIsSummarizing(false);
     }
@@ -84,15 +85,12 @@ export const CommunityPanel: React.FC = () => {
 
   const handleAdminAction = async (postId: string, action: 'DELETE' | 'TEMP') => {
     if (!selectedPost) return;
-    
     const myNickname = userProfile?.nickname || authUser?.name;
     if (selectedPost.author === myNickname && !isAdmin) {
-        alert("자신의 글에 추천, 비추천, 투표, 신고 할 수 없습니다.");
+        alert("자신의 글을 처리할 수 없습니다.");
         return;
     }
-
     if (!isAdmin && selectedPost.author !== myNickname) return;
-
     if (!window.confirm("정말 처리하시겠습니까?")) return;
     const success = action === 'DELETE' ? await communityService.deletePost(postId) : await communityService.movePostToTemp(postId);
     if (success) { fetchTabContent(activeTab); if (selectedPost?.id === postId) setViewMode('MAIN'); }
@@ -101,13 +99,10 @@ export const CommunityPanel: React.FC = () => {
 
   const handleVote = async (type: 'HEAD' | 'HALF') => {
     if (!selectedPost || !isLoggedIn) { if(!isLoggedIn) openAuthModal(); return; }
-    
-    const myNickname = userProfile?.nickname || authUser?.name;
-    if (selectedPost.author === myNickname) {
-        alert("자신의 글에 추천, 비추천, 투표, 신고 할 수 없습니다.");
+    if (selectedPost.author === (userProfile?.nickname || authUser?.name)) {
+        alert("자신의 글에 투표할 수 없습니다.");
         return;
     }
-
     const success = await communityService.votePost(selectedPost.id, type);
     if (success) {
         setSelectedPost(prev => prev ? { 
@@ -320,7 +315,9 @@ export const CommunityPanel: React.FC = () => {
                         )}
 
                         {selectedPost.boardType !== 'balance' && <h1 className="text-2xl font-black text-slate-900 mb-6 leading-tight tracking-tight">{selectedPost.title}</h1>}
-                        <div className="prose prose-slate max-w-none text-slate-600 font-medium leading-relaxed text-sm mb-12" dangerouslySetInnerHTML={{ __html: selectedPost.content }}></div>
+                        
+                        {/* Markdown Rendering for content */}
+                        <div className="prose prose-slate max-w-none text-slate-600 font-medium leading-relaxed text-sm mb-12" dangerouslySetInnerHTML={{ __html: marked.parse(selectedPost.content) }}></div>
                         
                         <div className="flex gap-2 mb-12">
                             <button onClick={() => handleVote('HEAD')} className="flex-1 py-4 bg-slate-900 text-white rounded-2xl font-black text-[11px] shadow-xl active:scale-95 transition-all flex flex-col items-center gap-1">
@@ -402,7 +399,29 @@ export const CommunityPanel: React.FC = () => {
                     <form onSubmit={submitPost} className="space-y-4">
                         {writeMode === 'update' && (
                             <div className="mb-6 p-4 bg-cyan-50 border border-cyan-100 rounded-2xl space-y-3">
-                                <label className="text-[10px] font-black text-cyan-600 uppercase tracking-widest block font-mono">Nexon Raw Data (Update Parser)</label>
+                                <div className="flex items-center justify-between">
+                                    <label className="text-[10px] font-black text-cyan-600 uppercase tracking-widest block font-mono">Nexon Raw Data (Update Parser)</label>
+                                    <button 
+                                      type="button" 
+                                      onClick={() => setIsPromptEditorOpen(!isPromptEditorOpen)}
+                                      className="text-[9px] font-black text-cyan-700 underline"
+                                    >
+                                      {isPromptEditorOpen ? "닫기" : "마스터 프롬프트 설정"}
+                                    </button>
+                                </div>
+
+                                {isPromptEditorOpen && (
+                                  <div className="bg-white/50 border border-cyan-200 rounded-xl p-3 animate-in slide-in-from-top-2">
+                                     <label className="text-[8px] font-black text-slate-400 mb-1 block uppercase">AI 마스터 지침 (Master Prompt)</label>
+                                     <textarea 
+                                        value={masterPrompt}
+                                        onChange={(e) => setMasterPrompt(e.target.value)}
+                                        className="w-full h-24 p-2 text-[10px] bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-cyan-500 font-medium leading-relaxed"
+                                        placeholder="AI가 어떻게 요약할지 지침을 입력하세요..."
+                                     />
+                                  </div>
+                                )}
+
                                 <textarea 
                                     value={rawUpdateText}
                                     onChange={(e) => setRawUpdateText(e.target.value)}
@@ -421,7 +440,7 @@ export const CommunityPanel: React.FC = () => {
                                             EXTRACTING_KEY_INTEL...
                                         </>
                                     ) : (
-                                        <>⚡ AI 요약 실행</>
+                                        <>⚡ AI 요약 실행 (Markdown)</>
                                     )}
                                 </button>
                             </div>
@@ -455,7 +474,7 @@ export const CommunityPanel: React.FC = () => {
                         <div className="space-y-1">
                             <label className="text-[10px] font-black text-slate-400 uppercase ml-2">{writeMode === 'balance' ? 'Description' : 'Content'}</label>
                             <div className="relative">
-                                <textarea value={writeContent} onChange={(e) => setWriteContent(e.target.value)} placeholder={writeMode === 'balance' ? "투표 참여자들에게 전할 상세 설명을 입력하세요." : "내용을 입력하세요 (HTML 지원)"} maxLength={5000} className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-medium h-40 resize-none outline-none focus:bg-white transition-all"></textarea>
+                                <textarea value={writeContent} onChange={(e) => setWriteContent(e.target.value)} placeholder={writeMode === 'balance' ? "설명을 입력하세요." : "내용을 입력하세요 (Markdown 지원)"} maxLength={5000} className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-medium h-40 resize-none outline-none focus:bg-white transition-all"></textarea>
                                 <span className="absolute bottom-3 right-3 text-[8px] font-black text-slate-300">{writeContent.length}/5000</span>
                             </div>
                         </div>

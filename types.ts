@@ -26,15 +26,35 @@ export interface Match {
   matchType: string;
   matchMode: string;
   kd: string;
-  date: string;
-  rawDate: string;
+  date: string; // KST formatted string
+  rawDate: string; // UTC string from API
   kill: number;
   death: number;
   assist: number;
 }
 
+export interface PlayerMatchDetail {
+  team_id: string;
+  match_result: string; // "1": Win, "2": Loss
+  user_name: string;
+  season_grade: string;
+  guild_name: string | null;
+  kill: number;
+  death: number;
+  headshot: number;
+  damage: number;
+  assist: number;
+}
+
 export interface MatchDetail extends Match {
-  RawData?: any; 
+  RawData?: {
+    match_id: string;
+    match_type: string;
+    match_mode: string;
+    date_match: string;
+    match_map: string;
+    match_detail: PlayerMatchDetail[];
+  }; 
 }
 
 export interface RankMatchState {
@@ -123,16 +143,15 @@ export interface CommunityPost {
   author: string;
   authorRole: 'admin' | 'user';
   createdAt: string;
-  heads: number; // 추천 (헤드샷)
-  halfshots: number; // 비추천 (반샷)
-  blueVotes: number; // 밸런스 투표 BLUE (예비용)
-  redVotes: number; // 밸런스 투표 RED (예비용)
+  heads: number; 
+  halfshots: number; 
+  blueVotes: number; 
+  redVotes: number; 
   views: number;
   thumbnail?: string;
   commentCount: number;
   status: 'APPROVED' | 'PENDING' | 'HIDDEN' | 'DELETED'; 
   isHidden?: boolean;
-  // Balance specific
   blueOption?: string;
   redOption?: string;
 }

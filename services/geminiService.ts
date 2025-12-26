@@ -4,7 +4,6 @@ import { DEFAULT_GEMINI_MODEL } from "../constants";
 import { UserProfile, RecapStats } from "../types";
 
 export class GeminiService {
-  // Always create a new instance when needed to ensure the latest API Key is used.
   private get ai() {
     return new GoogleGenAI({ apiKey: process.env.API_KEY });
   }
@@ -23,20 +22,13 @@ export class GeminiService {
     }
   }
 
-  /**
-   * Data Mastering Helper
-   * Extracts only critical combat data from the full profile to save tokens and improve LLM focus.
-   */
   private masterPlayerData(profile: UserProfile): string {
     const s = profile.recentStats || { kd: 0, winRate: 0, sniperRate: 0, assaultRate: 0 };
-    
-    // Determine Playstyle based on weapon usage
     let style = "Flex";
     if (s.sniperRate > 50) style = "Sniper Main";
     else if (s.assaultRate > 60) style = "Rifler (Rusher)";
     else if (s.assaultRate > 40) style = "Rifler (Support)";
 
-    // Note: We provide numbers to the LLM for calculation, but instruct it not to output them.
     return `
       - ID: ${profile.nickname}
       - Tier: ${profile.soloTier.tierName} (${profile.soloTier.score} RP)
@@ -46,13 +38,7 @@ export class GeminiService {
     `.trim();
   }
 
-  public async analyzeMatchup(myProfile: UserProfile, opponentProfile: UserProfile): Promise<string> {
-    // Legacy method wrapper for backward compatibility if needed, redirects to team analysis
-    return this.analyzeTeamMatchup([myProfile], [opponentProfile]);
-  }
-
   public async analyzeTeamMatchup(teamA: UserProfile[], teamB: UserProfile[]): Promise<string> {
-    // 1. Master the data (Summarize)
     const teamAData = teamA.map(p => this.masterPlayerData(p)).join('\n');
     const teamBData = teamB.map(p => this.masterPlayerData(p)).join('\n');
 
@@ -67,28 +53,10 @@ export class GeminiService {
       ${teamBData}
 
       **분석 지침 (필수 준수):**
-      1. **빅데이터 기반 심층 분석**: 단순히 제공된 수치를 나열하지 마십시오. (예: "KD 55%다" (X) -> "압도적인 샷발을 보유했다" (O)). **결과물에 직접적인 숫자 데이터(%, 점수 등)를 절대 포함하지 마십시오.**
-      2. **최신 트렌드 반영**: 현재 서든어택의 랭크전 메타(스나이퍼의 영향력, 돌격 소총의 밸런스 등)를 반영하여 팀의 조합 완성도를 평가하십시오.
-      3. **맵 상성 분석**: 각 팀의 성향(스나이퍼 비중, 러쉬 성향 등)을 분석하여, **유리한 맵**과 **불리한 맵**을 구체적으로 지목하십시오. (예: 제3보급창고, 드래곤로드, 크로스카운터 등)
-      4. **어조**: 전문가답게 **간결하고 단정적인 어체**를 사용하십시오. (~함, ~임, ~것으로 판단됨).
-
-      **출력 양식:**
-      
-      ## 1. 승부 예측
-      * **예상 승리팀**: [팀 이름] (승률 높음/비등함/낮음 등 정성적 표현)
-      * **핵심 근거**: [빅데이터 패턴 분석 결과 요약]
-
-      ## 2. 전력 비교 (메타 분석)
-      * **Team A**: [장점 및 플레이 스타일 분석]
-      * **Team B**: [장점 및 플레이 스타일 분석]
-      
-      ## 3. 전장 분석 (Map Prediction)
-      * **Team A 유리**: [맵 이름] - [이유: 예) 스나이퍼 라인 장악 유리]
-      * **Team B 유리**: [맵 이름] - [이유: 예) 난전 및 백업 속도 우위]
-
-      ## 4. 승리 시나리오
-      * **Team A**: [승리를 위한 행동 지침]
-      * **Team B**: [승리를 위한 행동 지침]
+      1. **빅데이터 기반 심층 분석**: 단순히 제공된 수치를 나열하지 마십시오. 결과물에 직접적인 숫자 데이터(%, 점수 등)를 절대 포함하지 마십시오.
+      2. **최신 트렌드 반영**: 현재 서든어택의 랭크전 메타를 반영하여 팀의 조합 완성도를 평가하십시오.
+      3. **맵 상성 분석**: 유리한 맵과 불리한 맵을 구체적으로 지목하십시오.
+      4. **어조**: 전문가답게 간결하고 단정적인 어체를 사용하십시오.
     `;
 
     try {
@@ -105,20 +73,8 @@ export class GeminiService {
 
   public async analyzeDailyRecap(stats: RecapStats): Promise<string> {
       const prompt = `
-        당신은 서든어택 전문 개인 코치입니다.
-        아래는 플레이어의 '오늘의 경기 요약' 통계입니다. 이 데이터를 바탕으로 오늘의 퍼포먼스를 피드백해주세요.
-
-        [오늘의 데이터]
-        - 날짜: ${stats.date}
-        - 총 경기 수: ${stats.totalMatches}판
-        - 승률: ${stats.winRate}% (평소: ${stats.comparison.restWinRate}%)
-        - 킬/데스(K/D): ${stats.kd}% (평소: ${stats.comparison.restKd}%)
-
-        **지침:**
-        1. **수치 언급 최소화**: 정확한 숫자보다는 "평소보다 기량이 올랐다", "승률이 저조하다" 등 흐름을 분석하세요.
-        2. **상관관계 분석**: K/D는 높은데 승률이 낮다면 "영양가 없는 킬(Empty Frags)"을 지적하고, 반대라면 "희생적인 플레이"를 칭찬하세요.
-        3. **코칭 톤**: 격려하면서도 날카로운 조언을 짧게(3~4문장) 제공하세요.
-        4. **한국어**로 작성하세요.
+        당신은 서든어택 전문 개인 코치입니다. 플레이어의 데이터를 분석하여 피드백하세요.
+        [오늘의 데이터] - 승률: ${stats.winRate}% (평소: ${stats.comparison.restWinRate}%) - K/D: ${stats.kd}%
       `;
 
       try {
@@ -133,12 +89,11 @@ export class GeminiService {
       }
   }
 
-  // --- New Method for Admin Update Notices using responseSchema for better reliability ---
   public async summarizeGameUpdate(rawText: string, masterPrompt: string): Promise<{ title: string; content: string }> {
       const prompt = `
         ${masterPrompt}
 
-        [Raw Update Text]
+        [원문 데이터]
         ${rawText}
       `;
 
@@ -153,11 +108,11 @@ export class GeminiService {
                   properties: {
                     title: {
                       type: Type.STRING,
-                      description: 'A short, catchy title summarizing the main update (Max 20 chars)',
+                      description: '업데이트의 핵심을 담은 제목 (최대 20자)',
                     },
                     content: {
                       type: Type.STRING,
-                      description: 'HTML formatted body content. Use <br/> for line breaks, NOT </br>. Use <h3>, <ul>, <li>, <p>, <strong>.',
+                      description: 'Markdown 형식의 요약 내용. 표(Table)를 적극적으로 사용하여 정보를 정리하세요.',
                     },
                   },
                   required: ["title", "content"],
@@ -167,24 +122,12 @@ export class GeminiService {
           });
           
           let jsonStr = response.text || "{}";
-          let result = JSON.parse(jsonStr);
-
-          // Post-processing: Fix common HTML tag errors from LLM
-          if (result.content) {
-            result.content = result.content
-                .replace(/<\/br>/gi, '<br/>')
-                .replace(/<br>/gi, '<br/>')
-                .replace(/<br >/gi, '<br/>');
-          }
-
-          return result;
+          return JSON.parse(jsonStr);
       } catch (e) {
           console.error("Update Summary Error", e);
-          
-          // Fallback: Return raw text wrapped in paragraph if JSON parsing fails
           return {
-              title: "업데이트 공지 (자동 생성 실패)",
-              content: `<p>${rawText.substring(0, 300)}...</p><p>(AI 요약 실패 - 원문을 확인하세요)</p>`
+              title: "업데이트 요약 실패",
+              content: "AI가 데이터를 분석하는 데 실패했습니다. 원문을 직접 확인하시거나 다시 시도해주세요."
           };
       }
   }

@@ -17,6 +17,26 @@ class NexonService {
   private tierCache: Map<string, string> = new Map();
   private readonly TARGET_MODES = ["개인전", "데스매치", "폭파미션", "진짜를 모아라"];
 
+  public formatToKST(utcDateString: string): string {
+    try {
+      const date = new Date(utcDateString);
+      // UTC to KST (UTC+9)
+      const kstDate = new Date(date.getTime() + (9 * 60 * 60 * 1000));
+      
+      const yyyy = kstDate.getUTCFullYear();
+      const mm = String(kstDate.getUTCMonth() + 1).padStart(2, '0');
+      const dd = String(kstDate.getUTCDate()).padStart(2, '0');
+      const hh = String(kstDate.getUTCHours()).padStart(2, '0');
+      const min = String(kstDate.getUTCMinutes()).padStart(2, '0');
+      const ss = String(kstDate.getUTCSeconds()).padStart(2, '0');
+      const ms = String(kstDate.getUTCMilliseconds()).padStart(3, '0');
+
+      return `${yyyy}-${mm}-${dd} ${hh}:${min}:${ss}.${ms}`;
+    } catch (e) {
+      return utcDateString;
+    }
+  }
+
   private async sleep(ms: number) {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
@@ -28,7 +48,6 @@ class NexonService {
     };
 
     try {
-      // corsproxy.io 를 사용할 때 URL 인코딩 확실히 수행
       const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
       
       const response = await fetch(proxyUrl, {
@@ -63,7 +82,6 @@ class NexonService {
     if (this.tierCache.size > 0) return;
     try {
       const metaUrl = `https://open.api.nexon.com/static/suddenattack/meta/tier`;
-      // 메타데이터는 API 키 없이 호출 가능하므로 Allorigins 혹은 직접 호출
       const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(metaUrl)}`;
       const res = await fetch(proxyUrl);
       const json = await res.json();
@@ -98,22 +116,17 @@ class NexonService {
     await this.ensureMetadata();
 
     try {
-      // 1. Basic Info
       const basic = await this.fetchWithProxy(`${NEXON_API_BASE_URL}/user/basic?ouid=${ouid}`);
       await this.sleep(150);
       
-      // 2. Rank Info
       const rank = await this.fetchWithProxy(`${NEXON_API_BASE_URL}/user/rank?ouid=${ouid}`).catch(() => null);
       await this.sleep(150);
       
-      // 3. Tier Info
       const tier = await this.fetchWithProxy(`${NEXON_API_BASE_URL}/user/tier?ouid=${ouid}`).catch(() => null);
       await this.sleep(150);
       
-      // 4. Recent Stats
       const recent = await this.fetchWithProxy(`${NEXON_API_BASE_URL}/user/recent-info?ouid=${ouid}`).catch(() => null);
 
-      // 5. Match History
       const matches: Match[] = [];
       for (const mode of this.TARGET_MODES) {
         try {
@@ -125,7 +138,7 @@ class NexonService {
               result: m.match_result === "1" ? MatchResult.WIN : m.match_result === "2" ? MatchResult.LOSE : MatchResult.DRAW,
               matchType: m.match_type,
               matchMode: m.match_mode,
-              date: m.date_match.substring(5, 16).replace('T', ' '),
+              date: this.formatToKST(m.date_match), // Convert to KST
               rawDate: m.date_match,
               kill: m.kill,
               death: m.death,
