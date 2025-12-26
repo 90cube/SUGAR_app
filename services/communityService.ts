@@ -319,8 +319,40 @@ class CommunityService {
     return (data || []).map((row: any) => this.mapRowToPost(row));
   }
 
-  async getCommunityUserProfile(nickname: string): Promise<CommunityUserProfile> {
-    return { nickname, joinDate: '2024-01-01', postCount: 0, commentCount: 0, guillotineCount: 0 };
+  async getCommunityUserProfile(nickname: string, authorId?: string): Promise<CommunityUserProfile> {
+    if (!supabase) return { nickname, joinDate: '-', postCount: 0, commentCount: 0, guillotineCount: 0 };
+    
+    let joinDate = '2024-01-01';
+    let postCount = 0;
+    let commentCount = 0;
+
+    if (authorId) {
+        // 1. Get real join date from profile
+        const { data: prof } = await supabase.from('profiles').select('created_at').eq('id', authorId).maybeSingle();
+        if (prof?.created_at) joinDate = prof.created_at.split('T')[0];
+
+        // 2. Count real posts from posts table (not relying on profile sync)
+        const { count: pCount } = await supabase
+            .from('posts')
+            .select('*', { count: 'exact', head: true })
+            .eq('author_id', authorId)
+            .neq('status', 'DELETED');
+        if (pCount !== null) postCount = pCount;
+
+        // 3. Count real comments from comments table
+        const { count: cCount } = await supabase
+            .from('comments')
+            .select('*', { count: 'exact', head: true })
+            .eq('author_id', authorId)
+            .eq('is_deleted', false);
+        if (cCount !== null) commentCount = cCount;
+    } else {
+        // Fallback to nickname query if ID is not provided
+        const { count: pCount } = await supabase.from('posts').select('*', { count: 'exact', head: true }).eq('author_nickname', nickname).neq('status', 'DELETED');
+        if (pCount !== null) postCount = pCount;
+    }
+
+    return { nickname, joinDate, postCount, commentCount, guillotineCount: 0 };
   }
 
   async getHighGuillotineUsers(): Promise<CommunityUserProfile[]> {

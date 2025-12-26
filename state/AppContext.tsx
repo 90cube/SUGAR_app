@@ -75,7 +75,6 @@ interface AppContextType {
   isCommunityWriteFormOpen: boolean;
   setIsCommunityWriteFormOpen: (open: boolean) => void;
   selectedCommunityPost: CommunityPost | null;
-  // Fix: Corrected type of setSelectedCommunityPost to Dispatch to support functional state updates (prev => ...)
   setSelectedCommunityPost: React.Dispatch<React.SetStateAction<CommunityPost | null>>;
 }
 
@@ -117,64 +116,30 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const isAdmin = authUser?.role === 'admin';
 
-  // ESC Key Listener Logic
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        // 우선순위 1: 커뮤니티 유저 프로필
         if (selectedCommunityUser) { closeCommunityUserProfile(); return; }
-        
-        // 우선순위 2: 관리자 길로틴
         if (isAdminGuillotineOpen) { closeAdminGuillotine(); return; }
-        
-        // 우선순위 3: 관리자 비밀 게시판
         if (isAdminHiddenBoardOpen) { closeAdminHiddenBoard(); return; }
-        
-        // 우선순위 4: 관리자 에디터
         if (isAdminEditorOpen) { closeAdminEditor(); return; }
-        
-        // 우선순위 5: 분석 보고서
         if (isAnalysisModalOpen) { closeAnalysisModal(); return; }
-        
-        // 우선순위 6: 일일 리캡
         if (isRecapModalOpen) { closeRecapModal(); return; }
-        
-        // 우선순위 7: 매치 상세
         if (activeMatch) { closeMatchDetail(); return; }
-        
-        // 우선순위 8: 가상 매칭
         if (isVirtualMatchingModalOpen) { closeVirtualMatchingModal(); return; }
-        
-        // 우선순위 9: DM 모달
         if (isDMModalOpen) { closeDMModal(); return; }
-        
-        // 우선순위 10: 인증 모달
         if (isAuthModalOpen) { closeAuthModal(); return; }
-        
-        // 우선순위 11: 커뮤니티 패널 내부 계층
         if (isCommunityOpen) {
-           if (isCommunityWriteFormOpen) {
-              setIsCommunityWriteFormOpen(false);
-              return;
-           }
-           if (communityViewMode === 'POST_DETAIL' || communityViewMode === 'UPDATE_ARCHIVE') {
-              setCommunityViewMode('MAIN');
-              return;
-           }
+           if (isCommunityWriteFormOpen) { setIsCommunityWriteFormOpen(false); return; }
+           if (communityViewMode === 'POST_DETAIL' || communityViewMode === 'UPDATE_ARCHIVE') { setCommunityViewMode('MAIN'); return; }
            closeCommunity();
            return;
         }
       }
     };
-
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [
-    selectedCommunityUser, isAdminGuillotineOpen, isAdminHiddenBoardOpen, 
-    isAdminEditorOpen, isAnalysisModalOpen, isRecapModalOpen, activeMatch,
-    isVirtualMatchingModalOpen, isDMModalOpen, isAuthModalOpen, isCommunityOpen,
-    isCommunityWriteFormOpen, communityViewMode
-  ]);
+  }, [selectedCommunityUser, isAdminGuillotineOpen, isAdminHiddenBoardOpen, isAdminEditorOpen, isAnalysisModalOpen, isRecapModalOpen, activeMatch, isVirtualMatchingModalOpen, isDMModalOpen, isAuthModalOpen, isCommunityOpen, isCommunityWriteFormOpen, communityViewMode]);
 
   const showAdminToast = () => {
     setIsAdminToastOpen(true);
@@ -196,16 +161,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   useEffect(() => {
      cloudStorageService.fetchContentConfig().then(setPageContent);
      recoverSession();
-
      if (supabase) {
        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-         if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
-            recoverSession();
-         } else if (event === 'SIGNED_OUT') {
-            setAuthUser(null);
-            setIsLoggedIn(false);
-            setIsAdminToastOpen(false);
-         }
+         if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') recoverSession();
+         else if (event === 'SIGNED_OUT') { setAuthUser(null); setIsLoggedIn(false); setIsAdminToastOpen(false); }
        });
        return () => subscription.unsubscribe();
      }
@@ -245,8 +204,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const closeAdminGuillotine = () => setIsAdminGuillotineOpen(false);
 
   const openCommunityUserProfile = async (nickname: string, authorId?: string) => {
-      const profile = await communityService.getCommunityUserProfile(nickname);
-      setSelectedCommunityUser({ ...profile, authorId: authorId || authUser?.id });
+      // authorId를 전달하여 posts 테이블에서 실제 count를 가져올 수 있게 함
+      const targetId = authorId || (nickname === authUser?.name ? authUser?.id : undefined);
+      const profile = await communityService.getCommunityUserProfile(nickname, targetId);
+      setSelectedCommunityUser({ ...profile, authorId: targetId });
   };
   const closeCommunityUserProfile = () => setSelectedCommunityUser(null);
 
@@ -269,7 +230,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const detailData = await nexonService.getMatchDetail(match.id);
       setActiveMatchDetail({ ...match, RawData: detailData });
     } catch (e) {
-      console.error("[AppContext] Match Detail Fetch Failed", e);
       setActiveMatchDetail({ ...match }); 
     } finally {
       setIsMatchDetailLoading(false);
@@ -390,7 +350,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       isAdminHiddenBoardOpen, openAdminHiddenBoard, closeAdminHiddenBoard,
       isAdminGuillotineOpen, openAdminGuillotine, closeAdminGuillotine,
       selectedCommunityUser, openCommunityUserProfile, closeCommunityUserProfile,
-      // Community
       communityViewMode, setCommunityViewMode,
       isCommunityWriteFormOpen, setIsCommunityWriteFormOpen,
       selectedCommunityPost, setSelectedCommunityPost
