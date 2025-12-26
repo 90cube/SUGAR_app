@@ -51,35 +51,31 @@
       
       /* SF Laboratory Animations */
       @keyframes glitch {
-        0% { transform: translate(0); }
-        20% { transform: translate(-2px, 2px); }
-        40% { transform: translate(-2px, -2px); }
-        60% { transform: translate(2px, 2px); }
-        80% { transform: translate(2px, -2px); }
-        100% { transform: translate(0); }
+        0% { transform: translate(0); clip-path: inset(0 0 0 0); }
+        10% { transform: translate(-2px, 2px); clip-path: inset(10% 0 30% 0); }
+        20% { transform: translate(2px, -2px); clip-path: inset(40% 0 10% 0); }
+        30% { transform: translate(0); clip-path: inset(0 0 0 0); }
       }
       .glitch-fx {
-        animation: glitch 0.2s infinite;
-        animation-play-state: paused;
-      }
-      .glitch-fx:hover {
-        animation-play-state: running;
+        animation: glitch 0.3s infinite;
       }
 
       @keyframes radar {
-        0% { transform: scale(1); opacity: 0.5; }
-        100% { transform: scale(2.5); opacity: 0; }
+        0% { transform: scale(1); opacity: 0.6; }
+        100% { transform: scale(3); opacity: 0; }
       }
       .radar-pulse {
         animation: radar 2s cubic-bezier(0, 0.2, 0.8, 1) infinite;
       }
 
-      @keyframes data-flow {
-        0% { transform: translateY(0); }
-        100% { transform: translateY(-50%); }
+      @keyframes code-drift {
+        0% { opacity: 0; transform: translateX(-10px); }
+        10% { opacity: 1; transform: translateX(0); }
+        90% { opacity: 1; transform: translateX(0); }
+        100% { opacity: 0; transform: translateX(10px); }
       }
-      .data-stream {
-        animation: data-flow 15s linear infinite;
+      .code-line {
+        animation: code-drift 1.5s linear forwards;
       }
 
       /* Markdown Table Styling */

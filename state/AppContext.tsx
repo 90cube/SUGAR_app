@@ -192,9 +192,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setIsMatchDetailLoading(true);
     setActiveMatchDetail(null); 
     try {
+      // Lazy Fetch: 상세 매치 정보는 클릭 시에만 호출
       const detailData = await nexonService.getMatchDetail(match.id);
       setActiveMatchDetail({ ...match, RawData: detailData });
     } catch (e) {
+      console.error("[AppContext] Match Detail Fetch Failed", e);
       setActiveMatchDetail({ ...match }); 
     } finally {
       setIsMatchDetailLoading(false);
