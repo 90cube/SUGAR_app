@@ -18,7 +18,6 @@ export const Header: React.FC = () => {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
@@ -43,74 +42,73 @@ export const Header: React.FC = () => {
     }
   };
 
-  // 닉네임이 없으면 이메일 앞부분 사용
   const displayName = authUser?.name !== 'Unknown' ? authUser?.name : authUser?.email.split('@')[0];
 
   return (
-    <header className="sticky top-0 z-[140] w-full bg-slate-900/95 backdrop-blur-xl border-b border-white/10 shadow-2xl">
+    <header className="sticky top-0 z-[140] w-full bg-slate-950 border-b border-cyan-500/20 shadow-[0_4px_30px_rgba(0,0,0,0.5)]">
       <div className="container max-w-md mx-auto h-16 flex items-center justify-between px-5">
         
-        {/* Left: Brand */}
+        {/* Left: Brand - Su-Lab */}
         <button 
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-          className="text-xl font-black tracking-tighter flex items-center group active:scale-95 transition-transform"
+          className="flex items-center gap-1.5 group active:scale-95 transition-transform font-mono"
         >
-          <span className="text-white">S</span>
-          <span className="text-yellow-400">U</span>
-          <span className="text-yellow-400">G</span>
-          <span className="text-white">A</span>
-          <span className="text-yellow-400">R</span>
+          <div className="w-8 h-8 bg-cyan-500 rounded flex items-center justify-center text-slate-950 font-black text-sm group-hover:bg-white transition-colors">S</div>
+          <div className="flex flex-col items-start -space-y-1">
+            <span className="text-white font-black tracking-tighter text-sm uppercase">Su-Lab</span>
+            <span className="text-cyan-500 text-[8px] font-bold tracking-widest uppercase">Research</span>
+          </div>
         </button>
 
         {/* Right: Actions */}
-        <div className="flex items-center gap-5">
+        <div className="flex items-center gap-4">
           <button 
             onClick={openCommunity}
-            className="text-[10px] font-black text-slate-400 hover:text-yellow-400 transition-colors uppercase tracking-[0.2em] py-2"
+            className="text-[9px] font-black text-slate-400 hover:text-cyan-400 transition-colors uppercase tracking-[0.2em] py-2 font-mono"
           >
-            COMMUNITY
+            Archive
           </button>
 
           {isLoggedIn ? (
             <div className="relative" ref={menuRef}>
               <button 
                 onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                className="flex items-center gap-2.5 bg-white/5 hover:bg-white/10 pl-1.5 pr-3.5 py-1.5 rounded-full transition-all active:scale-95 border border-white/10"
+                className="flex items-center gap-2.5 bg-white/5 hover:bg-white/10 pl-1.5 pr-3.5 py-1.5 rounded border border-white/10"
               >
-                <div className="w-6 h-6 bg-yellow-400 rounded-full flex items-center justify-center text-[10px] font-black text-slate-900">
+                <div className="w-6 h-6 bg-slate-800 rounded flex items-center justify-center text-[10px] font-black text-cyan-400 border border-cyan-500/30">
                   {displayName?.[0].toUpperCase()}
                 </div>
-                <span className="text-[11px] font-bold text-white max-w-[70px] truncate">
+                <span className="text-[11px] font-bold text-slate-300 max-w-[70px] truncate font-mono">
                   {displayName}
                 </span>
               </button>
 
               {/* Dropdown Menu */}
               {isUserMenuOpen && (
-                <div className="absolute right-0 mt-3 w-48 bg-slate-900 border border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-                  <div className="px-5 py-4 border-b border-white/5 bg-white/5">
-                    <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Signed in as</p>
-                    <p className="text-[11px] font-bold text-white truncate">{authUser?.email}</p>
+                <div className="absolute right-0 mt-3 w-48 bg-slate-950 border border-cyan-500/20 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                  <div className="px-5 py-4 border-b border-white/5 bg-white/5 font-mono">
+                    <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1">Terminal Active</p>
+                    <p className="text-[10px] font-bold text-white truncate">{authUser?.email}</p>
                   </div>
                   
-                  <div className="py-2">
-                    <button onClick={handleMyInfo} className="w-full px-5 py-3 text-left text-[11px] font-bold text-slate-300 hover:text-white hover:bg-white/5 flex items-center gap-3 transition-colors">
+                  <div className="py-1 font-mono">
+                    <button onClick={handleMyInfo} className="w-full px-5 py-3 text-left text-[11px] font-bold text-slate-400 hover:text-cyan-400 hover:bg-cyan-500/5 flex items-center gap-3 transition-colors">
                       <svg className="w-4 h-4 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                      내 정보 보기
+                      개인 실험 기록
                     </button>
                     
                     <AdminGuard>
-                      <button onClick={() => { openAdminHiddenBoard(); setIsUserMenuOpen(false); }} className="w-full px-5 py-3 text-left text-[11px] font-bold text-slate-300 hover:text-white hover:bg-white/5 flex items-center gap-3">
-                        <span>🕵️</span> 비밀 게시판
+                      <button onClick={() => { openAdminHiddenBoard(); setIsUserMenuOpen(false); }} className="w-full px-5 py-3 text-left text-[11px] font-bold text-slate-400 hover:text-white hover:bg-white/5 flex items-center gap-3">
+                        <span>🕵️</span> 비밀 보관함
                       </button>
-                      <button onClick={() => { openAdminGuillotine(); setIsUserMenuOpen(false); }} className="w-full px-5 py-3 text-left text-[11px] font-bold text-red-400 hover:text-red-300 hover:bg-red-500/10 flex items-center gap-3">
-                        <span>⚔️</span> 길로틴 관리
+                      <button onClick={() => { openAdminGuillotine(); setIsUserMenuOpen(false); }} className="w-full px-5 py-3 text-left text-[11px] font-bold text-red-500 hover:bg-red-500/10 flex items-center gap-3">
+                        <span>⚔️</span> 시스템 보안실
                       </button>
                     </AdminGuard>
                   </div>
 
-                  <button onClick={handleLogout} className="w-full px-5 py-4 text-left text-[11px] font-black text-slate-500 hover:text-red-400 border-t border-white/5 transition-colors bg-black/20">
-                    로그아웃
+                  <button onClick={handleLogout} className="w-full px-5 py-4 text-left text-[11px] font-black text-slate-500 hover:text-red-400 border-t border-white/5 transition-colors bg-black/20 font-mono">
+                    TERMINATE
                   </button>
                 </div>
               )}
@@ -118,9 +116,9 @@ export const Header: React.FC = () => {
           ) : (
             <button 
               onClick={openAuthModal}
-              className="px-4 py-2 bg-yellow-400 text-slate-900 text-[11px] font-black rounded-full shadow-lg shadow-yellow-400/10 active:scale-95 transition-all"
+              className="px-4 py-2 bg-cyan-500 text-slate-950 text-[10px] font-black rounded active:scale-95 transition-all font-mono"
             >
-              LOGIN
+              ACCESS
             </button>
           )}
         </div>

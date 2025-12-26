@@ -8,34 +8,44 @@ interface ProfileCardProps {
 
 export const ProfileCard: React.FC<ProfileCardProps> = ({ profile }) => {
   return (
-    <div className="bg-white/60 backdrop-blur-xl rounded-2xl p-6 shadow-xl shadow-indigo-500/5 border border-white/60 ring-1 ring-white/50 relative overflow-hidden group">
-      {/* Shine effect */}
-      <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-white/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none"></div>
+    <div className="bg-white rounded-xl p-6 shadow-2xl border-2 border-slate-200 relative overflow-hidden group font-mono">
+      {/* Technical Accent */}
+      <div className="absolute top-0 right-0 w-24 h-24 bg-slate-50 rounded-bl-full flex items-center justify-end p-4">
+         <span className="text-[10px] font-black text-slate-200 rotate-45">LAB_UNIT_A</span>
+      </div>
 
       <div className="w-full relative z-10">
-        <div className="flex items-center justify-between mb-4">
-           <h2 className="text-xl font-black text-slate-800 tracking-tight">{profile.nickname}</h2>
+        <div className="flex items-center justify-between mb-6">
+           <div className="flex flex-col">
+              <span className="text-[9px] font-black text-cyan-600 tracking-widest uppercase mb-1">Subject_Nickname</span>
+              <h2 className="text-2xl font-black text-slate-900 tracking-tighter">{profile.nickname}</h2>
+           </div>
            {profile.clan && (
-             <span className="px-3 py-1 rounded-full bg-slate-900/5 border border-slate-900/10 text-xs font-bold text-slate-600">
-               {profile.clan}
+             <span className="px-3 py-1 rounded bg-slate-900 text-[10px] font-black text-cyan-400 border border-cyan-500/30">
+               CLAN:{profile.clan}
              </span>
            )}
         </div>
 
         <div className="grid grid-cols-2 gap-4">
           {/* Overall Grade Info */}
-          <div className="bg-white/50 p-3 rounded-xl border border-white/60 text-center shadow-sm">
-            <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">통합 계급 (Grade)</span>
-            <div className="font-bold text-slate-800 text-sm truncate">{profile.overallGrade}</div>
-            <div className="text-xs text-slate-500 mt-0.5">#{profile.overallRanking.toLocaleString()}위</div>
+          <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 relative shadow-inner">
+            <span className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-2">Overall_Grade</span>
+            <div className="font-black text-slate-800 text-xs truncate uppercase tracking-tight">{profile.overallGrade}</div>
+            <div className="text-[10px] text-cyan-600 mt-2 font-bold flex items-center gap-1">
+                <span className="w-1 h-1 bg-cyan-500 rounded-full"></span>
+                RANK #{profile.overallRanking.toLocaleString()}
+            </div>
           </div>
 
           {/* Season Grade Info */}
-          <div className="bg-yellow-50/50 p-3 rounded-xl border border-yellow-100/60 text-center shadow-sm relative overflow-hidden">
-             <div className="absolute inset-0 bg-yellow-400/5 blur-md"></div>
-            <span className="block text-[10px] font-bold text-yellow-600 uppercase tracking-wider mb-1 relative z-10">시즌 계급 (Season)</span>
-            <div className="font-bold text-slate-800 text-sm truncate relative z-10">{profile.seasonGrade}</div>
-            <div className="text-xs text-slate-500 mt-0.5 relative z-10">#{profile.seasonRanking.toLocaleString()}위</div>
+          <div className="bg-slate-950 p-4 rounded-lg border border-cyan-500/20 relative shadow-2xl overflow-hidden">
+             <div className="absolute inset-0 bg-cyan-500/5 pulse"></div>
+            <span className="block text-[8px] font-black text-cyan-400 uppercase tracking-widest mb-2 relative z-10">Season_Record</span>
+            <div className="font-black text-white text-xs truncate relative z-10 uppercase tracking-tight">{profile.seasonGrade}</div>
+            <div className="text-[10px] text-slate-400 mt-2 font-bold relative z-10">
+                POS_NUM: #{profile.seasonRanking.toLocaleString()}
+            </div>
           </div>
         </div>
       </div>

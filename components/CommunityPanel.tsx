@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../state/AppContext';
 import { communityService } from '../services/communityService';
+import { geminiService } from '../services/geminiService';
 import { CommunityPost, BoardType, CommunityComment } from '../types';
 
 type TabType = 'balance' | 'keuk' | 'stream' | 'temp';
@@ -28,6 +29,11 @@ export const CommunityPanel: React.FC = () => {
   const [blueOption, setBlueOption] = useState('');
   const [redOption, setRedOption] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // AI Summarizer State
+  const [rawUpdateText, setRawUpdateText] = useState('');
+  // Fix: Renamed setIsLoading to setIsSummarizing to avoid redeclaring a block-scoped variable and to fix missing name errors.
+  const [isSummarizing, setIsSummarizing] = useState(false);
 
   // Comment Form
   const [commentInput, setCommentInput] = useState('');
@@ -59,11 +65,27 @@ export const CommunityPanel: React.FC = () => {
     });
   };
 
+  const handleAISummarize = async () => {
+    if (!rawUpdateText.trim()) return;
+    setIsSummarizing(true);
+    try {
+      const masterPrompt = "서든어택 업데이트 공지 원문이야. 유저들이 읽기 좋게 이쁘고 세련된 HTML 형식(ul, li, h3, strong 등 활용)으로 핵심만 요약해줘. 제목은 20자 이내로 짧게 뽑아줘.";
+      const result = await geminiService.summarizeGameUpdate(rawUpdateText, masterPrompt);
+      setWriteTitle(result.title);
+      setWriteContent(result.content);
+      alert("AI 전력 분석관이 요약을 완료했습니다.");
+    } catch (e) {
+      console.error(e);
+      alert("AI 요약 중 오류가 발생했습니다. 직접 입력해주세요.");
+    } finally {
+      setIsSummarizing(false);
+    }
+  };
+
   const handleAdminAction = async (postId: string, action: 'DELETE' | 'TEMP') => {
     if (!selectedPost) return;
     
     const myNickname = userProfile?.nickname || authUser?.name;
-    // 본인 글 액션 차단
     if (selectedPost.author === myNickname && !isAdmin) {
         alert("자신의 글에 추천, 비추천, 투표, 신고 할 수 없습니다.");
         return;
@@ -80,7 +102,6 @@ export const CommunityPanel: React.FC = () => {
   const handleVote = async (type: 'HEAD' | 'HALF') => {
     if (!selectedPost || !isLoggedIn) { if(!isLoggedIn) openAuthModal(); return; }
     
-    // 본인 글 투표 차단
     const myNickname = userProfile?.nickname || authUser?.name;
     if (selectedPost.author === myNickname) {
         alert("자신의 글에 추천, 비추천, 투표, 신고 할 수 없습니다.");
@@ -142,7 +163,8 @@ export const CommunityPanel: React.FC = () => {
 
   const resetWriteForm = () => {
     setWriteTitle(''); setWriteContent(''); setWriteThumbnail('');
-    setBlueOption(''); setRedOption(''); setIsWriteFormOpen(false);
+    setBlueOption(''); setRedOption(''); setRawUpdateText('');
+    setIsWriteFormOpen(false);
   };
 
   const openWriteForm = (mode: BoardType) => {
@@ -185,71 +207,81 @@ export const CommunityPanel: React.FC = () => {
         </div>
 
         <div className="flex-1 overflow-y-auto p-5 pb-32 space-y-10">
-           {viewMode === 'MAIN' ? (
+           {(viewMode === 'MAIN' || viewMode === 'UPDATE_ARCHIVE') && (
              <>
                <section className="space-y-4">
                   <div className="flex items-center justify-between px-1">
                      <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><span className="w-1 h-1 bg-yellow-400 rounded-full"></span>Official Notice</h3>
                      <div className="flex gap-2">
-                        {isAdmin && <button onClick={() => openWriteForm('update')} className="text-[9px] font-black bg-yellow-400 text-slate-900 px-3 py-1.5 rounded-xl shadow-lg">POST UPDATE</button>}
-                        <button onClick={() => setViewMode('UPDATE_ARCHIVE')} className="text-[9px] font-black bg-slate-900 text-white px-3 py-1.5 rounded-xl shadow-lg">목록보기</button>
+                        {isAdmin && <button onClick={() => openWriteForm('update')} className="text-[9px] font-black bg-cyan-500 text-slate-950 px-3 py-1.5 rounded-xl shadow-lg">NEW NOTICE</button>}
+                        <button 
+                          onClick={() => setViewMode(viewMode === 'MAIN' ? 'UPDATE_ARCHIVE' : 'MAIN')} 
+                          className="text-[9px] font-black bg-slate-900 text-white px-3 py-1.5 rounded-xl shadow-lg transition-all active:scale-95"
+                        >
+                          {viewMode === 'MAIN' ? '목록보기' : '메인으로'}
+                        </button>
                      </div>
                   </div>
-                  {updatePosts[0] && (
-                      <div onClick={() => { setSelectedPost(updatePosts[0]); setViewMode('POST_DETAIL'); }} className="relative aspect-video rounded-[2rem] overflow-hidden shadow-2xl border border-white/20 cursor-pointer transition-transform active:scale-[0.98]">
-                          {updatePosts[0].thumbnail ? <img src={updatePosts[0].thumbnail} className="absolute inset-0 w-full h-full object-cover" alt="" /> : <div className="absolute inset-0 bg-slate-900 flex items-center justify-center text-white/5 font-black text-2xl italic">NOTICE</div>}
-                          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent"></div>
-                          <div className="absolute bottom-0 left-0 p-6 w-full">
-                              <span className="inline-block px-3 py-1 bg-yellow-400 text-slate-900 text-[8px] font-black rounded-lg uppercase tracking-widest mb-2">New Update</span>
-                              <h4 className="text-white text-xl font-black leading-tight line-clamp-2">{updatePosts[0].title}</h4>
-                          </div>
-                          <div className="absolute top-4 right-4 z-20" onClick={e => e.stopPropagation()}><AdminPostMenu postId={updatePosts[0].id} /></div>
-                      </div>
+
+                  {viewMode === 'MAIN' ? (
+                    updatePosts[0] && (
+                        <div onClick={() => { setSelectedPost(updatePosts[0]); setViewMode('POST_DETAIL'); }} className="relative aspect-video rounded-[2rem] overflow-hidden shadow-2xl border border-white/20 cursor-pointer transition-transform active:scale-[0.98]">
+                            {updatePosts[0].thumbnail ? <img src={updatePosts[0].thumbnail} className="absolute inset-0 w-full h-full object-cover" alt="" /> : <div className="absolute inset-0 bg-slate-900 flex items-center justify-center text-white/5 font-black text-2xl italic">NOTICE</div>}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent"></div>
+                            <div className="absolute bottom-0 left-0 p-6 w-full">
+                                <span className="inline-block px-3 py-1 bg-cyan-500 text-slate-950 text-[8px] font-black rounded-lg uppercase tracking-widest mb-2">System Update</span>
+                                <h4 className="text-white text-xl font-black leading-tight line-clamp-2">{updatePosts[0].title}</h4>
+                            </div>
+                            <div className="absolute top-4 right-4 z-20" onClick={e => e.stopPropagation()}><AdminPostMenu postId={updatePosts[0].id} /></div>
+                        </div>
+                    )
+                  ) : (
+                    <div className="space-y-4 animate-in fade-in slide-in-from-right duration-500">
+                        {updatePosts.map((post) => (
+                            <div key={post.id} onClick={() => { setSelectedPost(post); setViewMode('POST_DETAIL'); }} className="bg-white p-5 rounded-3xl border border-slate-200 shadow-md flex gap-4 items-center group cursor-pointer active:scale-95 transition-all">
+                                {post.thumbnail && <div className="w-16 h-16 rounded-2xl overflow-hidden flex-shrink-0 border bg-slate-100"><img src={post.thumbnail} className="w-full h-full object-cover" alt="" /></div>}
+                                <div className="flex-1">
+                                    <span className="text-[8px] font-black text-slate-400 block mb-1 uppercase tracking-widest">{post.createdAt.split('T')[0]}</span>
+                                    <h4 className="font-black text-slate-800 line-clamp-2 leading-snug group-hover:text-cyan-600 text-sm">{post.title}</h4>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
                   )}
                </section>
 
-               <section className="space-y-6 pt-2">
-                   <div className="sticky top-0 z-20 py-2 bg-slate-50/95 backdrop-blur-md">
-                     <div className="flex p-1.5 bg-white border border-slate-200 rounded-[1.5rem] shadow-xl">
-                        {(isAdmin ? ['balance', 'keuk', 'stream', 'temp'] : ['balance', 'keuk', 'stream']).map((tab) => (
-                            <button key={tab} onClick={() => setActiveTab(tab as TabType)} className={`flex-1 py-3 rounded-2xl text-[10px] font-black transition-all ${activeTab === tab ? 'bg-slate-900 text-white shadow-xl scale-[1.02]' : 'text-slate-400 hover:text-slate-600'}`}>
-                              {tab === 'balance' ? '밸런스' : tab === 'keuk' ? '큭큭' : tab === 'stream' ? '홍보' : '임시'}
-                            </button>
+               {viewMode === 'MAIN' && (
+                 <section className="space-y-6 pt-2">
+                     <div className="sticky top-0 z-20 py-2 bg-slate-50/95 backdrop-blur-md">
+                       <div className="flex p-1.5 bg-white border border-slate-200 rounded-[1.5rem] shadow-xl">
+                          {(isAdmin ? ['balance', 'keuk', 'stream', 'temp'] : ['balance', 'keuk', 'stream']).map((tab) => (
+                              <button key={tab} onClick={() => setActiveTab(tab as TabType)} className={`flex-1 py-3 rounded-2xl text-[10px] font-black transition-all ${activeTab === tab ? 'bg-slate-900 text-white shadow-xl scale-[1.02]' : 'text-slate-400 hover:text-slate-600'}`}>
+                                {tab === 'balance' ? '밸런스' : tab === 'keuk' ? '큭큭' : tab === 'stream' ? '홍보' : '임시'}
+                              </button>
+                          ))}
+                       </div>
+                     </div>
+                     <div className="space-y-4 min-h-[400px]">
+                        {isLoading ? <div className="flex justify-center py-20 opacity-30"><div className="w-8 h-8 border-3 border-slate-300 border-t-slate-900 rounded-full animate-spin"></div></div> : tabPosts.length === 0 ? <div className="text-center py-24 text-slate-300 font-black text-xs uppercase tracking-widest bg-white/40 border-2 border-dashed border-slate-200 rounded-[2.5rem]">No Feed Found</div> : tabPosts.map((post) => (
+                            <div key={post.id} onClick={() => { setSelectedPost(post); setViewMode('POST_DETAIL'); }} className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-xl relative transition-all active:scale-[0.98] group hover:border-slate-300">
+                                <div className="absolute top-6 right-6 z-20" onClick={e => e.stopPropagation()}><AdminPostMenu postId={post.id} /></div>
+                                <h4 className="font-black text-slate-800 text-base mb-4 line-clamp-2 leading-tight group-hover:text-blue-600 transition-colors">
+                                  {post.boardType === 'balance' ? `${post.blueOption} vs ${post.redOption}` : post.title}
+                                </h4>
+                                <div className="pt-5 border-t border-slate-50 flex items-center justify-between text-[10px] font-black text-slate-400">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center text-[7px] font-black text-slate-500 border border-slate-200">{post.author[0].toUpperCase()}</div>
+                                        <span onClick={e => { e.stopPropagation(); openCommunityUserProfile(post.author); }} className="text-slate-900 hover:underline">{post.author}</span>
+                                    </div>
+                                    <span>{post.createdAt.split('T')[0]}</span>
+                                </div>
+                            </div>
                         ))}
                      </div>
-                   </div>
-                   <div className="space-y-4 min-h-[400px]">
-                      {isLoading ? <div className="flex justify-center py-20 opacity-30"><div className="w-8 h-8 border-3 border-slate-300 border-t-slate-900 rounded-full animate-spin"></div></div> : tabPosts.length === 0 ? <div className="text-center py-24 text-slate-300 font-black text-xs uppercase tracking-widest bg-white/40 border-2 border-dashed border-slate-200 rounded-[2.5rem]">No Feed Found</div> : tabPosts.map((post) => (
-                          <div key={post.id} onClick={() => { setSelectedPost(post); setViewMode('POST_DETAIL'); }} className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-xl relative transition-all active:scale-[0.98] group hover:border-slate-300">
-                              <div className="absolute top-6 right-6 z-20" onClick={e => e.stopPropagation()}><AdminPostMenu postId={post.id} /></div>
-                              <h4 className="font-black text-slate-800 text-base mb-4 line-clamp-2 leading-tight group-hover:text-blue-600 transition-colors">
-                                {post.boardType === 'balance' ? `${post.blueOption} vs ${post.redOption}` : post.title}
-                              </h4>
-                              <div className="pt-5 border-t border-slate-50 flex items-center justify-between text-[10px] font-black text-slate-400">
-                                  <div className="flex items-center gap-2">
-                                      <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center text-[7px] font-black text-slate-500 border border-slate-200">{post.author[0].toUpperCase()}</div>
-                                      <span onClick={e => { e.stopPropagation(); openCommunityUserProfile(post.author); }} className="text-slate-900 hover:underline">{post.author}</span>
-                                  </div>
-                                  <span>{post.createdAt.split('T')[0]}</span>
-                              </div>
-                          </div>
-                      ))}
-                   </div>
-               </section>
+                 </section>
+               )}
              </>
-           ) : viewMode === 'UPDATE_ARCHIVE' ? (
-             <div className="space-y-4 animate-in fade-in slide-in-from-right duration-500">
-                {updatePosts.map((post) => (
-                    <div key={post.id} onClick={() => { setSelectedPost(post); setViewMode('POST_DETAIL'); }} className="bg-white p-5 rounded-3xl border border-slate-200 shadow-md flex gap-4 items-center group cursor-pointer active:scale-95 transition-all">
-                        {post.thumbnail && <div className="w-16 h-16 rounded-2xl overflow-hidden flex-shrink-0 border bg-slate-100"><img src={post.thumbnail} className="w-full h-full object-cover" alt="" /></div>}
-                        <div className="flex-1">
-                            <span className="text-[8px] font-black text-slate-400 block mb-1 uppercase tracking-widest">{post.createdAt.split('T')[0]}</span>
-                            <h4 className="font-black text-slate-800 line-clamp-2 leading-snug group-hover:text-yellow-600 text-sm">{post.title}</h4>
-                        </div>
-                    </div>
-                ))}
-             </div>
-           ) : null}
+           )}
         </div>
 
         {/* Post Detail Sub-View */}
@@ -257,7 +289,7 @@ export const CommunityPanel: React.FC = () => {
             <div className="absolute inset-0 bg-white z-[200] flex flex-col animate-in slide-in-from-right duration-500 overflow-hidden">
                 <div className="flex-shrink-0 h-16 border-b flex items-center justify-between px-4 sticky top-0 z-50 bg-white/80 backdrop-blur-md">
                     <button onClick={() => setViewMode(selectedPost.boardType === 'update' ? 'UPDATE_ARCHIVE' : 'MAIN')} className="p-2 -ml-2 text-slate-500"><svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg></button>
-                    <h3 className="text-xs font-black text-slate-800 truncate px-4">{selectedPost.boardType === 'balance' ? '밸런스 게임' : selectedPost.title}</h3>
+                    <h3 className="text-xs font-black text-slate-800 truncate px-4">{selectedPost.boardType === 'balance' ? '밸런스 게임' : selectedPost.boardType === 'update' ? 'System Update' : selectedPost.title}</h3>
                     <div className="w-10"></div>
                 </div>
                 <div className="flex-1 overflow-y-auto pb-32">
@@ -362,16 +394,43 @@ export const CommunityPanel: React.FC = () => {
             <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-xl z-[300] flex items-center justify-center p-6 animate-in fade-in duration-300">
                 <div className="bg-white w-full max-w-sm rounded-[3rem] p-8 shadow-2xl relative border border-white/20 max-h-[95vh] overflow-y-auto">
                     <div className="mb-8 text-center">
-                        <span className={`inline-block px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${writeMode === 'balance' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-700'}`}>
-                           {writeMode === 'balance' ? 'Balance Game' : 'Post Content'}
+                        <span className={`inline-block px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${writeMode === 'balance' ? 'bg-blue-100 text-blue-700' : writeMode === 'update' ? 'bg-cyan-100 text-cyan-700' : 'bg-slate-100 text-slate-700'}`}>
+                           {writeMode === 'balance' ? 'Balance Game' : writeMode === 'update' ? 'Official Lab Update' : 'Post Content'}
                         </span>
                         <h3 className="text-xl font-black text-slate-900 mt-4 tracking-tighter">새로운 소식 작성</h3>
                     </div>
                     <form onSubmit={submitPost} className="space-y-4">
+                        {writeMode === 'update' && (
+                            <div className="mb-6 p-4 bg-cyan-50 border border-cyan-100 rounded-2xl space-y-3">
+                                <label className="text-[10px] font-black text-cyan-600 uppercase tracking-widest block font-mono">Nexon Raw Data (Update Parser)</label>
+                                <textarea 
+                                    value={rawUpdateText}
+                                    onChange={(e) => setRawUpdateText(e.target.value)}
+                                    placeholder="넥슨 공지 원문을 여기에 붙여넣으세요..."
+                                    className="w-full h-24 p-3 text-xs bg-white border border-cyan-100 rounded-xl focus:outline-none focus:border-cyan-500 font-medium"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={handleAISummarize}
+                                    disabled={isSummarizing || !rawUpdateText.trim()}
+                                    className="w-full py-2.5 bg-slate-950 text-cyan-400 text-[10px] font-black rounded-xl border border-cyan-500/30 hover:bg-black transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
+                                >
+                                    {isSummarizing ? (
+                                        <>
+                                            <span className="w-3 h-3 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin"></span>
+                                            EXTRACTING_KEY_INTEL...
+                                        </>
+                                    ) : (
+                                        <>⚡ AI 요약 실행</>
+                                    )}
+                                </button>
+                            </div>
+                        )}
+
                         {writeMode === 'balance' ? (
                             <div className="space-y-4">
                                 <div className="space-y-1">
-                                    <label className="text-[10px] font-black text-blue-500 uppercase ml-2">Team Blue Option (200자)</label>
+                                    <label className="text-[10px] font-black text-blue-500 uppercase ml-2">Team Blue Option</label>
                                     <div className="relative">
                                         <input type="text" value={blueOption} onChange={(e) => setBlueOption(e.target.value)} placeholder="파란색 팀 선택지" maxLength={200} className="w-full p-4 bg-blue-50 border-2 border-blue-100 rounded-2xl text-sm font-black text-blue-900 outline-none focus:border-blue-500 transition-all" />
                                         <span className="absolute bottom-3 right-3 text-[8px] font-black text-blue-300">{blueOption.length}/200</span>
@@ -379,7 +438,7 @@ export const CommunityPanel: React.FC = () => {
                                 </div>
                                 <div className="text-center font-black italic text-slate-300 text-xs">VS</div>
                                 <div className="space-y-1">
-                                    <label className="text-[10px] font-black text-red-500 uppercase ml-2">Team Red Option (200자)</label>
+                                    <label className="text-[10px] font-black text-red-500 uppercase ml-2">Team Red Option</label>
                                     <div className="relative">
                                         <input type="text" value={redOption} onChange={(e) => setRedOption(e.target.value)} placeholder="빨간색 팀 선택지" maxLength={200} className="w-full p-4 bg-red-50 border-2 border-red-100 rounded-2xl text-sm font-black text-red-900 outline-none focus:border-red-500 transition-all" />
                                         <span className="absolute bottom-3 right-3 text-[8px] font-black text-red-300">{redOption.length}/200</span>
@@ -387,20 +446,23 @@ export const CommunityPanel: React.FC = () => {
                                 </div>
                             </div>
                         ) : (
-                            <input type="text" value={writeTitle} onChange={(e) => setWriteTitle(e.target.value)} placeholder="제목 (필수)" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-black outline-none focus:bg-white transition-all" />
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black text-slate-400 uppercase ml-2">Title</label>
+                                <input type="text" value={writeTitle} onChange={(e) => setWriteTitle(e.target.value)} placeholder="제목 (필수)" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-black outline-none focus:bg-white transition-all" />
+                            </div>
                         )}
                         
                         <div className="space-y-1">
-                            <label className="text-[10px] font-black text-slate-400 uppercase ml-2">{writeMode === 'balance' ? 'Description (2000자)' : 'Content'}</label>
+                            <label className="text-[10px] font-black text-slate-400 uppercase ml-2">{writeMode === 'balance' ? 'Description' : 'Content'}</label>
                             <div className="relative">
-                                <textarea value={writeContent} onChange={(e) => setWriteContent(e.target.value)} placeholder={writeMode === 'balance' ? "투표 참여자들에게 전할 상세 설명을 입력하세요." : "내용을 입력하세요"} maxLength={2000} className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-medium h-40 resize-none outline-none focus:bg-white transition-all"></textarea>
-                                <span className="absolute bottom-3 right-3 text-[8px] font-black text-slate-300">{writeContent.length}/2000</span>
+                                <textarea value={writeContent} onChange={(e) => setWriteContent(e.target.value)} placeholder={writeMode === 'balance' ? "투표 참여자들에게 전할 상세 설명을 입력하세요." : "내용을 입력하세요 (HTML 지원)"} maxLength={5000} className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-medium h-40 resize-none outline-none focus:bg-white transition-all"></textarea>
+                                <span className="absolute bottom-3 right-3 text-[8px] font-black text-slate-300">{writeContent.length}/5000</span>
                             </div>
                         </div>
                         
                         <div className="flex gap-2 pt-4">
                             <button type="button" onClick={resetWriteForm} className="flex-1 py-4 bg-slate-100 text-slate-500 font-black text-[10px] rounded-2xl active:scale-95 transition-all">취소</button>
-                            <button type="submit" disabled={isSubmitting} className="flex-[1.5] py-4 bg-slate-900 text-white font-black text-[10px] rounded-2xl shadow-xl active:scale-95 transition-all">
+                            <button type="submit" disabled={isSubmitting || isSummarizing} className="flex-[1.5] py-4 bg-slate-900 text-white font-black text-[10px] rounded-2xl shadow-xl active:scale-95 transition-all disabled:opacity-50">
                                 {isSubmitting ? '전송 중...' : '등록하기'}
                             </button>
                         </div>

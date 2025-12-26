@@ -30,7 +30,7 @@ class CloudStorageService {
             setTimeout(() => {
                 try {
                     localStorage.setItem(this.STORAGE_KEY, JSON.stringify(content));
-                    console.log("[CloudStorage] Configuration saved to bucket: gs://sugar-app-config/v1/content.json");
+                    console.log("[CloudStorage] Configuration saved to bucket: gs://sulab-app-config/v1/content.json");
                     resolve(true);
                 } catch (e) {
                     console.error("Failed to save to cloud storage", e);
@@ -42,11 +42,11 @@ class CloudStorageService {
 
     getDefaultContent(): PageContent {
         return {
-            welcomeTitle: "서든어택 전적 & 전략 분석",
-            loadingText: "데이터를 불러오는 중입니다...",
-            errorText: "사용자를 찾을 수 없습니다.",
-            anomalyButtonText: "이상 탐지",
-            searchButtonText: "전적 검색"
+            welcomeTitle: "서든어택 유저 전략 연구소 Su-Lab",
+            loadingText: "데이터 마스터링 실행 중...",
+            errorText: "피험자 식별 코드(OUID) 조회 실패",
+            anomalyButtonText: "딥러닝 패턴 분석",
+            searchButtonText: "전적 분석 데이터 추출"
         };
     }
 }
