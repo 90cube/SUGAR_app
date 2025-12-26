@@ -23,6 +23,7 @@ export const CommunityPanel: React.FC = () => {
   
   // Write Form
   const [isWriteFormOpen, setIsWriteFormOpen] = useState(false);
+  const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const [writeMode, setWriteMode] = useState<BoardType>('balance');
   const [writeTitle, setWriteTitle] = useState('');
   const [writeContent, setWriteContent] = useState('');
@@ -84,16 +85,19 @@ export const CommunityPanel: React.FC = () => {
   };
 
   const handleAdminAction = async (postId: string, action: 'DELETE' | 'TEMP') => {
-    if (!selectedPost) return;
-    if (selectedPost.authorId === authUser?.id && !isAdmin) {
-        alert("자신의 글에 추천, 비추천, 투표, 신고 할 수 없습니다.");
+    const postToAct = tabPosts.find(p => p.id === postId) || updatePosts.find(p => p.id === postId) || selectedPost;
+    if (!postToAct) return;
+    
+    if (postToAct.authorId === authUser?.id && !isAdmin) {
+        alert("자신의 글을 처리할 수 없습니다.");
         return;
     }
-    if (!isAdmin && selectedPost.authorId !== authUser?.id) return;
+    if (!isAdmin && postToAct.authorId !== authUser?.id) return;
     if (!window.confirm("정말 처리하시겠습니까?")) return;
     const success = action === 'DELETE' ? await communityService.deletePost(postId) : await communityService.movePostToTemp(postId);
     if (success) { 
         fetchTabContent(activeTab); 
+        communityService.getPosts('update').then(setUpdatePosts);
         if (selectedPost?.id === postId) setViewMode('MAIN'); 
     }
     setOpenAdminMenuId(null);
@@ -118,7 +122,6 @@ export const CommunityPanel: React.FC = () => {
   const handleBalanceVote = async (side: 'BLUE' | 'RED') => {
     if (!selectedPost || !isLoggedIn) { if(!isLoggedIn) openAuthModal(); return; }
     
-    // 자기 글 투표 불가 체크 (사용자 편의상 프론트에서도 막음)
     if (selectedPost.authorId === authUser?.id) {
         alert("자신의 글에 추천, 비추천, 투표, 신고 할 수 없습니다.");
         return;
@@ -127,7 +130,6 @@ export const CommunityPanel: React.FC = () => {
     const success = await communityService.voteBalance(selectedPost.id, side);
     if (success) {
         alert(`${side}팀에 투표하셨습니다!`);
-        // UI 즉시 반영 (낙관적 갱신)
         setSelectedPost(prev => prev ? { 
             ...prev, 
             blueVotes: side === 'BLUE' ? prev.blueVotes + 1 : prev.blueVotes,
@@ -144,7 +146,6 @@ export const CommunityPanel: React.FC = () => {
     const newComment = await communityService.addComment(selectedPost.id, commentInput, commentTeam);
     if (newComment) {
         setCommentInput('');
-        // 작성 직후 댓글 목록 최하단에 추가 (즉시 반영)
         setComments(prev => [...prev, newComment]);
     }
     setIsSubmitting(false);
@@ -163,16 +164,29 @@ export const CommunityPanel: React.FC = () => {
     }
     
     setIsSubmitting(true);
-    const author = userProfile?.nickname || authUser?.name || 'Unknown';
-    const newPost = await communityService.createPost({ 
-      title: writeTitle, content: writeContent, author, boardType: writeMode, 
-      thumbnail: writeThumbnail, blueOption, redOption 
-    });
     
-    if (newPost) {
+    const postData = { 
+      title: writeTitle, content: writeContent, boardType: writeMode, 
+      thumbnail: writeThumbnail, blueOption, redOption 
+    };
+
+    let result;
+    if (editingPostId) {
+        result = await communityService.updatePost(editingPostId, postData);
+    } else {
+        const author = userProfile?.nickname || authUser?.name || 'Unknown';
+        result = await communityService.createPost({ ...postData, author });
+    }
+    
+    if (result) {
       resetWriteForm();
-      // 작성 직후 목록 최상단에 추가 (즉시 반영)
-      setTabPosts(prev => [newPost, ...prev]);
+      if (writeMode === 'update') {
+          communityService.getPosts('update').then(setUpdatePosts);
+      }
+      fetchTabContent(activeTab);
+      if (selectedPost?.id === result.id) {
+          setSelectedPost(result);
+      }
     }
     setIsSubmitting(false);
   };
@@ -180,13 +194,27 @@ export const CommunityPanel: React.FC = () => {
   const resetWriteForm = () => {
     setWriteTitle(''); setWriteContent(''); setWriteThumbnail('');
     setBlueOption(''); setRedOption(''); setRawUpdateText('');
+    setEditingPostId(null);
     setIsWriteFormOpen(false);
   };
 
   const openWriteForm = (mode: BoardType) => {
     if (!isLoggedIn) { openAuthModal(); return; }
     setWriteMode(mode);
+    setEditingPostId(null);
     setIsWriteFormOpen(true);
+  };
+
+  const openEditForm = (post: CommunityPost) => {
+    setEditingPostId(post.id);
+    setWriteMode(post.boardType);
+    setWriteTitle(post.title);
+    setWriteContent(post.content);
+    setWriteThumbnail(post.thumbnail || '');
+    setBlueOption(post.blueOption || '');
+    setRedOption(post.redOption || '');
+    setIsWriteFormOpen(true);
+    setOpenAdminMenuId(null);
   };
 
   const handleShare = () => {
@@ -194,16 +222,22 @@ export const CommunityPanel: React.FC = () => {
     alert("링크가 복사되었습니다!");
   };
 
-  const AdminPostMenu = ({ postId }: { postId: string }) => {
-    const isOpen = openAdminMenuId === postId;
-    if (!isAdmin) return null;
+  const AdminPostMenu = ({ post }: { post: CommunityPost }) => {
+    const isOpen = openAdminMenuId === post.id;
+    // 관리자이거나 작성자 본인인 경우 메뉴 표시
+    const canManage = isAdmin || post.authorId === authUser?.id;
+    if (!canManage) return null;
+
     return (
       <div className="relative">
-        <button onClick={(e) => { e.stopPropagation(); setOpenAdminMenuId(isOpen ? null : postId); }} className="w-8 h-8 flex items-center justify-center bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white/40 border border-white/10"><svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" /></svg></button>
+        <button onClick={(e) => { e.stopPropagation(); setOpenAdminMenuId(isOpen ? null : post.id); }} className="w-8 h-8 flex items-center justify-center bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white/40 border border-white/10"><svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" /></svg></button>
         {isOpen && (
           <div className="absolute right-0 mt-2 w-40 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden">
-            <button onClick={() => handleAdminAction(postId, 'TEMP')} className="w-full px-4 py-3 text-left text-[11px] font-bold text-slate-600 hover:bg-slate-50 border-b">📁 격리(TEMP)</button>
-            <button onClick={() => handleAdminAction(postId, 'DELETE')} className="w-full px-4 py-3 text-left text-[11px] font-bold text-red-500 hover:bg-red-50">🗑️ 영구 삭제</button>
+            <button onClick={() => openEditForm(post)} className="w-full px-4 py-3 text-left text-[11px] font-bold text-slate-600 hover:bg-slate-50 border-b">📝 수정하기 (Edit)</button>
+            {isAdmin && (
+                <button onClick={() => handleAdminAction(post.id, 'TEMP')} className="w-full px-4 py-3 text-left text-[11px] font-bold text-slate-600 hover:bg-slate-50 border-b">📁 격리(TEMP)</button>
+            )}
+            <button onClick={() => handleAdminAction(post.id, 'DELETE')} className="w-full px-4 py-3 text-left text-[11px] font-bold text-red-500 hover:bg-red-50">🗑️ 삭제 (Delete)</button>
           </div>
         )}
       </div>
@@ -248,7 +282,7 @@ export const CommunityPanel: React.FC = () => {
                                 <span className="inline-block px-3 py-1 bg-cyan-500 text-slate-950 text-[8px] font-black rounded-lg uppercase tracking-widest mb-2">System Update</span>
                                 <h4 className="text-white text-xl font-black leading-tight line-clamp-2">{updatePosts[0].title}</h4>
                             </div>
-                            <div className="absolute top-4 right-4 z-20" onClick={e => e.stopPropagation()}><AdminPostMenu postId={updatePosts[0].id} /></div>
+                            <div className="absolute top-4 right-4 z-20" onClick={e => e.stopPropagation()}><AdminPostMenu post={updatePosts[0]} /></div>
                         </div>
                     )
                   ) : (
@@ -260,6 +294,7 @@ export const CommunityPanel: React.FC = () => {
                                     <span className="text-[8px] font-black text-slate-400 block mb-1 uppercase tracking-widest">{post.createdAt.split('T')[0]}</span>
                                     <h4 className="font-black text-slate-800 line-clamp-2 leading-snug group-hover:text-cyan-600 text-sm">{post.title}</h4>
                                 </div>
+                                <div className="flex-shrink-0" onClick={e => e.stopPropagation()}><AdminPostMenu post={post} /></div>
                             </div>
                         ))}
                     </div>
@@ -280,7 +315,7 @@ export const CommunityPanel: React.FC = () => {
                      <div className="space-y-4 min-h-[400px]">
                         {isLoading ? <div className="flex justify-center py-20 opacity-30"><div className="w-8 h-8 border-3 border-slate-300 border-t-slate-900 rounded-full animate-spin"></div></div> : tabPosts.length === 0 ? <div className="text-center py-24 text-slate-300 font-black text-xs uppercase tracking-widest bg-white/40 border-2 border-dashed border-slate-200 rounded-[2.5rem]">No Feed Found</div> : tabPosts.map((post) => (
                             <div key={post.id} onClick={() => { setSelectedPost(post); setViewMode('POST_DETAIL'); }} className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-xl relative transition-all active:scale-[0.98] group hover:border-slate-300">
-                                <div className="absolute top-6 right-6 z-20" onClick={e => e.stopPropagation()}><AdminPostMenu postId={post.id} /></div>
+                                <div className="absolute top-6 right-6 z-20" onClick={e => e.stopPropagation()}><AdminPostMenu post={post} /></div>
                                 <h4 className="font-black text-slate-800 text-base mb-4 line-clamp-2 leading-tight group-hover:text-blue-600 transition-colors">
                                   {post.boardType === 'balance' ? `${post.blueOption} vs ${post.redOption}` : post.title}
                                 </h4>
@@ -306,7 +341,10 @@ export const CommunityPanel: React.FC = () => {
                 <div className="flex-shrink-0 h-16 border-b flex items-center justify-between px-4 sticky top-0 z-50 bg-white/80 backdrop-blur-md">
                     <button onClick={() => setViewMode(selectedPost.boardType === 'update' ? 'UPDATE_ARCHIVE' : 'MAIN')} className="p-2 -ml-2 text-slate-500"><svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg></button>
                     <h3 className="text-xs font-black text-slate-800 truncate px-4">{selectedPost.boardType === 'balance' ? '밸런스 게임' : selectedPost.boardType === 'update' ? 'System Update' : selectedPost.title}</h3>
-                    <div className="w-10"></div>
+                    <div className="flex items-center gap-2">
+                        <AdminPostMenu post={selectedPost} />
+                        <div className="w-2"></div>
+                    </div>
                 </div>
                 <div className="flex-1 overflow-y-auto pb-32">
                     {selectedPost.thumbnail && <div className="w-full aspect-video bg-slate-100"><img src={selectedPost.thumbnail} className="w-full h-full object-cover" /></div>}
@@ -354,9 +392,9 @@ export const CommunityPanel: React.FC = () => {
                             <button onClick={() => handleVote('HALF')} className="flex-1 py-4 bg-slate-100 text-slate-400 rounded-2xl font-black text-[11px] active:scale-95 transition-all flex flex-col items-center gap-1">
                                 <span>🛡️ 반샷 {selectedPost.halfshots}</span>
                             </button>
-                            <button onClick={handleShare} className="w-14 py-4 bg-slate-50 text-slate-400 rounded-2xl flex items-center justify-center hover:bg-slate-100 transition-all"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 100-2.684 3 3 0 000 2.684zm0 12.684a3 3 0 100-2.684 3 3 0 000 2.684z" /></svg></button>
+                            <button onClick={handleShare} className="w-14 py-4 bg-slate-50 text-slate-400 rounded-2xl flex items-center justify-center hover:bg-slate-100 transition-all"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 100-2.684 3 3 0 000 2.684zm0 12.684a3 3 0 100-2.684 3 3 0 000 2.684z" /></svg></button>
                             {(isAdmin || selectedPost.authorId === authUser?.id) && (
-                                <button onClick={() => handleAdminAction(selectedPost.id, 'DELETE')} className="w-14 py-4 bg-red-50 text-red-400 rounded-2xl flex items-center justify-center hover:bg-red-100" title="신고/삭제">⚔️</button>
+                                <button onClick={() => handleAdminAction(selectedPost.id, 'DELETE')} className="w-14 py-4 bg-red-50 text-red-400 rounded-2xl flex items-center justify-center hover:bg-red-100" title="삭제">🗑️</button>
                             )}
                         </div>
 
@@ -433,7 +471,8 @@ export const CommunityPanel: React.FC = () => {
                             'Post Content'}
                         </span>
                         <h3 className="text-xl font-black text-slate-900 mt-4 tracking-tighter">
-                            {writeMode === 'balance' ? '밸런스 게임 토론' : 
+                            {editingPostId ? '게시글 수정' : 
+                             writeMode === 'balance' ? '밸런스 게임 토론' : 
                              writeMode === 'update' ? '새로운 업데이트 등록' : 
                              writeMode === 'fun' ? '큭큭 게시글 작성' :
                              writeMode === 'stream' ? '방송/클랜 홍보' :
@@ -441,7 +480,7 @@ export const CommunityPanel: React.FC = () => {
                         </h3>
                     </div>
                     <form onSubmit={submitPost} className="space-y-4">
-                        {writeMode === 'update' && (
+                        {writeMode === 'update' && !editingPostId && (
                             <div className="mb-6 p-4 bg-cyan-50 border border-cyan-100 rounded-2xl space-y-3">
                                 <div className="flex items-center justify-between">
                                     <label className="text-[10px] font-black text-cyan-600 uppercase tracking-widest block font-mono">Nexon Raw Data (Update Parser)</label>
@@ -522,11 +561,16 @@ export const CommunityPanel: React.FC = () => {
                                 <span className="absolute bottom-3 right-3 text-[8px] font-black text-slate-300">{writeContent.length}/5000</span>
                             </div>
                         </div>
+
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black text-slate-400 uppercase ml-2">Thumbnail URL (Optional)</label>
+                            <input type="text" value={writeThumbnail} onChange={(e) => setWriteThumbnail(e.target.value)} placeholder="이미지 주소를 입력하세요" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl text-[10px] font-mono outline-none focus:bg-white transition-all" />
+                        </div>
                         
                         <div className="flex gap-2 pt-4">
                             <button type="button" onClick={resetWriteForm} className="flex-1 py-4 bg-slate-100 text-slate-500 font-black text-[10px] rounded-2xl active:scale-95 transition-all">취소</button>
                             <button type="submit" disabled={isSubmitting || isSummarizing} className="flex-[1.5] py-4 bg-slate-900 text-white font-black text-[10px] rounded-2xl shadow-xl active:scale-95 transition-all disabled:opacity-50">
-                                {isSubmitting ? '전송 중...' : '등록하기'}
+                                {isSubmitting ? '전송 중...' : editingPostId ? '수정하기' : '등록하기'}
                             </button>
                         </div>
                     </form>

@@ -73,12 +73,11 @@ class CommunityService {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
 
-    // Profiles에서 최신 닉네임 조회 (user.id 기반)
     const { data: profile } = await supabase.from('profiles').select('nickname').eq('id', user.id).maybeSingle();
     const nickname = profile?.nickname || user.email?.split('@')[0] || 'Unknown';
 
     const payload: any = {
-      author_id: user.id, // 필수: auth.uid()
+      author_id: user.id,
       author_nickname: nickname,
       board_type: post.boardType === 'balance' ? 'BALANCE' : post.boardType,
       status: 'APPROVED',
@@ -96,7 +95,6 @@ class CommunityService {
       payload.content = post.content || '';
     }
 
-    // Insert 후 결과 행을 즉시 반환받음
     const { data, error } = await supabase.from('posts').insert(payload).select(`*, votes (vote_type), comments (id)`).single();
     
     if (error) {
@@ -108,12 +106,46 @@ class CommunityService {
     return this.mapRowToPost(data);
   }
 
+  async updatePost(postId: string, post: any): Promise<CommunityPost | null> {
+    if (!supabase) return null;
+    
+    const payload: any = {
+      board_type: post.boardType === 'balance' ? 'BALANCE' : post.boardType,
+      thumbnail: post.thumbnail || null
+    };
+
+    if (post.boardType === 'balance') {
+      payload.blue_option = post.blueOption || '';
+      payload.red_option = post.redOption || '';
+      payload.extra_content = post.content || '';
+      payload.title = '';
+      payload.content = '';
+    } else {
+      payload.title = post.title || '';
+      payload.content = post.content || '';
+    }
+
+    const { data, error } = await supabase
+      .from('posts')
+      .update(payload)
+      .eq('id', postId)
+      .select(`*, votes (vote_type), comments (id)`)
+      .single();
+    
+    if (error) {
+      console.error("[CommunityService] Update Post Failed:", error);
+      alert(`[ERROR] 게시글 수정 실패: ${error.message}`);
+      return null;
+    }
+    
+    return this.mapRowToPost(data);
+  }
+
   async votePost(postId: string, voteType: 'HEAD' | 'HALF') {
     if (!supabase) return false;
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return false;
 
-    // 본인 글 체크
     const { data: post } = await supabase.from('posts').select('author_id').eq('id', postId).single();
     if (post && post.author_id === user.id) {
         alert("자신의 글에 추천, 비추천, 투표, 신고 할 수 없습니다.");
@@ -150,14 +182,12 @@ class CommunityService {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return false;
 
-    // 1. 자기 글 투표 불가 체크
     const { data: post } = await supabase.from('posts').select('author_id').eq('id', postId).single();
     if (post && post.author_id === user.id) {
         alert("자신의 글에 추천, 비추천, 투표, 신고 할 수 없습니다.");
         return false;
     }
 
-    // 2. 이미 투표했는지 체크 (중복 투표 방지)
     const { data: existing } = await supabase
       .from('balance_votes')
       .select('id')
@@ -170,10 +200,9 @@ class CommunityService {
       return false;
     }
 
-    // 3. 밸런스 투표 전용 테이블에 insert (GRAY는 호출 안함)
     const { error } = await supabase.from('balance_votes').insert({
       post_id: postId,
-      user_id: user.id, // auth.uid()
+      user_id: user.id,
       vote_side: voteSide
     });
 
@@ -195,7 +224,7 @@ class CommunityService {
 
     const { data, error } = await supabase.from('comments').insert({
       post_id: postId,
-      author_id: user.id, // 필수: auth.uid()
+      author_id: user.id,
       author_nickname: nickname,
       content: content,
       team_type: teamType
@@ -263,7 +292,6 @@ class CommunityService {
 
   async getPostsByAuthorId(authorId: string): Promise<CommunityPost[]> {
     if (!supabase) return [];
-    // 닉네임 기반 대신 고유 ID 기반으로 정확히 필터링
     const { data, error } = await supabase
       .from('posts')
       .select(`*, votes (vote_type), comments (id)`)
