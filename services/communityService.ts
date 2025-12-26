@@ -7,7 +7,6 @@ class CommunityService {
   async getPosts(boardType?: BoardType, currentUserId?: string): Promise<CommunityPost[]> {
     if (!supabase) return [];
     try {
-      // 1. Handle Streaming Posts Separately if boardType is stream
       if (boardType === 'stream') {
           const { data, error } = await supabase
             .from('streaming_posts')
@@ -39,7 +38,6 @@ class CommunityService {
           }));
       }
 
-      // 2. Original Post Fetching
       let query = supabase
         .from('posts')
         .select(`*, votes (vote_type), comments (id)`)
@@ -59,10 +57,7 @@ class CommunityService {
       }
 
       const { data, error } = await query;
-      if (error) {
-        console.error("[CommunityService] Fetch Posts Error:", error);
-        return [];
-      }
+      if (error) return [];
       return (data || []).map((row: any) => this.mapRowToPost(row));
     } catch (e) {
       return [];
@@ -77,7 +72,6 @@ class CommunityService {
   private mapRowToPost(row: any): CommunityPost {
     const votes = row.votes || [];
     const comments = row.comments || [];
-    
     return {
       id: row.id,
       boardType: (row.board_type === 'BALANCE' ? 'balance' : row.board_type === 'FUN' ? 'fun' : row.board_type) as BoardType,
@@ -103,41 +97,48 @@ class CommunityService {
     };
   }
 
-  private async generateThumbnail(file: File): Promise<Blob> {
+  private async convertToWebP(file: File, width?: number, height?: number): Promise<Blob> {
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    if (!allowedTypes.includes(file.type)) {
+      throw new Error("허용되지 않는 파일 형식입니다. (jpg, png, webp, gif)");
+    }
+
     return new Promise((resolve, reject) => {
       const img = new Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        canvas.width = 320; // Streaming thumbnails need higher res than 64x64
-        canvas.height = 180; // 16:9 ratio
+        canvas.width = width || img.width;
+        canvas.height = height || img.height;
         const ctx = canvas.getContext('2d');
         if (!ctx) return reject(new Error("Canvas context failed"));
-        ctx.drawImage(img, 0, 0, img.width, img.height, 0, 0, 320, 180);
+        ctx.drawImage(img, 0, 0, img.width, img.height, 0, 0, canvas.width, canvas.height);
         canvas.toBlob((blob) => {
           if (blob) resolve(blob);
           else reject(new Error("Blob creation failed"));
         }, 'image/webp', 0.8);
       };
-      img.onerror = reject;
+      img.onerror = () => reject(new Error("이미지 로드 실패"));
       img.src = URL.createObjectURL(file);
     });
   }
 
   async uploadKukkukImage(file: File): Promise<{ imageUrl: string, thumbnailUrl: string } | null> {
     if (!supabase) return null;
-    if (file.size > 500 * 1024) throw new Error("파일 용량이 너무 큽니다. (500KB 이하만 가능)");
+    if (file.size > 500 * 1024) throw new Error("이미지 용량은 500KB 이하만 업로드할 수 있습니다.");
     const userId = (await supabase.auth.getUser()).data.user?.id;
     if (!userId) return null;
 
     const fileId = crypto.randomUUID();
-    const originalPath = `original/${userId}/${fileId}_${file.name}`;
+    const originalPath = `original/${userId}/${fileId}.webp`;
     const thumbPath = `thumb/${userId}/${fileId}_thumb.webp`;
 
-    const { error: upErr } = await supabase.storage.from('kukkuk-images').upload(originalPath, file);
+    const webpBlob = await this.convertToWebP(file);
+    const thumbBlob = await this.convertToWebP(file, 320, 180);
+
+    const { error: upErr } = await supabase.storage.from('kukkuk-images').upload(originalPath, webpBlob, { contentType: 'image/webp' });
     if (upErr) throw upErr;
 
-    const thumbBlob = await this.generateThumbnail(file);
-    const { error: thumbErr } = await supabase.storage.from('kukkuk-images').upload(thumbPath, thumbBlob);
+    const { error: thumbErr } = await supabase.storage.from('kukkuk-images').upload(thumbPath, thumbBlob, { contentType: 'image/webp' });
     if (thumbErr) throw thumbErr;
 
     const imageUrl = supabase.storage.from('kukkuk-images').getPublicUrl(originalPath).data.publicUrl;
@@ -146,47 +147,44 @@ class CommunityService {
     return { imageUrl, thumbnailUrl };
   }
 
+  async uploadLabUpdateImage(file: File): Promise<{ imageUrl: string, thumbnailUrl: string } | null> {
+    if (!supabase) return null;
+    if (file.size > 500 * 1024) throw new Error("이미지 용량은 500KB 이하만 업로드할 수 있습니다.");
+    const userId = (await supabase.auth.getUser()).data.user?.id;
+    if (!userId) return null;
+
+    const fileId = crypto.randomUUID();
+    const path = `${userId}/${fileId}.webp`;
+
+    const webpBlob = await this.convertToWebP(file);
+
+    const { error } = await supabase.storage.from('streaming-thumbnails').upload(path, webpBlob, { contentType: 'image/webp' });
+    if (error) throw error;
+
+    const publicUrl = supabase.storage.from('streaming-thumbnails').getPublicUrl(path).data.publicUrl;
+    return { imageUrl: publicUrl, thumbnailUrl: publicUrl };
+  }
+
   async createStreamingRequest(payload: { platform: string, stream_url: string, pr_url: string, description: string, thumbnail_url: string }): Promise<boolean> {
     if (!supabase) return false;
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return false;
-
-    const { error } = await supabase.from('streaming_requests').insert({
-      requester_id: user.id,
-      ...payload
-    });
-
-    if (error) {
-      console.error("[CommunityService] Streaming Request Failed:", error);
-      alert(`[ERROR] 게시 요청 실패: ${error.message}`);
-      return false;
-    }
-    return true;
+    const { error } = await supabase.from('streaming_requests').insert({ requester_id: user.id, ...payload });
+    return !error;
   }
 
   async getMyStreamingRequests(): Promise<StreamingRequest[]> {
     if (!supabase) return [];
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return [];
-
-    const { data, error } = await supabase
-      .from('streaming_requests')
-      .select('*')
-      .eq('requester_id', user.id)
-      .order('created_at', { ascending: false });
-
+    const { data, error } = await supabase.from('streaming_requests').select('*').eq('requester_id', user.id).order('created_at', { ascending: false });
     if (error) return [];
     return data || [];
   }
 
   async getPendingStreamingRequests(): Promise<StreamingRequest[]> {
     if (!supabase) return [];
-    const { data, error } = await supabase
-      .from('streaming_requests')
-      .select('*, profiles(nickname)')
-      .eq('status', 'PENDING')
-      .order('created_at', { ascending: true });
-
+    const { data, error } = await supabase.from('streaming_requests').select('*, profiles(nickname)').eq('status', 'PENDING').order('created_at', { ascending: true });
     if (error) return [];
     return data || [];
   }
@@ -195,28 +193,16 @@ class CommunityService {
     if (!supabase) return false;
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return false;
-
-    const { error } = await supabase.from('streaming_requests').update({
-      status,
-      admin_message: message,
-      reviewed_by: user.id,
-      reviewed_at: new Date().toISOString()
-    }).eq('id', requestId);
-
-    if (error) {
-      alert(`처리 실패: ${error.message}`);
-      return false;
-    }
-    return true;
+    const { error } = await supabase.from('streaming_requests').update({ status, admin_message: message, reviewed_by: user.id, reviewed_at: new Date().toISOString() }).eq('id', requestId);
+    return !error;
   }
 
   async createPost(post: any): Promise<CommunityPost | null> {
     if (!supabase) return null;
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
-
     const { data: profile } = await supabase.from('profiles').select('nickname').eq('id', user.id).maybeSingle();
-    const nickname = profile?.nickname || user.email?.split('@')[0] || 'Unknown';
+    const nickname = profile?.nickname || 'Unknown';
 
     const payload: any = {
       author_id: user.id,
@@ -229,24 +215,16 @@ class CommunityService {
     };
 
     if (post.boardType === 'balance') {
-      payload.blue_option = post.blue_option || '';
-      payload.red_option = post.red_option || '';
+      payload.blue_option = post.blueOption || '';
+      payload.red_option = post.redOption || '';
       payload.extra_content = post.content || '';
-      payload.title = '';
-      payload.content = '';
     } else {
       payload.title = post.title || '';
       payload.content = post.content || '';
     }
 
     const { data, error } = await supabase.from('posts').insert(payload).select(`*, votes (vote_type), comments (id)`).single();
-    
-    if (error) {
-      console.error("[CommunityService] Create Post Failed:", error);
-      alert(`[ERROR] 게시글 저장 실패: ${error.message}`);
-      return null;
-    }
-    
+    if (error) return null;
     return this.mapRowToPost(data);
   }
 
@@ -262,8 +240,6 @@ class CommunityService {
       payload.blue_option = post.blueOption || '';
       payload.red_option = post.redOption || '';
       payload.extra_content = post.content || '';
-      payload.title = '';
-      payload.content = '';
     } else {
       payload.title = post.title || '';
       payload.content = post.content || '';
@@ -305,7 +281,7 @@ class CommunityService {
     if (!user) return null;
     const { data: profile } = await supabase.from('profiles').select('nickname').eq('id', user.id).maybeSingle();
     const nickname = profile?.nickname || 'Unknown';
-    const { data, error } = await supabase.from('comments').insert({ post_id: postId, author_id: user.id, author_nickname: nickname, content: content, team_type: teamType }).select().single();
+    const { data, error } = await supabase.from('comments').insert({ post_id: postId, author_id: user.id, author_nickname: nickname, content, team_type: teamType }).select().single();
     if (error) return null;
     return { id: data.id, postId: data.post_id, authorId: data.author_id, authorNickname: data.author_nickname, content: data.content, createdAt: data.created_at, teamType: data.team_type as any || 'GRAY' };
   }
