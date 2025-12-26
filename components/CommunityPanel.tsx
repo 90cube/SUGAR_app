@@ -365,11 +365,13 @@ export const CommunityPanel: React.FC = () => {
                   </div>
                   {viewMode === 'MAIN' ? (
                     updatePosts[0] && (
-                        <div onClick={() => { setSelectedPost(updatePosts[0]); setViewMode('POST_DETAIL'); }} className="relative aspect-video rounded-[2rem] overflow-hidden shadow-2xl border border-white/20 cursor-pointer transition-transform active:scale-[0.98]">
-                            {updatePosts[0].thumbnail ? <img src={updatePosts[0].thumbnail} className="absolute inset-0 w-full h-full object-cover" alt="" /> : <div className="absolute inset-0 bg-slate-900 flex items-center justify-center text-white/5 font-black text-2xl italic">NOTICE</div>}
-                            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent"></div>
-                            <div className="absolute bottom-0 left-0 p-6 w-full"><span className="inline-block px-3 py-1 bg-cyan-500 text-slate-950 text-[8px] font-black rounded-lg uppercase tracking-widest mb-2">System Update</span><h4 className="text-white text-xl font-black leading-tight line-clamp-2">{updatePosts[0].title}</h4></div>
-                            <div className="absolute top-4 right-4 z-20" onClick={e => e.stopPropagation()}><AdminPostMenu post={updatePosts[0]} /></div>
+                        <div className="flex justify-center w-full">
+                            <div onClick={() => { setSelectedPost(updatePosts[0]); setViewMode('POST_DETAIL'); }} className="relative w-2/3 aspect-video rounded-[1.5rem] overflow-hidden shadow-2xl border border-white/20 cursor-pointer transition-transform active:scale-[0.98]">
+                                {updatePosts[0].thumbnail ? <img src={updatePosts[0].thumbnail} className="absolute inset-0 w-full h-full object-cover" alt="" /> : <div className="absolute inset-0 bg-slate-900 flex items-center justify-center text-white/5 font-black text-2xl italic">NOTICE</div>}
+                                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent"></div>
+                                <div className="absolute bottom-0 left-0 p-4 w-full"><span className="inline-block px-2 py-0.5 bg-cyan-500 text-slate-950 text-[7px] font-black rounded-lg uppercase tracking-widest mb-1">System Update</span><h4 className="text-white text-sm font-black leading-tight line-clamp-2">{updatePosts[0].title}</h4></div>
+                                <div className="absolute top-3 right-3 z-20" onClick={e => e.stopPropagation()}><AdminPostMenu post={updatePosts[0]} /></div>
+                            </div>
                         </div>
                     )
                   ) : (
