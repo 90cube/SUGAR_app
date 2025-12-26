@@ -1,12 +1,14 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { AppStatus, UserProfile, MatchDetail, Match, RecapStats, MatchResult, AnomalyReport, PageContent, AuthUser, CommunityUserProfile } from '../types';
+import { AppStatus, UserProfile, MatchDetail, Match, RecapStats, MatchResult, AnomalyReport, PageContent, AuthUser, CommunityUserProfile, CommunityPost } from '../types';
 import { nexonService } from '../services/nexonService';
 import { cloudStorageService } from '../services/cloudStorageService';
 import { geminiService } from '../services/geminiService';
 import { authService } from '../services/authService';
 import { communityService } from '../services/communityService';
 import { supabase } from '../services/supabaseClient';
+
+export type CommunityViewMode = 'MAIN' | 'UPDATE_ARCHIVE' | 'POST_DETAIL';
 
 interface AppContextType {
   status: AppStatus;
@@ -67,6 +69,14 @@ interface AppContextType {
   openDMModal: (username: string) => void;
   closeDMModal: () => void;
   activeDMUser: string | null;
+  // Community Centralized States
+  communityViewMode: CommunityViewMode;
+  setCommunityViewMode: (mode: CommunityViewMode) => void;
+  isCommunityWriteFormOpen: boolean;
+  setIsCommunityWriteFormOpen: (open: boolean) => void;
+  selectedCommunityPost: CommunityPost | null;
+  // Fix: Corrected type of setSelectedCommunityPost to Dispatch to support functional state updates (prev => ...)
+  setSelectedCommunityPost: React.Dispatch<React.SetStateAction<CommunityPost | null>>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -100,7 +110,71 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [isDMModalOpen, setIsDMModalOpen] = useState(false);
   const [activeDMUser, setActiveDMUser] = useState<string | null>(null);
 
+  // Community Specific
+  const [communityViewMode, setCommunityViewMode] = useState<CommunityViewMode>('MAIN');
+  const [isCommunityWriteFormOpen, setIsCommunityWriteFormOpen] = useState(false);
+  const [selectedCommunityPost, setSelectedCommunityPost] = useState<CommunityPost | null>(null);
+
   const isAdmin = authUser?.role === 'admin';
+
+  // ESC Key Listener Logic
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        // 우선순위 1: 커뮤니티 유저 프로필
+        if (selectedCommunityUser) { closeCommunityUserProfile(); return; }
+        
+        // 우선순위 2: 관리자 길로틴
+        if (isAdminGuillotineOpen) { closeAdminGuillotine(); return; }
+        
+        // 우선순위 3: 관리자 비밀 게시판
+        if (isAdminHiddenBoardOpen) { closeAdminHiddenBoard(); return; }
+        
+        // 우선순위 4: 관리자 에디터
+        if (isAdminEditorOpen) { closeAdminEditor(); return; }
+        
+        // 우선순위 5: 분석 보고서
+        if (isAnalysisModalOpen) { closeAnalysisModal(); return; }
+        
+        // 우선순위 6: 일일 리캡
+        if (isRecapModalOpen) { closeRecapModal(); return; }
+        
+        // 우선순위 7: 매치 상세
+        if (activeMatch) { closeMatchDetail(); return; }
+        
+        // 우선순위 8: 가상 매칭
+        if (isVirtualMatchingModalOpen) { closeVirtualMatchingModal(); return; }
+        
+        // 우선순위 9: DM 모달
+        if (isDMModalOpen) { closeDMModal(); return; }
+        
+        // 우선순위 10: 인증 모달
+        if (isAuthModalOpen) { closeAuthModal(); return; }
+        
+        // 우선순위 11: 커뮤니티 패널 내부 계층
+        if (isCommunityOpen) {
+           if (isCommunityWriteFormOpen) {
+              setIsCommunityWriteFormOpen(false);
+              return;
+           }
+           if (communityViewMode === 'POST_DETAIL' || communityViewMode === 'UPDATE_ARCHIVE') {
+              setCommunityViewMode('MAIN');
+              return;
+           }
+           closeCommunity();
+           return;
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    selectedCommunityUser, isAdminGuillotineOpen, isAdminHiddenBoardOpen, 
+    isAdminEditorOpen, isAnalysisModalOpen, isRecapModalOpen, activeMatch,
+    isVirtualMatchingModalOpen, isDMModalOpen, isAuthModalOpen, isCommunityOpen,
+    isCommunityWriteFormOpen, communityViewMode
+  ]);
 
   const showAdminToast = () => {
     setIsAdminToastOpen(true);
@@ -315,7 +389,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       pageContent, updatePageContent, isAdminEditorOpen, openAdminEditor, closeAdminEditor, isSavingContent,
       isAdminHiddenBoardOpen, openAdminHiddenBoard, closeAdminHiddenBoard,
       isAdminGuillotineOpen, openAdminGuillotine, closeAdminGuillotine,
-      selectedCommunityUser, openCommunityUserProfile, closeCommunityUserProfile
+      selectedCommunityUser, openCommunityUserProfile, closeCommunityUserProfile,
+      // Community
+      communityViewMode, setCommunityViewMode,
+      isCommunityWriteFormOpen, setIsCommunityWriteFormOpen,
+      selectedCommunityPost, setSelectedCommunityPost
     }}>
       {children}
     </AppContext.Provider>
