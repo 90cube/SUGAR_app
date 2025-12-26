@@ -419,10 +419,26 @@ export const CommunityPanel: React.FC = () => {
             <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-xl z-[300] flex items-center justify-center p-6 animate-in fade-in duration-300">
                 <div className="bg-white w-full max-w-sm rounded-[3rem] p-8 shadow-2xl relative border border-white/20 max-h-[95vh] overflow-y-auto">
                     <div className="mb-8 text-center">
-                        <span className={`inline-block px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${writeMode === 'balance' ? 'bg-blue-100 text-blue-700' : writeMode === 'update' ? 'bg-cyan-100 text-cyan-700' : 'bg-slate-100 text-slate-700'}`}>
-                           {writeMode === 'balance' ? 'Balance Game' : writeMode === 'update' ? 'Official Lab Update' : 'Post Content'}
+                        <span className={`inline-block px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${
+                            writeMode === 'balance' ? 'bg-blue-100 text-blue-700' : 
+                            writeMode === 'update' ? 'bg-cyan-100 text-cyan-700' : 
+                            writeMode === 'fun' ? 'bg-yellow-100 text-yellow-700' :
+                            writeMode === 'stream' ? 'bg-purple-100 text-purple-700' :
+                            'bg-slate-100 text-slate-700'
+                        }`}>
+                           {writeMode === 'balance' ? 'Balance Game' : 
+                            writeMode === 'update' ? 'Official Lab Update' : 
+                            writeMode === 'fun' ? 'Keuk Keuk Board' :
+                            writeMode === 'stream' ? 'Streaming' :
+                            'Post Content'}
                         </span>
-                        <h3 className="text-xl font-black text-slate-900 mt-4 tracking-tighter">새로운 소식 작성</h3>
+                        <h3 className="text-xl font-black text-slate-900 mt-4 tracking-tighter">
+                            {writeMode === 'balance' ? '밸런스 게임 토론' : 
+                             writeMode === 'update' ? '새로운 업데이트 등록' : 
+                             writeMode === 'fun' ? '큭큭 게시글 작성' :
+                             writeMode === 'stream' ? '방송/클랜 홍보' :
+                             '새로운 게시글 작성'}
+                        </h3>
                     </div>
                     <form onSubmit={submitPost} className="space-y-4">
                         {writeMode === 'update' && (
