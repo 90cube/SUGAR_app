@@ -54,11 +54,10 @@ export const CommunityPanel: React.FC = () => {
   const [filePreview, setFilePreview] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState(false);
   
-  // AI Parser
+  // AI Parser (Update 요약용)
   const [rawUpdateText, setRawUpdateText] = useState('');
   const [isSummarizing, setIsSummarizing] = useState(false);
-  const [masterPrompt, setMasterPrompt] = useState('당신은 서든어택 업데이트 전문 요약가입니다. 공지의 모든 핵심 내용을 정리하되, 아이템 정보나 보상 목록은 반드시 Markdown 표(Table)를 사용하여 가독성을 극대화하세요. 표의 구분선(|---|)을 누락하지 마세요.');
-  const [isPromptEditorOpen, setIsPromptEditorOpen] = useState(false);
+  const [masterPrompt, setMasterPrompt] = useState('당신은 서든어택 업데이트 전문 요약관입니다. 공지의 모든 핵심 내용을 정리하되, 보상이나 스케줄 정보는 반드시 Markdown Table 형식을 사용하여 정갈하게 작성하세요.');
 
   // Comment
   const [commentInput, setCommentInput] = useState('');
@@ -84,6 +83,7 @@ export const CommunityPanel: React.FC = () => {
     if (activeTab === 'stream') {
         if (streamSubTab === 'MY_REQUESTS') communityService.getMyStreamingRequests().then(setMyRequests);
         else if (streamSubTab === 'ADMIN_PENDING' && isAdmin) communityService.getPendingStreamingRequests().then(setAdminRequests);
+        else if (streamSubTab === 'LIST') fetchTabContent('stream');
     }
   }, [activeTab, streamSubTab, isAdmin]);
 
@@ -99,20 +99,6 @@ export const CommunityPanel: React.FC = () => {
     });
   };
 
-  const handleAISummarize = async () => {
-    if (!rawUpdateText.trim()) return;
-    setIsSummarizing(true);
-    try {
-      const result = await geminiService.summarizeGameUpdate(rawUpdateText, masterPrompt);
-      setWriteTitle(result.title);
-      setWriteContent(result.content);
-    } catch (e) {
-      alert("AI 요약 중 오류가 발생했습니다.");
-    } finally {
-      setIsSummarizing(false);
-    }
-  };
-
   const handleAdminAction = async (postId: string, action: 'DELETE' | 'TEMP') => {
     if (!window.confirm("정말 처리하시겠습니까?")) return;
     const success = action === 'DELETE' ? await communityService.deletePost(postId) : await communityService.movePostToTemp(postId);
@@ -125,7 +111,7 @@ export const CommunityPanel: React.FC = () => {
   };
 
   const handleStreamApproval = async (requestId: string) => {
-      if (!window.confirm("승인하시겠습니까?")) return;
+      if (!window.confirm("승인하시겠습니까? 승인 즉시 방송 목록에 노출됩니다.")) return;
       setIsProcessing(true);
       const success = await communityService.processStreamingRequest(requestId, 'APPROVED', '승인되었습니다.');
       if (success) {
@@ -205,8 +191,8 @@ export const CommunityPanel: React.FC = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 500 * 1024) { 
-        alert("이미지 용량은 500KB 이하만 업로드할 수 있습니다."); 
+    if (file.size > 512 * 1024) { 
+        alert("이미지 용량은 512KB 이하만 업로드할 수 있습니다."); 
         e.target.value = ""; 
         return; 
     }
@@ -229,12 +215,12 @@ export const CommunityPanel: React.FC = () => {
     if (isSubmitting || uploadProgress) return;
 
     if (writeMode === 'stream') {
-        if (!selectedFile) return alert("썸네일 이미지를 업로드해주세요.");
+        if (!selectedFile) return alert("방송 썸네일 이미지를 업로드해주세요.");
         if (!streamUrl.trim()) return alert("방송 링크를 입력해주세요.");
         setIsSubmitting(true);
         setUploadProgress(true);
         try {
-            const urls = await communityService.uploadLabUpdateImage(selectedFile);
+            const urls = await communityService.uploadKukkukImage(selectedFile); // 동일한 업로드 로직 사용
             if (urls) {
                 const success = await communityService.createStreamingRequest({
                     platform: streamPlatform,
@@ -244,7 +230,7 @@ export const CommunityPanel: React.FC = () => {
                     thumbnail_url: urls.thumbnailUrl
                 });
                 if (success) {
-                    alert("요청 완료! 승인 후 리스트에 노출됩니다.");
+                    alert("홍보 요청 완료! 승인 후 리스트에 노출됩니다.");
                     resetWriteForm();
                     setStreamSubTab('MY_REQUESTS');
                 }
@@ -393,27 +379,129 @@ export const CommunityPanel: React.FC = () => {
                           ))}
                        </div>
                      </div>
+                     
+                     {/* Streaming Sub-Tabs */}
+                     {activeTab === 'stream' && (
+                         <div className="flex gap-2 p-1 bg-white/50 backdrop-blur-md rounded-2xl border border-slate-200">
+                            <button onClick={() => setStreamSubTab('LIST')} className={`flex-1 py-2 text-[9px] font-black rounded-xl transition-all ${streamSubTab === 'LIST' ? 'bg-slate-900 text-white' : 'text-slate-400'}`}>목록</button>
+                            <button onClick={() => setStreamSubTab('MY_REQUESTS')} className={`flex-1 py-2 text-[9px] font-black rounded-xl transition-all ${streamSubTab === 'MY_REQUESTS' ? 'bg-slate-900 text-white' : 'text-slate-400'}`}>신청 현황</button>
+                            {isAdmin && <button onClick={() => setStreamSubTab('ADMIN_PENDING')} className={`flex-1 py-2 text-[9px] font-black rounded-xl transition-all ${streamSubTab === 'ADMIN_PENDING' ? 'bg-slate-900 text-white' : 'text-slate-400'}`}>심사 센터</button>}
+                         </div>
+                     )}
+
                      <div className="space-y-4 min-h-[400px]">
                         {isLoading ? <div className="flex justify-center py-20"><div className="w-8 h-8 border-3 border-slate-300 border-t-slate-900 rounded-full animate-spin"></div></div> : (
-                            tabPosts.map((post) => (
-                                <div key={post.id} onClick={() => { setSelectedPost(post); setViewMode('POST_DETAIL'); }} className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-xl relative transition-all active:scale-[0.98] group overflow-hidden">
-                                    <div className="absolute top-6 right-6 z-20" onClick={e => e.stopPropagation()}><AdminPostMenu post={post} /></div>
-                                    {post.boardType === 'fun' ? (
-                                        <div className="flex gap-4 items-center">
-                                            <div className="w-20 h-20 rounded-2xl overflow-hidden bg-slate-100 border-2 border-white shadow-md flex-shrink-0">{post.thumbnailUrl ? <img src={post.thumbnailUrl} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-[8px] font-black text-slate-300 uppercase">No_Img</div>}</div>
+                            activeTab === 'stream' && streamSubTab === 'ADMIN_PENDING' ? (
+                                <div className="space-y-4">
+                                   {adminRequests.map(req => (
+                                       <div key={req.id} className="bg-white p-6 rounded-[2rem] border-2 border-slate-200 shadow-xl space-y-4">
+                                           <div className="flex gap-4">
+                                               <div className="w-24 h-24 rounded-2xl overflow-hidden bg-slate-900 flex-shrink-0">
+                                                   <img src={req.thumbnail_url} className="w-full h-full object-cover" />
+                                               </div>
+                                               <div className="flex-1">
+                                                   <span className="text-[10px] font-black text-blue-500 uppercase tracking-widest">{req.platform}</span>
+                                                   <h4 className="font-black text-slate-800 text-sm mb-1">{req.profiles?.nickname} 님의 요청</h4>
+                                                   <p className="text-[11px] text-slate-500 line-clamp-2">{req.description}</p>
+                                               </div>
+                                           </div>
+                                           <div className="flex gap-2">
+                                               <button onClick={() => handleStreamApproval(req.id)} className="flex-1 py-3 bg-slate-900 text-white text-[10px] font-black rounded-xl active:scale-95 transition-all">승인</button>
+                                               <button onClick={() => setRejectingRequestId(req.id)} className="flex-1 py-3 bg-red-50 text-red-600 text-[10px] font-black rounded-xl active:scale-95 transition-all">반려</button>
+                                           </div>
+                                           {rejectingRequestId === req.id && (
+                                               <div className="space-y-3 pt-3 border-t border-slate-100 animate-in slide-in-from-top-2">
+                                                   <textarea value={rawRejectReason} onChange={e => setRawRejectReason(e.target.value)} placeholder="반려 사유를 입력하세요 (AI가 공식 문구로 다듬어줍니다)" className="w-full p-4 bg-slate-50 rounded-2xl text-xs font-medium h-24 outline-none border border-slate-200" />
+                                                   <div className="flex gap-2">
+                                                       <button onClick={() => handleStreamRejection(req.id)} className="flex-1 py-3 bg-red-600 text-white text-[10px] font-black rounded-xl">AI 반려 처리</button>
+                                                       <button onClick={() => setRejectingRequestId(null)} className="flex-1 py-3 bg-slate-100 text-slate-500 text-[10px] font-black rounded-xl">취소</button>
+                                                   </div>
+                                               </div>
+                                           )}
+                                       </div>
+                                   ))}
+                                   {adminRequests.length === 0 && <div className="text-center py-20 text-slate-300 font-black text-xs">대기 중인 요청이 없습니다.</div>}
+                                </div>
+                            ) : activeTab === 'stream' && streamSubTab === 'MY_REQUESTS' ? (
+                                <div className="space-y-4">
+                                    {myRequests.map(req => (
+                                        <div key={req.id} className="bg-white p-5 rounded-3xl border border-slate-200 shadow-md flex items-center gap-4">
+                                            <div className="w-16 h-16 rounded-xl overflow-hidden bg-slate-100 flex-shrink-0"><img src={req.thumbnail_url} className="w-full h-full object-cover" /></div>
                                             <div className="flex-1 min-w-0">
-                                                <h4 className="font-black text-slate-800 text-sm mb-1 group-hover:text-blue-600 truncate">{post.title}</h4>
-                                                <div className="flex items-center gap-3 text-[10px] font-black text-slate-400">
-                                                   <span className="text-blue-600">🎯 {post.heads}</span>
-                                                   <span onClick={e => { e.stopPropagation(); openCommunityUserProfile(post.author, post.authorId); }} className="hover:underline">{post.author}</span>
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <span className={`px-2 py-0.5 rounded-lg text-[8px] font-black text-white ${req.status === 'PENDING' ? 'bg-slate-400' : req.status === 'APPROVED' ? 'bg-blue-500' : 'bg-red-500'}`}>{req.status}</span>
+                                                    <span className="text-[10px] text-slate-400 font-bold">{req.created_at.split('T')[0]}</span>
                                                 </div>
+                                                <p className="text-xs font-black text-slate-800 truncate">{req.description || '내용 없음'}</p>
+                                                {req.admin_message && <div className="mt-2 p-3 bg-slate-50 rounded-xl text-[9px] font-medium text-slate-500 border border-slate-100">메시지: {req.admin_message}</div>}
                                             </div>
                                         </div>
-                                    ) : (
-                                        <><h4 className="font-black text-slate-800 text-base mb-4 line-clamp-2 leading-tight group-hover:text-blue-600">{post.boardType === 'balance' ? `${post.blueOption} vs ${post.redOption}` : post.title}</h4><div className="pt-5 border-t border-slate-50 flex items-center justify-between text-[10px] font-black text-slate-400"><div className="flex items-center gap-2"><div className="w-6 h-6 rounded-full bg-slate-900 text-white flex items-center justify-center text-[8px] font-black">{post.author[0].toUpperCase()}</div><span onClick={e => { e.stopPropagation(); openCommunityUserProfile(post.author, post.authorId); }} className="text-slate-900 hover:underline">{post.author}</span></div><span>{post.createdAt.split('T')[0]}</span></div></>
-                                    )}
+                                    ))}
+                                    {myRequests.length === 0 && <div className="text-center py-20 text-slate-300 font-black text-xs">신청 내역이 없습니다.</div>}
                                 </div>
-                            ))
+                            ) : (
+                                tabPosts.map((post) => (
+                                    <div key={post.id} onClick={() => { setSelectedPost(post); setViewMode('POST_DETAIL'); }} className="bg-white rounded-3xl border border-slate-200 shadow-xl relative transition-all active:scale-[0.98] group overflow-hidden">
+                                        <div className="absolute top-4 right-4 z-20" onClick={e => e.stopPropagation()}><AdminPostMenu post={post} /></div>
+                                        {post.boardType === 'fun' ? (
+                                            <div className="flex h-32">
+                                                {/* 썸네일: 카드 왼쪽, 카드 높이만큼 1:1 크롭 */}
+                                                <div className="w-32 h-32 bg-slate-100 border-r border-slate-100 flex-shrink-0">
+                                                  {post.thumbnailUrl ? (
+                                                    <img src={post.thumbnailUrl} className="w-full h-full object-cover" />
+                                                  ) : (
+                                                    <div className="w-full h-full flex items-center justify-center text-[8px] font-black text-slate-300 uppercase italic">No_Img</div>
+                                                  )}
+                                                </div>
+                                                {/* 우측: 닉네임, 시간, 추천수(Heads)만 표시 */}
+                                                <div className="flex-1 p-5 flex flex-col justify-between min-w-0">
+                                                    <h4 className="font-black text-slate-800 text-base line-clamp-1 group-hover:text-blue-600 transition-colors">{post.title}</h4>
+                                                    <div className="flex items-center justify-between text-[10px] font-black">
+                                                       <div className="flex items-center gap-2">
+                                                          <span onClick={e => { e.stopPropagation(); openCommunityUserProfile(post.author, post.authorId); }} className="text-slate-900 hover:underline">{post.author}</span>
+                                                          <span className="text-slate-300">•</span>
+                                                          <span className="text-slate-400 font-bold">{post.createdAt.split('T')[0]}</span>
+                                                       </div>
+                                                       <div className="flex items-center gap-1.5 px-3 py-1 bg-blue-50 text-blue-600 rounded-full shadow-sm border border-blue-100/50">
+                                                          <span className="text-[8px]">🎯</span>
+                                                          <span>{post.heads}</span>
+                                                       </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ) : post.boardType === 'stream' ? (
+                                            <div className="p-6 flex items-center gap-5">
+                                               <div className="w-20 h-20 rounded-2xl overflow-hidden bg-slate-100 border-2 border-white shadow-md flex-shrink-0">
+                                                   <img src={post.thumbnailUrl} className="w-full h-full object-cover" />
+                                               </div>
+                                               <div className="flex-1 min-w-0">
+                                                   <div className="flex items-center gap-2 mb-1">
+                                                       <span className={`px-2 py-0.5 rounded-lg text-[7px] font-black text-white ${post.platform === 'CHZZK' ? 'bg-emerald-500' : post.platform === 'SOOP' ? 'bg-blue-500' : 'bg-red-500'}`}>{post.platform}</span>
+                                                       <span className="text-[9px] font-bold text-slate-400">Live_Broadcasting</span>
+                                                   </div>
+                                                   <h4 className="font-black text-slate-800 text-sm line-clamp-1">{post.author} 님의 방송</h4>
+                                                   <p className="text-[11px] text-slate-500 font-medium line-clamp-1 mt-1">{post.content}</p>
+                                               </div>
+                                               <div className="flex flex-col items-center gap-1.5">
+                                                   <div className="text-[10px] font-black text-blue-600">🎯 {post.heads}</div>
+                                                   <div className="w-1 h-4 bg-slate-100 rounded-full"></div>
+                                               </div>
+                                            </div>
+                                        ) : (
+                                            <div className="p-6">
+                                                <h4 className="font-black text-slate-800 text-base mb-4 line-clamp-2 leading-tight group-hover:text-blue-600 transition-colors">{post.boardType === 'balance' ? `${post.blueOption} vs ${post.redOption}` : post.title}</h4>
+                                                <div className="pt-5 border-t border-slate-50 flex items-center justify-between text-[10px] font-black text-slate-400">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="w-6 h-6 rounded-full bg-slate-900 text-white flex items-center justify-center text-[8px] font-black">{post.author[0].toUpperCase()}</div>
+                                                        <span onClick={e => { e.stopPropagation(); openCommunityUserProfile(post.author, post.authorId); }} className="text-slate-900 hover:underline">{post.author}</span>
+                                                    </div>
+                                                    <span>{post.createdAt.split('T')[0]}</span>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))
+                            )
                         )}
                      </div>
                  </section>
@@ -426,19 +514,84 @@ export const CommunityPanel: React.FC = () => {
             <div className="absolute inset-0 bg-white z-[200] flex flex-col animate-in slide-in-from-right duration-500 overflow-hidden">
                 <div className="flex-shrink-0 h-16 border-b flex items-center justify-between px-4 sticky top-0 z-50 bg-white/80 backdrop-blur-md">
                     <button onClick={() => setViewMode(selectedPost.boardType === 'update' ? 'UPDATE_ARCHIVE' : 'MAIN')} className="p-2 -ml-2 text-slate-500"><svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg></button>
-                    <h3 className="text-xs font-black text-slate-800 truncate px-4">{selectedPost.boardType === 'balance' ? '밸런스 게임' : selectedPost.title}</h3>
+                    <h3 className="text-xs font-black text-slate-800 truncate px-4">{selectedPost.boardType === 'balance' ? '밸런스 게임' : selectedPost.boardType === 'stream' ? '스트리머 전적 탐색' : selectedPost.title}</h3>
                     <AdminPostMenu post={selectedPost} />
                 </div>
                 <div className="flex-1 overflow-y-auto pb-32">
-                    {selectedPost.imageUrl ? <div className="w-full bg-slate-100"><img src={selectedPost.imageUrl} className="w-full h-auto" /></div> : selectedPost.thumbnail && <div className="w-full aspect-video bg-slate-100"><img src={selectedPost.thumbnail} className="w-full h-full object-cover" /></div>}
+                    {/* 상세 페이지: 본문 이미지와 썸네일을 각각 표시 */}
+                    <div className="w-full bg-slate-50 py-6 px-5 space-y-4">
+                      {selectedPost.imageUrl && (
+                        <div className="rounded-[2rem] overflow-hidden shadow-2xl border border-white bg-white">
+                          <img src={selectedPost.imageUrl} className="w-full h-auto" />
+                          <div className="px-5 py-3 bg-slate-50/50 flex justify-between items-center">
+                              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic">Research_Data_Visual</span>
+                              <span className="text-[8px] font-black text-cyan-500">HI-RES_LINKED</span>
+                          </div>
+                        </div>
+                      )}
+                      {selectedPost.thumbnailUrl && selectedPost.thumbnailUrl !== selectedPost.imageUrl && (
+                        <div className="flex justify-center">
+                            <div className="w-32 h-32 rounded-3xl overflow-hidden shadow-lg border-4 border-white ring-1 ring-slate-100 flex-shrink-0">
+                                <img src={selectedPost.thumbnailUrl} className="w-full h-full object-cover" />
+                            </div>
+                        </div>
+                      )}
+                      {!selectedPost.imageUrl && selectedPost.thumbnail && (
+                        <div className="w-full aspect-video rounded-3xl overflow-hidden shadow-xl">
+                          <img src={selectedPost.thumbnail} className="w-full h-full object-cover" />
+                        </div>
+                      )}
+                    </div>
+
                     <div className="p-6">
-                        <div className="flex items-center gap-3 mb-6"><div className="w-10 h-10 rounded-full bg-slate-900 text-white flex items-center justify-center font-black text-xs">{selectedPost.author[0]}</div><div><div className="text-xs font-black text-slate-900">{selectedPost.author}</div><div className="text-[9px] text-slate-400 font-bold">{selectedPost.createdAt.split('T')[0]}</div></div></div>
+                        <div className="flex items-center gap-3 mb-6">
+                           <div className="w-11 h-11 rounded-full bg-slate-900 text-white flex items-center justify-center font-black text-xs shadow-lg">{selectedPost.author[0]}</div>
+                           <div><div className="text-xs font-black text-slate-900">{selectedPost.author}</div><div className="text-[10px] text-slate-400 font-bold">{selectedPost.createdAt.split('T')[0]}</div></div>
+                        </div>
+                        
+                        {selectedPost.boardType === 'stream' && (
+                            <div className="mb-8 p-6 bg-slate-950 rounded-[2.5rem] border border-cyan-500/20 shadow-2xl overflow-hidden relative">
+                               <div className="absolute -top-10 -right-10 w-32 h-32 bg-cyan-500/5 rounded-full blur-3xl"></div>
+                               <div className="flex items-center gap-3 mb-4">
+                                  <span className={`px-3 py-1 rounded-full text-[9px] font-black text-white ${selectedPost.platform === 'CHZZK' ? 'bg-emerald-500' : selectedPost.platform === 'SOOP' ? 'bg-blue-500' : 'bg-red-500'}`}>{selectedPost.platform}</span>
+                                  <span className="text-[10px] font-black text-cyan-400 uppercase tracking-widest">Live_Access_Protocol</span>
+                               </div>
+                               <h2 className="text-white font-black text-xl mb-4 tracking-tight leading-tight">{selectedPost.author} 님의 방송 데이터</h2>
+                               <a href={selectedPost.streamUrl} target="_blank" rel="noopener noreferrer" className="w-full py-4 bg-cyan-500 text-slate-950 rounded-2xl font-black text-[11px] flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/20 active:scale-95 transition-all">방송 보러가기 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg></a>
+                               {selectedPost.prUrl && <a href={selectedPost.prUrl} target="_blank" rel="noopener noreferrer" className="w-full mt-3 py-3 bg-white/5 text-slate-400 rounded-2xl font-black text-[10px] flex items-center justify-center border border-white/5">PR_Terminal_Open</a>}
+                            </div>
+                        )}
+
                         {selectedPost.boardType === 'balance' && <div className="mb-8 space-y-4"><div className="grid grid-cols-2 gap-3 relative"><div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-900 text-white w-8 h-8 rounded-full flex items-center justify-center font-black text-[10px] z-10 border-2 border-white shadow-xl italic">VS</div><button onClick={() => handleBalanceVote('BLUE')} className="bg-gradient-to-br from-blue-600 to-blue-400 p-6 rounded-3xl text-center shadow-xl border border-white/20 active:scale-95 transition-transform"><div className="text-[9px] font-black text-blue-100 uppercase mb-2 opacity-60">TEAM BLUE</div><div className="text-white font-black text-base break-words leading-tight">{selectedPost.blueOption}</div><div className="mt-2 text-[8px] font-black text-blue-200">Votes: {selectedPost.blueVotes}</div></button><button onClick={() => handleBalanceVote('RED')} className="bg-gradient-to-br from-red-600 to-red-400 p-6 rounded-3xl text-center shadow-xl border border-white/20 active:scale-95 transition-transform"><div className="text-[9px] font-black text-red-100 uppercase mb-2 opacity-60">TEAM RED</div><div className="text-white font-black text-base break-words leading-tight">{selectedPost.redOption}</div><div className="mt-2 text-[8px] font-black text-red-200">Votes: {selectedPost.redVotes}</div></button></div></div>}
-                        {selectedPost.boardType !== 'balance' && <h1 className="text-2xl font-black text-slate-900 mb-6 tracking-tight">{selectedPost.title}</h1>}
+                        
+                        {selectedPost.boardType !== 'balance' && selectedPost.boardType !== 'stream' && <h1 className="text-2xl font-black text-slate-900 mb-6 tracking-tight">{selectedPost.title}</h1>}
                         <div className="prose prose-slate max-w-none text-slate-600 font-medium leading-relaxed text-sm mb-12" dangerouslySetInnerHTML={{ __html: marked.parse(selectedPost.content) }}></div>
                     </div>
                     <div className="px-6 space-y-12">
-                        <div className="flex gap-2"><button onClick={() => handleVote('HEAD')} className="flex-1 py-4 bg-slate-900 text-white rounded-2xl font-black text-[11px] shadow-xl active:scale-95">🎯 헤드샷 {selectedPost.heads}</button>{selectedPost.boardType !== 'fun' && <button onClick={() => handleVote('HALF')} className="flex-1 py-4 bg-slate-100 text-slate-400 rounded-2xl font-black text-[11px] active:scale-95">🛡️ 반샷 {selectedPost.halfshots}</button>}<button onClick={handleShare} className="w-14 py-4 bg-slate-50 text-slate-400 rounded-2xl flex items-center justify-center hover:bg-slate-100 transition-all"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 100-2.684 3 3 0 000 2.684zm0 12.684a3 3 0 100-2.684 3 3 0 000 2.684z" /></svg></button></div>
+                        <div className="flex gap-2"><button onClick={() => handleVote('HEAD')} className="flex-1 py-4 bg-slate-900 text-white rounded-2xl font-black text-[11px] shadow-xl active:scale-95 transition-all">🎯 헤드샷 {selectedPost.heads}</button><button onClick={() => handleVote('HALF')} className="flex-1 py-4 bg-slate-100 text-slate-400 rounded-2xl font-black text-[11px] active:scale-95 transition-all">🛡️ 반샷 {selectedPost.halfshots}</button><button onClick={handleShare} className="w-14 py-4 bg-slate-50 text-slate-400 rounded-2xl flex items-center justify-center hover:bg-slate-100 transition-all"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 100-2.684 3 3 0 000 2.684zm0 12.684a3 3 0 100-2.684 3 3 0 000 2.684z" /></svg></button></div>
+                        <div className="space-y-6 pb-20">
+                           <div className="flex items-center justify-between"><h4 className="text-xs font-black text-slate-400 uppercase tracking-widest">실시간 피드백 ({comments.length})</h4></div>
+                           <form onSubmit={handleCommentSubmit} className="space-y-3">
+                              <textarea value={commentInput} onChange={(e) => setCommentInput(e.target.value)} placeholder="의견을 남겨주세요..." className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-medium h-24 outline-none focus:bg-white transition-all"></textarea>
+                              <div className="flex justify-between items-center">
+                                 <div className="flex p-1 bg-slate-100 rounded-xl">
+                                    {['GRAY', 'BLUE', 'RED'].map(team => (
+                                       <button key={team} type="button" onClick={() => setCommentTeam(team as any)} className={`px-3 py-1.5 rounded-lg text-[9px] font-black transition-all ${commentTeam === team ? 'bg-white shadow text-slate-900' : 'text-slate-400'}`}>{team}</button>
+                                    ))}
+                                 </div>
+                                 <button type="submit" disabled={!commentInput.trim() || isSubmitting} className="px-6 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-black disabled:opacity-30">등록</button>
+                              </div>
+                           </form>
+                           <div className="space-y-4">
+                              {comments.map(c => (
+                                 <div key={c.id} className="group relative">
+                                    <div className="flex items-center gap-2 mb-1"><span className="text-[10px] font-black text-slate-900">{c.authorNickname}</span>{c.teamType !== 'GRAY' && <span className={`px-1.5 py-0.5 rounded text-[7px] font-black text-white ${c.teamType === 'BLUE' ? 'bg-blue-600' : 'bg-red-600'}`}>{c.teamType}</span>}<span className="text-[8px] text-slate-300 font-bold">{c.createdAt.split('T')[0]}</span></div>
+                                    <div className="bg-slate-50 p-3 rounded-2xl text-[11px] font-medium text-slate-600 whitespace-pre-line">{c.isDeleted ? '삭제된 댓글입니다.' : c.content}</div>
+                                    {(isAdmin || c.authorId === authUser?.id) && !c.isDeleted && <button onClick={() => handleCommentDelete(c.id)} className="absolute top-0 right-0 p-1 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>}
+                                 </div>
+                              ))}
+                           </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -453,50 +606,89 @@ export const CommunityPanel: React.FC = () => {
         {isWriteFormOpen && (
             <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-xl z-[300] flex items-center justify-center p-6 animate-in fade-in duration-300">
                 <div className="bg-white w-full max-w-sm rounded-[3rem] p-8 shadow-2xl relative border border-white/20 max-h-[95vh] overflow-y-auto scrollbar-hide">
-                    <div className="mb-8 text-center"><span className={`inline-block px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${writeMode === 'balance' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-700'}`}>{writeMode === 'balance' ? 'Balance Game' : 'Post Content'}</span><h3 className="text-xl font-black text-slate-900 mt-4 tracking-tighter">{editingPostId ? '수정하기' : '작성하기'}</h3></div>
+                    <div className="mb-8 text-center">
+                        <span className={`inline-block px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${writeMode === 'balance' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-700'}`}>{writeMode === 'balance' ? 'Balance Game' : writeMode === 'stream' ? 'Streaming Request' : 'Subject Archive'}</span>
+                        <h3 className="text-xl font-black text-slate-900 mt-4 tracking-tighter italic">{editingPostId ? '데이터 수정' : '데이터 등록'}</h3>
+                    </div>
                     
                     <form onSubmit={submitPost} className="space-y-4">
-                        {writeMode !== 'balance' && ( 
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Subject Data Upload (Max 500KB)</label>
-                            <div className={`relative p-2 bg-slate-50 border-2 border-dashed rounded-3xl text-center transition-all ${filePreview ? 'border-cyan-500 bg-cyan-50/20' : 'border-slate-200'}`}>
-                                <input type="file" id="fileInput" onChange={handleFileChange} accept=".jpg,.jpeg,.png,.webp,.gif" className="hidden" />
-                                <label htmlFor="fileInput" className="cursor-pointer block">
-                                    {filePreview ? (
-                                        <div className="relative group overflow-hidden rounded-2xl aspect-video bg-slate-900 shadow-xl">
-                                            <img src={filePreview} className="w-full h-full object-contain opacity-80" alt="Preview" />
-                                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <span className="text-white font-black text-[10px] uppercase tracking-widest">Change Image</span>
-                                            </div>
-                                            <div className="absolute top-2 left-2 px-2 py-0.5 bg-cyan-500 text-slate-950 text-[7px] font-black rounded uppercase">LAB_READY</div>
-                                        </div>
-                                    ) : (
-                                        <div className="py-8 flex flex-col items-center justify-center gap-2">
-                                            <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center text-slate-400">
-                                              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                                            </div>
-                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Drop Image Data Here</span>
-                                        </div>
-                                    )}
-                                </label>
+                        {writeMode === 'stream' ? (
+                            <div className="space-y-4">
+                               <div className="space-y-1">
+                                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Platform Selection</label>
+                                   <div className="flex gap-2">
+                                       {['CHZZK', 'SOOP', 'YOUTUBE'].map(p => (
+                                           <button key={p} type="button" onClick={() => setStreamPlatform(p as any)} className={`flex-1 py-3 text-[10px] font-black rounded-xl border transition-all ${streamPlatform === p ? 'bg-slate-900 text-white border-slate-900 shadow-lg' : 'bg-white text-slate-400 border-slate-100'}`}>{p}</button>
+                                       ))}
+                                   </div>
+                               </div>
+                               <div className="space-y-1">
+                                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Broadcasting URL</label>
+                                   <input type="text" value={streamUrl} onChange={e => setStreamUrl(e.target.value)} placeholder="https://..." className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl text-xs font-bold outline-none" />
+                               </div>
+                               <div className="space-y-1">
+                                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Promotion/PR URL (Optional)</label>
+                                   <input type="text" value={streamPrUrl} onChange={e => setStreamPrUrl(e.target.value)} placeholder="공지/커뮤니티 링크" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl text-xs font-bold outline-none" />
+                               </div>
+                               <div className="space-y-1">
+                                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Description</label>
+                                   <textarea value={streamDescription} onChange={e => setStreamDescription(e.target.value)} placeholder="방송 컨셉 및 시간 안내" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl text-xs font-medium h-24 resize-none outline-none" />
+                               </div>
+                               <div className="space-y-1">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Thumbnail Upload (Max 512KB)</label>
+                                    <div className="p-2 bg-slate-50 border-2 border-dashed border-slate-200 rounded-3xl text-center relative">
+                                        <input type="file" id="streamFile" onChange={handleFileChange} accept="image/*" className="hidden" />
+                                        <label htmlFor="streamFile" className="cursor-pointer block py-6">
+                                            {filePreview ? <img src={filePreview} className="max-h-32 mx-auto rounded-xl shadow-md" /> : <span className="text-[10px] font-black text-slate-300">Click to Select Terminal Image</span>}
+                                        </label>
+                                    </div>
+                               </div>
                             </div>
-                          </div>
+                        ) : (
+                            <>
+                                {writeMode !== 'balance' && ( 
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Visual Data Upload (Max 512KB)</label>
+                                    <div className={`relative p-2 bg-slate-50 border-2 border-dashed rounded-3xl text-center transition-all ${filePreview ? 'border-cyan-500 bg-cyan-50/20' : 'border-slate-200'}`}>
+                                        <input type="file" id="fileInput" onChange={handleFileChange} accept=".jpg,.jpeg,.png,.webp,.gif" className="hidden" />
+                                        <label htmlFor="fileInput" className="cursor-pointer block">
+                                            {filePreview ? (
+                                                <div className="relative group overflow-hidden rounded-2xl aspect-video bg-slate-900 shadow-xl">
+                                                    <img src={filePreview} className="w-full h-full object-contain opacity-80" alt="Preview" />
+                                                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <span className="text-white font-black text-[10px] uppercase tracking-widest">Change Image</span>
+                                                    </div>
+                                                    <div className="absolute top-2 left-2 px-2 py-0.5 bg-cyan-500 text-slate-950 text-[7px] font-black rounded uppercase">LAB_READY</div>
+                                                </div>
+                                            ) : (
+                                                <div className="py-8 flex flex-col items-center justify-center gap-2">
+                                                    <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center text-slate-400">
+                                                      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                                    </div>
+                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Drop Image Data Here</span>
+                                                </div>
+                                            )}
+                                        </label>
+                                    </div>
+                                  </div>
+                                )}
+                                {writeMode === 'balance' ? ( 
+                                  <div className="space-y-4">
+                                    <div className="space-y-1"><label className="text-[10px] font-black text-blue-500 uppercase ml-2">Team Blue Option</label><input type="text" value={blueOption} onChange={(e) => setBlueOption(e.target.value)} placeholder="파란색 팀 선택지" className="w-full p-4 bg-blue-50 border-2 border-blue-100 rounded-2xl text-sm font-black focus:border-blue-500 outline-none" /></div>
+                                    <div className="text-center font-black italic text-slate-300 text-xs">VS</div>
+                                    <div className="space-y-1"><label className="text-[10px] font-black text-red-500 uppercase ml-2">Team Red Option</label><input type="text" value={redOption} onChange={(e) => setRedOption(e.target.value)} placeholder="빨간색 팀 선택지" className="w-full p-4 bg-red-50 border-2 border-red-100 rounded-2xl text-sm font-black focus:border-red-500 outline-none" /></div>
+                                  </div>
+                                ) : ( 
+                                  <div className="space-y-1"><label className="text-[10px] font-black text-slate-400 uppercase ml-2">Subject Title</label><input type="text" value={writeTitle} onChange={(e) => setWriteTitle(e.target.value)} placeholder="데이터 제목 (필수)" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-black outline-none focus:bg-white" /></div>
+                                )}
+                                <div className="space-y-1"><label className="text-[10px] font-black text-slate-400 uppercase ml-2">Detailed Report</label><textarea value={writeContent} onChange={(e) => setWriteContent(e.target.value)} placeholder="내용을 입력하세요 (Markdown 지원)" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-medium h-40 resize-none outline-none focus:bg-white transition-all"></textarea></div>
+                            </>
                         )}
-                        {writeMode === 'balance' ? ( 
-                          <div className="space-y-4">
-                            <div className="space-y-1"><label className="text-[10px] font-black text-blue-500 uppercase ml-2">Team Blue Option</label><input type="text" value={blueOption} onChange={(e) => setBlueOption(e.target.value)} placeholder="파란색 팀 선택지" className="w-full p-4 bg-blue-50 border-2 border-blue-100 rounded-2xl text-sm font-black focus:border-blue-500 outline-none" /></div>
-                            <div className="text-center font-black italic text-slate-300 text-xs">VS</div>
-                            <div className="space-y-1"><label className="text-[10px] font-black text-red-500 uppercase ml-2">Team Red Option</label><input type="text" value={redOption} onChange={(e) => setRedOption(e.target.value)} placeholder="빨간색 팀 선택지" className="w-full p-4 bg-red-50 border-2 border-red-100 rounded-2xl text-sm font-black focus:border-red-500 outline-none" /></div>
-                          </div>
-                        ) : ( 
-                          <div className="space-y-1"><label className="text-[10px] font-black text-slate-400 uppercase ml-2">Title</label><input type="text" value={writeTitle} onChange={(e) => setWriteTitle(e.target.value)} placeholder="제목 (필수)" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-black outline-none focus:bg-white" /></div>
-                        )}
-                        <div className="space-y-1"><label className="text-[10px] font-black text-slate-400 uppercase ml-2">Content</label><textarea value={writeContent} onChange={(e) => setWriteContent(e.target.value)} placeholder="내용을 입력하세요 (Markdown 지원)" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-medium h-40 resize-none outline-none focus:bg-white transition-all"></textarea></div>
 
                         <div className="flex gap-2 pt-4">
                             <button type="button" onClick={resetWriteForm} className="flex-1 py-4 bg-slate-100 text-slate-500 font-black text-[10px] rounded-2xl">취소</button>
                             <button type="submit" disabled={isSubmitting || uploadProgress} className="flex-[1.5] py-4 bg-slate-900 text-white font-black text-[10px] rounded-2xl shadow-xl active:scale-95 disabled:opacity-50">
-                                {uploadProgress ? '전송 중...' : isSubmitting ? '처리 중...' : '등록하기'}
+                                {uploadProgress ? '데이터 전송 중...' : isSubmitting ? '처리 중...' : '데이터 등록하기'}
                             </button>
                         </div>
                     </form>

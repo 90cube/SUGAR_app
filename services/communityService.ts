@@ -1,6 +1,7 @@
 
 import { CommunityPost, BoardType, CommunityUserProfile, CommunityComment, StreamingRequest } from '../types';
 import { supabase } from './supabaseClient';
+import { STREAMING_BUCKET } from '../constants';
 
 class CommunityService {
   
@@ -124,44 +125,48 @@ class CommunityService {
 
   async uploadKukkukImage(file: File): Promise<{ imageUrl: string, thumbnailUrl: string } | null> {
     if (!supabase) return null;
-    if (file.size > 500 * 1024) throw new Error("이미지 용량은 500KB 이하만 업로드할 수 있습니다.");
+    const MAX_SIZE = 512 * 1024; // 512KB 제한
+    if (file.size > MAX_SIZE) throw new Error("이미지 용량은 512KB 이하만 업로드할 수 있습니다.");
+    
     const userId = (await supabase.auth.getUser()).data.user?.id;
     if (!userId) return null;
 
     const fileId = crypto.randomUUID();
-    const originalPath = `original/${userId}/${fileId}.webp`;
-    const thumbPath = `thumb/${userId}/${fileId}_thumb.webp`;
+    const originalPath = `community/original/${userId}/${fileId}.webp`;
+    const thumbPath = `community/thumb/${userId}/${fileId}_thumb.webp`;
 
     const webpBlob = await this.convertToWebP(file);
-    const thumbBlob = await this.convertToWebP(file, 320, 180);
+    const thumbBlob = await this.convertToWebP(file, 400, 400); // 리스트용 1:1 썸네일
 
-    const { error: upErr } = await supabase.storage.from('kukkuk-images').upload(originalPath, webpBlob, { contentType: 'image/webp' });
+    const { error: upErr } = await supabase.storage.from(STREAMING_BUCKET).upload(originalPath, webpBlob, { contentType: 'image/webp' });
     if (upErr) throw upErr;
 
-    const { error: thumbErr } = await supabase.storage.from('kukkuk-images').upload(thumbPath, thumbBlob, { contentType: 'image/webp' });
+    const { error: thumbErr } = await supabase.storage.from(STREAMING_BUCKET).upload(thumbPath, thumbBlob, { contentType: 'image/webp' });
     if (thumbErr) throw thumbErr;
 
-    const imageUrl = supabase.storage.from('kukkuk-images').getPublicUrl(originalPath).data.publicUrl;
-    const thumbnailUrl = supabase.storage.from('kukkuk-images').getPublicUrl(thumbPath).data.publicUrl;
+    const imageUrl = supabase.storage.from(STREAMING_BUCKET).getPublicUrl(originalPath).data.publicUrl;
+    const thumbnailUrl = supabase.storage.from(STREAMING_BUCKET).getPublicUrl(thumbPath).data.publicUrl;
 
     return { imageUrl, thumbnailUrl };
   }
 
   async uploadLabUpdateImage(file: File): Promise<{ imageUrl: string, thumbnailUrl: string } | null> {
     if (!supabase) return null;
-    if (file.size > 500 * 1024) throw new Error("이미지 용량은 500KB 이하만 업로드할 수 있습니다.");
+    const MAX_SIZE = 512 * 1024; // 512KB 제한
+    if (file.size > MAX_SIZE) throw new Error("이미지 용량은 512KB 이하만 업로드할 수 있습니다.");
+    
     const userId = (await supabase.auth.getUser()).data.user?.id;
     if (!userId) return null;
 
     const fileId = crypto.randomUUID();
-    const path = `${userId}/${fileId}.webp`;
+    const path = `updates/${userId}/${fileId}.webp`;
 
     const webpBlob = await this.convertToWebP(file);
 
-    const { error } = await supabase.storage.from('streaming-thumbnails').upload(path, webpBlob, { contentType: 'image/webp' });
+    const { error } = await supabase.storage.from(STREAMING_BUCKET).upload(path, webpBlob, { contentType: 'image/webp' });
     if (error) throw error;
 
-    const publicUrl = supabase.storage.from('streaming-thumbnails').getPublicUrl(path).data.publicUrl;
+    const publicUrl = supabase.storage.from(STREAMING_BUCKET).getPublicUrl(path).data.publicUrl;
     return { imageUrl: publicUrl, thumbnailUrl: publicUrl };
   }
 
@@ -326,32 +331,19 @@ class CommunityService {
     let postCount = 0;
     let commentCount = 0;
 
-    if (authorId) {
-        // SQL 트리거에 의해 관리되는 profiles.post_count 컬럼을 직접 읽음
-        const { data: prof } = await supabase
-          .from('profiles')
-          .select('created_at, post_count, comment_count')
-          .eq('id', authorId)
-          .maybeSingle();
-        
-        if (prof) {
-            joinDate = prof.created_at ? prof.created_at.split('T')[0] : '-';
-            postCount = prof.post_count || 0;
-            commentCount = prof.comment_count || 0;
-        }
-    } else {
-        // Fallback: 닉네임으로 조회하는 경우 (성능상 트리거된 컬럼 활용 권장)
-        const { data: prof } = await supabase
-          .from('profiles')
-          .select('created_at, post_count, comment_count')
-          .eq('nickname', nickname)
-          .maybeSingle();
-        
-        if (prof) {
-            joinDate = prof.created_at ? prof.created_at.split('T')[0] : '-';
-            postCount = prof.post_count || 0;
-            commentCount = prof.comment_count || 0;
-        }
+    const queryId = authorId ? { id: authorId } : { nickname };
+
+    // profiles 테이블의 정적 컬럼(SQL 트리거 관리)을 직접 참조합니다.
+    const { data: prof } = await supabase
+      .from('profiles')
+      .select('created_at, post_count, comment_count')
+      .match(queryId)
+      .maybeSingle();
+    
+    if (prof) {
+        joinDate = prof.created_at ? prof.created_at.split('T')[0] : '-';
+        postCount = prof.post_count || 0;
+        commentCount = prof.comment_count || 0;
     }
 
     return { nickname, joinDate, postCount, commentCount, guillotineCount: 0 };

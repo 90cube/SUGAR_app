@@ -21,8 +21,6 @@ export const GOOGLE_CLIENT_ID = "770615003528-nbag5q4n1d8vcpnsjkuqqa0t57csbjm3.a
 
 /**
  * [중요] 관리자 권한 설정
- * 여기에 본인이 사용할 이메일 주소를 입력하세요.
- * 구글 로그인 또는 일반 회원가입 시 이 목록에 있는 이메일은 'admin' 권한을 갖게 됩니다.
  */
 export const ADMIN_EMAILS = [
     "admin@sugar.com",
@@ -33,6 +31,9 @@ export const ADMIN_EMAILS = [
 // Supabase Config
 export const SUPABASE_URL = "https://uwjjnncbpyhwslnipons.supabase.co"; 
 export const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV3ampubmNicHlod3Nsbmlwb25zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY1Mjc2MjUsImV4cCI6MjA4MjEwMzYyNX0.CGahTXEhj1kPCnU389xrquf_TMd7q1XLvnNmAEqxGqc";
+
+// Storage Config
+export const STREAMING_BUCKET = "streaming-thumbnails";
 
 export const UI_STRINGS = {
   loading: "실험 데이터 로딩 중...",

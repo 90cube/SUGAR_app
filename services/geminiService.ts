@@ -93,15 +93,13 @@ export class GeminiService {
       const prompt = `
         ${masterPrompt}
 
-        **Strict Output Rules**:
-        1. Title Format: Always start with [YY.MM.DD] based on the notice date.
-        2. Content Formatting: 
-           - Use standard Markdown only. 
-           - For lists of items, rewards, or specs, YOU MUST USE REAL MARKDOWN TABLES (e.g., | Header | Header | \n |---|---| \n | Cell | Cell |).
-           - DO NOT use double backslashes for newlines. Use actual single newline characters.
-           - Ensure each section header (e.g., ### 1. 점검 정보) is followed by an actual newline.
+        **Strict Protocol**:
+        - Use Standard Markdown Tables for all structured info (schedules, rewards, item specs).
+        - DO NOT escape newlines with double backslashes in the final text. Use single real newline characters.
+        - Ensure table syntax (| Header |) is correct and separated from surrounding text by actual newlines.
+        - Title must include the date as [YY.MM.DD].
 
-        [Target Raw Data to Summarize]
+        [Source Text]
         ${rawText}
       `;
 
@@ -114,14 +112,8 @@ export class GeminiService {
                 responseSchema: {
                   type: Type.OBJECT,
                   properties: {
-                    title: {
-                      type: Type.STRING,
-                      description: 'Date-prefixed summary title.',
-                    },
-                    content: {
-                      type: Type.STRING,
-                      description: 'Summary body in clean Markdown. Must include Tables.',
-                    },
+                    title: { type: Type.STRING },
+                    content: { type: Type.STRING },
                   },
                   required: ["title", "content"],
                 }
@@ -131,19 +123,22 @@ export class GeminiService {
           let jsonStr = response.text || "{}";
           const parsed = JSON.parse(jsonStr);
 
-          // Sanitization: Fix double-escaped newlines that Gemini often sends in JSON strings
+          // Advanced Sanitization: Fixes common JSON escaping issues from Gemini
           if (parsed.content) {
             parsed.content = parsed.content
               .replace(/\\n/g, '\n') // Replace literal \n string with actual newline
-              .replace(/\n{3,}/g, '\n\n'); // Normalize excessive newlines
+              .replace(/\\\n/g, '\n') // Handle potentially triple-escaped
+              .replace(/\r\n/g, '\n')
+              .replace(/\n{3,}/g, '\n\n') // Normalize excessive newlines
+              .trim();
           }
 
           return parsed;
       } catch (e) {
           console.error("Update Summary Error", e);
           return {
-              title: "업데이트 요약 실패",
-              content: "AI가 데이터를 분석하는 데 실패했습니다. 원문을 직접 확인하시거나 다시 시도해주세요."
+              title: "데이터 요약 실패",
+              content: "연구소 AI가 마스터 프롬프트 프로토콜에 따라 데이터를 정제하는 데 실패했습니다. 원문을 직접 확인하시거나 다시 시도해주십시오."
           };
       }
   }
@@ -154,12 +149,6 @@ export class GeminiService {
       사용자가 신청한 스트리밍 홍보 게시 요청을 반려해야 합니다.
       관리자가 작성한 투박한 반려 사유를 정중하고 격식 있는 '연구소 프로토콜' 말투로 다듬어주세요.
       
-      [조건]
-      1. '반려 사유: ' 로 시작하지 말고 바로 본론을 말하세요.
-      2. 연구소, 데이터, 적합성, 가이드라인 등의 단어를 적절히 섞으세요.
-      3. 정중하지만 단호한 어조를 유지하세요.
-      4. 200자 이내로 작성하세요.
-
       [관리자의 원문 사유]
       "${rawReason}"
     `;
