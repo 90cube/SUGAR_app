@@ -322,34 +322,36 @@ class CommunityService {
   async getCommunityUserProfile(nickname: string, authorId?: string): Promise<CommunityUserProfile> {
     if (!supabase) return { nickname, joinDate: '-', postCount: 0, commentCount: 0, guillotineCount: 0 };
     
-    let joinDate = '2024-01-01';
+    let joinDate = '-';
     let postCount = 0;
     let commentCount = 0;
 
     if (authorId) {
-        // 1. Get real join date from profile
-        const { data: prof } = await supabase.from('profiles').select('created_at').eq('id', authorId).maybeSingle();
-        if (prof?.created_at) joinDate = prof.created_at.split('T')[0];
-
-        // 2. Count real posts from posts table (not relying on profile sync)
-        const { count: pCount } = await supabase
-            .from('posts')
-            .select('*', { count: 'exact', head: true })
-            .eq('author_id', authorId)
-            .neq('status', 'DELETED');
-        if (pCount !== null) postCount = pCount;
-
-        // 3. Count real comments from comments table
-        const { count: cCount } = await supabase
-            .from('comments')
-            .select('*', { count: 'exact', head: true })
-            .eq('author_id', authorId)
-            .eq('is_deleted', false);
-        if (cCount !== null) commentCount = cCount;
+        // SQL 트리거에 의해 관리되는 profiles.post_count 컬럼을 직접 읽음
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('created_at, post_count, comment_count')
+          .eq('id', authorId)
+          .maybeSingle();
+        
+        if (prof) {
+            joinDate = prof.created_at ? prof.created_at.split('T')[0] : '-';
+            postCount = prof.post_count || 0;
+            commentCount = prof.comment_count || 0;
+        }
     } else {
-        // Fallback to nickname query if ID is not provided
-        const { count: pCount } = await supabase.from('posts').select('*', { count: 'exact', head: true }).eq('author_nickname', nickname).neq('status', 'DELETED');
-        if (pCount !== null) postCount = pCount;
+        // Fallback: 닉네임으로 조회하는 경우 (성능상 트리거된 컬럼 활용 권장)
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('created_at, post_count, comment_count')
+          .eq('nickname', nickname)
+          .maybeSingle();
+        
+        if (prof) {
+            joinDate = prof.created_at ? prof.created_at.split('T')[0] : '-';
+            postCount = prof.post_count || 0;
+            commentCount = prof.comment_count || 0;
+        }
     }
 
     return { nickname, joinDate, postCount, commentCount, guillotineCount: 0 };
