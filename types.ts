@@ -165,6 +165,7 @@ export interface CommunityComment {
   content: string;
   createdAt: string;
   teamType: 'BLUE' | 'RED' | 'GRAY';
+  isDeleted?: boolean;
 }
 
 export interface CommunityUserProfile {

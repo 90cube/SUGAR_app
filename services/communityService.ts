@@ -247,6 +247,53 @@ class CommunityService {
     };
   }
 
+  async softDeleteComment(commentId: string): Promise<boolean> {
+    if (!supabase) return false;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return false;
+
+    // 댓글 정보 조회
+    const { data: comment, error: fetchError } = await supabase
+      .from('comments')
+      .select('author_id, author_nickname')
+      .eq('id', commentId)
+      .single();
+
+    if (fetchError || !comment) {
+      console.error("댓글 조회 실패", fetchError);
+      return false;
+    }
+
+    const isAdmin = await this.checkIsAdmin(user.id);
+    let deleteMessage = "";
+
+    if (isAdmin && user.id !== comment.author_id) {
+      deleteMessage = "관리자에 의한 댓글 삭제";
+    } else if (user.id === comment.author_id) {
+      deleteMessage = `${comment.author_nickname} : 자진 삭제.`;
+    } else {
+      alert("삭제 권한이 없습니다.");
+      return false;
+    }
+
+    const { error: updateError } = await supabase
+      .from('comments')
+      .update({
+        is_deleted: true,
+        deleted_by: user.id,
+        deleted_at: new Date().toISOString(),
+        content: deleteMessage
+      })
+      .eq('id', commentId);
+
+    if (updateError) {
+      alert(`댓글 삭제 처리 중 오류 발생: ${updateError.message}`);
+      return false;
+    }
+
+    return true;
+  }
+
   async getComments(postId: string): Promise<CommunityComment[]> {
     if (!supabase) return [];
     try {
@@ -265,7 +312,8 @@ class CommunityService {
         authorNickname: c.author_nickname,
         content: c.content, 
         createdAt: c.created_at, 
-        teamType: (c.team_type as any) || 'GRAY'
+        teamType: (c.team_type as any) || 'GRAY',
+        isDeleted: c.is_deleted
       }));
     } catch { return []; }
   }

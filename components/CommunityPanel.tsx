@@ -151,6 +151,16 @@ export const CommunityPanel: React.FC = () => {
     setIsSubmitting(false);
   };
 
+  const handleCommentDelete = async (commentId: string) => {
+    if (!window.confirm("댓글을 삭제하시겠습니까?")) return;
+    const success = await communityService.softDeleteComment(commentId);
+    if (success) {
+      if (selectedPost) {
+        communityService.getComments(selectedPost.id).then(setComments);
+      }
+    }
+  };
+
   const submitPost = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
@@ -423,18 +433,35 @@ export const CommunityPanel: React.FC = () => {
                             </form>
 
                             <div className="space-y-4 pt-4">
-                                {comments.map(comment => (
-                                    <div key={comment.id} className={`p-4 bg-white border-2 rounded-2xl transition-colors ${comment.teamType === 'BLUE' ? 'border-blue-100 bg-blue-50/10' : comment.teamType === 'RED' ? 'border-red-100 bg-red-50/10' : 'border-slate-50'}`}>
+                                {comments.map(comment => {
+                                  const isCommentOwner = authUser?.id === comment.authorId;
+                                  const canDeleteComment = isAdmin || isCommentOwner;
+                                  
+                                  return (
+                                    <div key={comment.id} className={`p-4 bg-white border-2 rounded-2xl transition-colors ${comment.isDeleted ? 'border-slate-100 bg-slate-50/50' : comment.teamType === 'BLUE' ? 'border-blue-100 bg-blue-50/10' : comment.teamType === 'RED' ? 'border-red-100 bg-red-50/10' : 'border-slate-50'}`}>
                                         <div className="flex justify-between items-center mb-2">
                                             <div className="flex items-center gap-2">
-                                                <span className={`px-2 py-0.5 text-[8px] font-black rounded text-white ${comment.teamType === 'BLUE' ? 'bg-blue-600' : comment.teamType === 'RED' ? 'bg-red-600' : 'bg-slate-400'}`}>{comment.teamType}</span>
-                                                <span className="text-[10px] font-black text-slate-900">{comment.authorNickname}</span>
+                                                <span className={`px-2 py-0.5 text-[8px] font-black rounded text-white ${comment.isDeleted ? 'bg-slate-300' : comment.teamType === 'BLUE' ? 'bg-blue-600' : comment.teamType === 'RED' ? 'bg-red-600' : 'bg-slate-400'}`}>{comment.isDeleted ? 'DELETED' : comment.teamType}</span>
+                                                <span className={`text-[10px] font-black ${comment.isDeleted ? 'text-slate-400' : 'text-slate-900'}`}>{comment.authorNickname}</span>
                                             </div>
-                                            <span className="text-[8px] font-bold text-slate-300">{comment.createdAt.split('T')[0]}</span>
+                                            <div className="flex items-center gap-3">
+                                                <span className="text-[8px] font-bold text-slate-300">{comment.createdAt.split('T')[0]}</span>
+                                                {!comment.isDeleted && canDeleteComment && (
+                                                  <button 
+                                                    onClick={() => handleCommentDelete(comment.id)}
+                                                    className="text-[10px] font-black text-red-400 hover:text-red-600 transition-colors"
+                                                  >
+                                                    삭제
+                                                  </button>
+                                                )}
+                                            </div>
                                         </div>
-                                        <p className="text-sm text-slate-600 leading-relaxed font-medium">{comment.content}</p>
+                                        <p className={`text-sm leading-relaxed font-medium ${comment.isDeleted ? 'text-slate-400 italic' : 'text-slate-600'}`}>
+                                          {comment.content}
+                                        </p>
                                     </div>
-                                ))}
+                                  );
+                                })}
                             </div>
                         </div>
                     </div>
