@@ -57,7 +57,7 @@ export const CommunityPanel: React.FC = () => {
   // AI Parser
   const [rawUpdateText, setRawUpdateText] = useState('');
   const [isSummarizing, setIsSummarizing] = useState(false);
-  const [masterPrompt, setMasterPrompt] = useState('당신은 서든어택 업데이트 전문 요약가입니다. 가독성을 극대화하기 위해 Markdown 표(Table)를 사용하세요.');
+  const [masterPrompt, setMasterPrompt] = useState('당신은 서든어택 업데이트 전문 요약가입니다. 공지의 모든 핵심 내용을 정리하되, 아이템 정보나 보상 목록은 반드시 Markdown 표(Table)를 사용하여 가독성을 극대화하세요. 표의 구분선(|---|)을 누락하지 마세요.');
   const [isPromptEditorOpen, setIsPromptEditorOpen] = useState(false);
 
   // Comment

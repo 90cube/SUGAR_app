@@ -93,11 +93,15 @@ export class GeminiService {
       const prompt = `
         ${masterPrompt}
 
-        **출력 가이드**:
-        1. 제목은 반드시 공지에서 날짜를 찾아 "[YY.MM.DD] 패치 핵심 요약" 형식으로 작성하세요. 
-        2. 본문은 Markdown 문법을 사용하되, 표(Table)를 사용하여 수치와 목록을 일목요연하게 정리하세요.
+        **Strict Output Rules**:
+        1. Title Format: Always start with [YY.MM.DD] based on the notice date.
+        2. Content Formatting: 
+           - Use standard Markdown only. 
+           - For lists of items, rewards, or specs, YOU MUST USE REAL MARKDOWN TABLES (e.g., | Header | Header | \n |---|---| \n | Cell | Cell |).
+           - DO NOT use double backslashes for newlines. Use actual single newline characters.
+           - Ensure each section header (e.g., ### 1. 점검 정보) is followed by an actual newline.
 
-        [원문 데이터]
+        [Target Raw Data to Summarize]
         ${rawText}
       `;
 
@@ -112,21 +116,29 @@ export class GeminiService {
                   properties: {
                     title: {
                       type: Type.STRING,
-                      description: '공지 날짜가 포함된 핵심 요약 제목 (예: [24.05.23] 신규 캐릭터 및 시스템 개편)',
+                      description: 'Date-prefixed summary title.',
                     },
                     content: {
                       type: Type.STRING,
-                      description: 'Markdown 형식의 요약 본문 (표/Table 필수 사용)',
+                      description: 'Summary body in clean Markdown. Must include Tables.',
                     },
                   },
                   required: ["title", "content"],
-                  propertyOrdering: ["title", "content"],
                 }
               }
           });
           
           let jsonStr = response.text || "{}";
-          return JSON.parse(jsonStr);
+          const parsed = JSON.parse(jsonStr);
+
+          // Sanitization: Fix double-escaped newlines that Gemini often sends in JSON strings
+          if (parsed.content) {
+            parsed.content = parsed.content
+              .replace(/\\n/g, '\n') // Replace literal \n string with actual newline
+              .replace(/\n{3,}/g, '\n\n'); // Normalize excessive newlines
+          }
+
+          return parsed;
       } catch (e) {
           console.error("Update Summary Error", e);
           return {
