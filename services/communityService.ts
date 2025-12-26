@@ -125,8 +125,7 @@ class CommunityService {
 
   async uploadKukkukImage(file: File): Promise<{ imageUrl: string, thumbnailUrl: string } | null> {
     if (!supabase) return null;
-    const MAX_SIZE = 512 * 1024; // 512KB 제한
-    if (file.size > MAX_SIZE) throw new Error("이미지 용량은 512KB 이하만 업로드할 수 있습니다.");
+    if (file.size > 512 * 1024) throw new Error("이미지 용량은 512KB 이하만 업로드할 수 있습니다.");
     
     const userId = (await supabase.auth.getUser()).data.user?.id;
     if (!userId) return null;
@@ -136,7 +135,7 @@ class CommunityService {
     const thumbPath = `community/thumb/${userId}/${fileId}_thumb.webp`;
 
     const webpBlob = await this.convertToWebP(file);
-    const thumbBlob = await this.convertToWebP(file, 400, 400); // 리스트용 1:1 썸네일
+    const thumbBlob = await this.convertToWebP(file, 400, 400); // 1:1 ratio
 
     const { error: upErr } = await supabase.storage.from(STREAMING_BUCKET).upload(originalPath, webpBlob, { contentType: 'image/webp' });
     if (upErr) throw upErr;
@@ -152,8 +151,7 @@ class CommunityService {
 
   async uploadLabUpdateImage(file: File): Promise<{ imageUrl: string, thumbnailUrl: string } | null> {
     if (!supabase) return null;
-    const MAX_SIZE = 512 * 1024; // 512KB 제한
-    if (file.size > MAX_SIZE) throw new Error("이미지 용량은 512KB 이하만 업로드할 수 있습니다.");
+    if (file.size > 512 * 1024) throw new Error("이미지 용량은 512KB 이하만 업로드할 수 있습니다.");
     
     const userId = (await supabase.auth.getUser()).data.user?.id;
     if (!userId) return null;
@@ -333,17 +331,34 @@ class CommunityService {
 
     const queryId = authorId ? { id: authorId } : { nickname };
 
-    // profiles 테이블의 정적 컬럼(SQL 트리거 관리)을 직접 참조합니다.
+    // 1. profiles 기본 정보
     const { data: prof } = await supabase
       .from('profiles')
-      .select('created_at, post_count, comment_count')
+      .select('created_at, id')
       .match(queryId)
       .maybeSingle();
     
     if (prof) {
         joinDate = prof.created_at ? prof.created_at.split('T')[0] : '-';
-        postCount = prof.post_count || 0;
-        commentCount = prof.comment_count || 0;
+        const targetOuid = prof.id;
+
+        // 2. 실시간 post_count 계산 (당분간 profiles 컬럼 불신)
+        const { count: pCount } = await supabase
+            .from('posts')
+            .select('*', { count: 'exact', head: true })
+            .eq('author_id', targetOuid)
+            .neq('status', 'DELETED');
+        
+        postCount = pCount || 0;
+
+        // 3. 실시간 comment_count 계산
+        const { count: cCount } = await supabase
+            .from('comments')
+            .select('*', { count: 'exact', head: true })
+            .eq('author_id', targetOuid)
+            .eq('is_deleted', false);
+        
+        commentCount = cCount || 0;
     }
 
     return { nickname, joinDate, postCount, commentCount, guillotineCount: 0 };

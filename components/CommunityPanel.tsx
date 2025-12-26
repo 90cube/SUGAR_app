@@ -220,7 +220,7 @@ export const CommunityPanel: React.FC = () => {
         setIsSubmitting(true);
         setUploadProgress(true);
         try {
-            const urls = await communityService.uploadKukkukImage(selectedFile); // 동일한 업로드 로직 사용
+            const urls = await communityService.uploadKukkukImage(selectedFile); 
             if (urls) {
                 const success = await communityService.createStreamingRequest({
                     platform: streamPlatform,
@@ -380,15 +380,6 @@ export const CommunityPanel: React.FC = () => {
                        </div>
                      </div>
                      
-                     {/* Streaming Sub-Tabs */}
-                     {activeTab === 'stream' && (
-                         <div className="flex gap-2 p-1 bg-white/50 backdrop-blur-md rounded-2xl border border-slate-200">
-                            <button onClick={() => setStreamSubTab('LIST')} className={`flex-1 py-2 text-[9px] font-black rounded-xl transition-all ${streamSubTab === 'LIST' ? 'bg-slate-900 text-white' : 'text-slate-400'}`}>목록</button>
-                            <button onClick={() => setStreamSubTab('MY_REQUESTS')} className={`flex-1 py-2 text-[9px] font-black rounded-xl transition-all ${streamSubTab === 'MY_REQUESTS' ? 'bg-slate-900 text-white' : 'text-slate-400'}`}>신청 현황</button>
-                            {isAdmin && <button onClick={() => setStreamSubTab('ADMIN_PENDING')} className={`flex-1 py-2 text-[9px] font-black rounded-xl transition-all ${streamSubTab === 'ADMIN_PENDING' ? 'bg-slate-900 text-white' : 'text-slate-400'}`}>심사 센터</button>}
-                         </div>
-                     )}
-
                      <div className="space-y-4 min-h-[400px]">
                         {isLoading ? <div className="flex justify-center py-20"><div className="w-8 h-8 border-3 border-slate-300 border-t-slate-900 rounded-full animate-spin"></div></div> : (
                             activeTab === 'stream' && streamSubTab === 'ADMIN_PENDING' ? (
@@ -453,7 +444,7 @@ export const CommunityPanel: React.FC = () => {
                                                     <div className="w-full h-full flex items-center justify-center text-[8px] font-black text-slate-300 uppercase italic">No_Img</div>
                                                   )}
                                                 </div>
-                                                {/* 우측: 닉네임, 시간, 추천수(Heads)만 표시 */}
+                                                {/* 우측: 닉네임, 시간, 추천수(Heads)만 표시, 비추천수 제거 */}
                                                 <div className="flex-1 p-5 flex flex-col justify-between min-w-0">
                                                     <h4 className="font-black text-slate-800 text-base line-clamp-1 group-hover:text-blue-600 transition-colors">{post.title}</h4>
                                                     <div className="flex items-center justify-between text-[10px] font-black">
@@ -468,24 +459,6 @@ export const CommunityPanel: React.FC = () => {
                                                        </div>
                                                     </div>
                                                 </div>
-                                            </div>
-                                        ) : post.boardType === 'stream' ? (
-                                            <div className="p-6 flex items-center gap-5">
-                                               <div className="w-20 h-20 rounded-2xl overflow-hidden bg-slate-100 border-2 border-white shadow-md flex-shrink-0">
-                                                   <img src={post.thumbnailUrl} className="w-full h-full object-cover" />
-                                               </div>
-                                               <div className="flex-1 min-w-0">
-                                                   <div className="flex items-center gap-2 mb-1">
-                                                       <span className={`px-2 py-0.5 rounded-lg text-[7px] font-black text-white ${post.platform === 'CHZZK' ? 'bg-emerald-500' : post.platform === 'SOOP' ? 'bg-blue-500' : 'bg-red-500'}`}>{post.platform}</span>
-                                                       <span className="text-[9px] font-bold text-slate-400">Live_Broadcasting</span>
-                                                   </div>
-                                                   <h4 className="font-black text-slate-800 text-sm line-clamp-1">{post.author} 님의 방송</h4>
-                                                   <p className="text-[11px] text-slate-500 font-medium line-clamp-1 mt-1">{post.content}</p>
-                                               </div>
-                                               <div className="flex flex-col items-center gap-1.5">
-                                                   <div className="text-[10px] font-black text-blue-600">🎯 {post.heads}</div>
-                                                   <div className="w-1 h-4 bg-slate-100 rounded-full"></div>
-                                               </div>
                                             </div>
                                         ) : (
                                             <div className="p-6">
@@ -558,7 +531,6 @@ export const CommunityPanel: React.FC = () => {
                                </div>
                                <h2 className="text-white font-black text-xl mb-4 tracking-tight leading-tight">{selectedPost.author} 님의 방송 데이터</h2>
                                <a href={selectedPost.streamUrl} target="_blank" rel="noopener noreferrer" className="w-full py-4 bg-cyan-500 text-slate-950 rounded-2xl font-black text-[11px] flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/20 active:scale-95 transition-all">방송 보러가기 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg></a>
-                               {selectedPost.prUrl && <a href={selectedPost.prUrl} target="_blank" rel="noopener noreferrer" className="w-full mt-3 py-3 bg-white/5 text-slate-400 rounded-2xl font-black text-[10px] flex items-center justify-center border border-white/5">PR_Terminal_Open</a>}
                             </div>
                         )}
 
