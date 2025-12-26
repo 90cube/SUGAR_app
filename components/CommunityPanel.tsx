@@ -35,7 +35,7 @@ export const CommunityPanel: React.FC = () => {
   // AI Summarizer State
   const [rawUpdateText, setRawUpdateText] = useState('');
   const [isSummarizing, setIsSummarizing] = useState(false);
-  const [masterPrompt, setMasterPrompt] = useState('당신은 서든어택 업데이트 전문 요약가입니다. 공지 원문의 모든 핵심 내용을 하나도 놓치지 마세요. 가독성을 극대화하기 위해 Markdown 문법을 사용하며, 특히 아이템 스펙이나 보상 목록은 반드시 Markdown 표(Table) 기능을 사용하여 일목요연하게 정리하세요. 제목은 유저들의 관심을 끌 수 있도록 20자 이내로 핵심만 짚으세요.');
+  const [masterPrompt, setMasterPrompt] = useState('당신은 서든어택 업데이트 전문 요약가입니다. 공지 원문의 모든 핵심 내용을 하나도 놓치지 마세요. 가독성을 극대화하기 위해 Markdown 문법을 사용하며, 특히 아이템 스펙이나 보상 목록은 반드시 Markdown 표(Table) 기능을 사용하여 일목요연하게 정리하세요. 제목은 공지 날짜를 포함하여 해당 패치의 핵심 항목들을 간결하게 요약하여 작성하세요. (예: [24.05.23] 신규 무기 마이건2 및 맵 개편)');
   const [isPromptEditorOpen, setIsPromptEditorOpen] = useState(false);
 
   // Comment Form
@@ -73,8 +73,8 @@ export const CommunityPanel: React.FC = () => {
     setIsSummarizing(true);
     try {
       const result = await geminiService.summarizeGameUpdate(rawUpdateText, masterPrompt);
-      setWriteTitle(result.title);
-      setWriteContent(result.content);
+      setWriteTitle(result.title); // AI가 생성한 날짜 포함 제목 자동 입력
+      setWriteContent(result.content); // AI가 생성한 Markdown 본문 자동 입력
       alert("AI 전력 분석관이 요약을 완료했습니다.");
     } catch (e) {
       console.error(e);

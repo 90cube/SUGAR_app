@@ -93,6 +93,10 @@ export class GeminiService {
       const prompt = `
         ${masterPrompt}
 
+        **출력 가이드**:
+        1. 제목은 반드시 공지에서 날짜를 찾아 "[YY.MM.DD] 패치 핵심 요약" 형식으로 작성하세요. 
+        2. 본문은 Markdown 문법을 사용하되, 표(Table)를 사용하여 수치와 목록을 일목요연하게 정리하세요.
+
         [원문 데이터]
         ${rawText}
       `;
@@ -108,11 +112,11 @@ export class GeminiService {
                   properties: {
                     title: {
                       type: Type.STRING,
-                      description: '업데이트의 핵심을 담은 제목 (최대 20자)',
+                      description: '공지 날짜가 포함된 핵심 요약 제목 (예: [24.05.23] 신규 캐릭터 및 시스템 개편)',
                     },
                     content: {
                       type: Type.STRING,
-                      description: 'Markdown 형식의 요약 내용. 표(Table)를 적극적으로 사용하여 정보를 정리하세요.',
+                      description: 'Markdown 형식의 요약 본문 (표/Table 필수 사용)',
                     },
                   },
                   required: ["title", "content"],
