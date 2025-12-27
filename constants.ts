@@ -32,9 +32,8 @@ export const ADMIN_EMAILS = [
 export const SUPABASE_URL = "https://uwjjnncbpyhwslnipons.supabase.co"; 
 export const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV3ampubmNicHlod3Nsbmlwb25zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY1Mjc2MjUsImV4cCI6MjA4MjEwMzYyNX0.CGahTXEhj1kPCnU389xrquf_TMd7q1XLvnNmAEqxGqc";
 
-// Storage Bucket Config
-export const STREAMING_BUCKET = "streaming-thumbnails";
-export const COMMUNITY_BUCKET = "kukkuk-images";
+// Storage Bucket Config (Unified)
+export const IMAGE_BUCKET = "images";
 
 export const UI_STRINGS = {
   loading: "실험 데이터 로딩 중...",

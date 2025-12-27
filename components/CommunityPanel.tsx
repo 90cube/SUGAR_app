@@ -236,9 +236,10 @@ export const CommunityPanel: React.FC = () => {
     setIsSummarizing(true);
     setAiSources([]);
     try {
-        const result = await geminiService.summarizeGameUpdate(rawUpdateSource, masterPrompt);
+        // useSearch parameter: true if URL mode, false if TEXT mode
+        const result = await geminiService.summarizeGameUpdate(rawUpdateSource, masterPrompt, summaryInputMode === 'URL');
         setWriteTitle(result.title);
-        // 검색 출처가 있다면 마크다운 하단에 추가
+        
         let finalContent = result.content;
         if (result.sources) {
             setAiSources(result.sources);
@@ -247,8 +248,9 @@ export const CommunityPanel: React.FC = () => {
         }
         setWriteContent(finalContent);
         setRawUpdateSource('');
-    } catch (e) {
-        alert("AI 분석 오류. 환경변수 설정을 확인하세요.");
+    } catch (e: any) {
+        // Error is now handled nicely in service, but we alert for UX
+        alert(`AI 분석 오류: ${e.message || 'Check your API Key settings'}`);
     } finally {
         setIsSummarizing(false);
     }
@@ -290,7 +292,10 @@ export const CommunityPanel: React.FC = () => {
         setIsSubmitting(true);
         setUploadProgress(true);
         try {
-            const urls = await communityService.uploadImage(selectedFile, 'stream'); 
+            // Service handles null file internally (returns null), but for streams we want to enforce it.
+            // However, logic requests unified pattern. 
+            // Here we rely on `uploadImage` handling the file object.
+            const urls = await communityService.uploadImage(selectedFile); 
             if (urls) {
                 await communityService.createStreamingRequest({
                     platform: streamPlatform,
@@ -303,6 +308,8 @@ export const CommunityPanel: React.FC = () => {
                 updateThrottle('POST');
                 resetWriteForm();
                 setStreamSubTab('MY_REQUESTS');
+            } else {
+                alert("이미지 업로드에 실패했습니다.");
             }
         } catch (err: any) { alert(err.message); }
         finally { setUploadProgress(false); setIsSubmitting(false); }
@@ -315,15 +322,22 @@ export const CommunityPanel: React.FC = () => {
     setIsSubmitting(true);
     let imageUrl = ''; let thumbnailUrl = '';
     
-    if (selectedFile) {
-        setUploadProgress(true);
-        try { 
-          const urls = await communityService.uploadImage(selectedFile, writeMode); 
-          if (urls) { imageUrl = urls.imageUrl; thumbnailUrl = urls.thumbnailUrl; } 
-        }
-        catch (err: any) { alert(err.message); setIsSubmitting(false); setUploadProgress(false); return; }
-        setUploadProgress(false);
+    // Unified upload pattern: Pass selectedFile directly. 
+    // Service returns null if no file, preventing Storage calls.
+    setUploadProgress(true);
+    try { 
+        const urls = await communityService.uploadImage(selectedFile); 
+        if (urls) { 
+            imageUrl = urls.imageUrl; 
+            thumbnailUrl = urls.thumbnailUrl; 
+        } 
+    } catch (err: any) { 
+        alert(err.message); 
+        setIsSubmitting(false); 
+        setUploadProgress(false); 
+        return; 
     }
+    setUploadProgress(false);
     
     const postData = { 
       title: writeTitle, content: writeContent, boardType: writeMode, 
@@ -775,7 +789,7 @@ export const CommunityPanel: React.FC = () => {
                                             ) : (
                                                 <div className="py-8 flex flex-col items-center justify-center gap-2">
                                                     <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-400 shadow-inner">
-                                                      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                                      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                                                     </div>
                                                     <span className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em]">Drop_Visual_Data (Optional)</span>
                                                 </div>

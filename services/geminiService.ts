@@ -90,9 +90,11 @@ export class GeminiService {
   }
 
   /**
-   * 공식 공지사항을 요약하고 검색 접지를 활용합니다.
+   * 공식 공지사항을 요약합니다. 
+   * useSearch가 true일 때만 Google Search Grounding을 사용하고, 
+   * false일 경우(텍스트 붙여넣기 등)에는 순수 텍스트 생성 모드로 동작합니다.
    */
-  public async summarizeGameUpdate(source: string, masterPrompt: string): Promise<{ title: string; content: string; sources?: {uri: string, title: string}[] }> {
+  public async summarizeGameUpdate(source: string, masterPrompt: string, useSearch: boolean = false): Promise<{ title: string; content: string; sources?: {uri: string, title: string}[] }> {
       const ai = this.createClient();
       const today = new Date();
       const dateTag = `[${today.getFullYear().toString().slice(2)}.${(today.getMonth() + 1).toString().padStart(2, '0')}.${today.getDate().toString().padStart(2, '0')}]`;
@@ -110,17 +112,18 @@ export class GeminiService {
       `;
 
       try {
+          // 검색 필요 시에만 도구 설정
+          const config = useSearch ? { tools: [{ googleSearch: {} }] } : undefined;
+
           const response = await ai.models.generateContent({
               model: DEFAULT_GEMINI_MODEL,
               contents: prompt,
-              config: {
-                tools: [{ googleSearch: {} }],
-              }
+              config: config
           });
           
           const text = response.text || "";
           
-          // 가이드라인에 따라 groundingChunks에서 URL 추출
+          // groundingChunks에서 URL 추출 (검색 모드일 때만 유효)
           const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
           const sources: {uri: string, title: string}[] = [];
           
@@ -148,7 +151,7 @@ export class GeminiService {
           console.error("Summary Error", e);
           return {
               title: `${dateTag} 시스템 연결 대기 중`,
-              content: `분석 도중 API 인증 오류가 발생했습니다. (Reason: ${e.message})\n도메인 환경변수에 API_KEY가 정상 등록되었는지 확인하십시오.`
+              content: `분석 도중 API 인증 오류가 발생했습니다. (Reason: ${e.message})\n\n[해결 방법]\n도메인 관리자 페이지(Vercel/Netlify 등)의 Environment Variables 설정에 'API_KEY'가 올바르게 등록되었는지 확인하십시오.`
           };
       }
   }

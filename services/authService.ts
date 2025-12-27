@@ -99,7 +99,7 @@ class AuthService {
   }
 
   async logout(): Promise<void> {
-    if (supabase) await supabase.signOut();
+    if (supabase) await supabase.auth.signOut();
   }
 
   async isIdAvailable(loginId: string): Promise<{available: boolean, message: string}> {

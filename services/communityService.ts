@@ -1,7 +1,7 @@
 
 import { CommunityPost, BoardType, CommunityUserProfile, CommunityComment, StreamingRequest } from '../types';
 import { supabase } from './supabaseClient';
-import { STREAMING_BUCKET, COMMUNITY_BUCKET } from '../constants';
+import { IMAGE_BUCKET } from '../constants';
 
 class CommunityService {
   
@@ -99,10 +99,13 @@ class CommunityService {
   }
 
   /**
-   * 목적에 맞는 버킷으로 업로드 (파일 크기 및 타입 검증 포함)
+   * 통합된 이미지 업로드 로직
+   * 1. 파일이 없으면 즉시 null 반환 (Storage 호출 금지)
+   * 2. 파일이 있으면 유효성 검사 후 단일 버킷(IMAGE_BUCKET)에 업로드
    */
-  async uploadImage(file: File, boardType: BoardType): Promise<{ imageUrl: string, thumbnailUrl: string } | null> {
-    if (!supabase) return null;
+  async uploadImage(file: File | null): Promise<{ imageUrl: string, thumbnailUrl: string } | null> {
+    // [중요] 파일이 선택되지 않은 경우 Supabase Storage 호출을 원천 차단
+    if (!file || !supabase) return null;
 
     // 1. 프론트엔드 검증 (512KB)
     if (file.size > 512 * 1024) throw new Error("이미지 용량은 512KB 이하만 업로드할 수 있습니다.");
@@ -114,12 +117,11 @@ class CommunityService {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("인증 정보가 없습니다.");
 
-    // 3. 버킷 결정
-    const bucketName = boardType === 'stream' ? STREAMING_BUCKET : COMMUNITY_BUCKET;
+    // 3. 단일 버킷 사용
     const fileExt = file.name.split('.').pop();
     const fileName = `${user.id}/${crypto.randomUUID()}.${fileExt}`;
 
-    const { error: upErr } = await supabase.storage.from(bucketName).upload(fileName, file, {
+    const { error: upErr } = await supabase.storage.from(IMAGE_BUCKET).upload(fileName, file, {
       contentType: file.type,
       cacheControl: '3600',
       upsert: false
@@ -127,18 +129,18 @@ class CommunityService {
 
     if (upErr) throw upErr;
 
-    const publicUrl = supabase.storage.from(bucketName).getPublicUrl(fileName).data.publicUrl;
+    const publicUrl = supabase.storage.from(IMAGE_BUCKET).getPublicUrl(fileName).data.publicUrl;
     
     return { imageUrl: publicUrl, thumbnailUrl: publicUrl };
   }
 
-  // 레거시 호환용 래퍼
+  // 레거시 호환용 래퍼 (이제 boardType 구분 없음)
   async uploadKukkukImage(file: File): Promise<{ imageUrl: string, thumbnailUrl: string } | null> {
-    return this.uploadImage(file, 'fun');
+    return this.uploadImage(file);
   }
 
   async uploadLabUpdateImage(file: File): Promise<{ imageUrl: string, thumbnailUrl: string } | null> {
-    return this.uploadImage(file, 'update');
+    return this.uploadImage(file);
   }
 
   async createStreamingRequest(payload: { platform: string, stream_url: string, pr_url: string, description: string, thumbnail_url: string }): Promise<boolean> {
