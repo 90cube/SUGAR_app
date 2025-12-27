@@ -1,7 +1,7 @@
 
 import { CommunityPost, BoardType, CommunityUserProfile, CommunityComment, StreamingRequest } from '../types';
 import { supabase } from './supabaseClient';
-import { STREAMING_BUCKET } from '../constants';
+import { STREAMING_BUCKET, COMMUNITY_BUCKET } from '../constants';
 
 class CommunityService {
   
@@ -98,94 +98,37 @@ class CommunityService {
     };
   }
 
-  private async convertToWebP(file: File, width?: number, height?: number): Promise<Blob> {
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-    if (!allowedTypes.includes(file.type)) {
-      throw new Error("허용되지 않는 파일 형식입니다. (jpg, png, webp, gif)");
-    }
-
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = width || img.width;
-        canvas.height = height || img.height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return reject(new Error("Canvas context failed"));
-        ctx.drawImage(img, 0, 0, img.width, img.height, 0, 0, canvas.width, canvas.height);
-        canvas.toBlob((blob) => {
-          if (blob) resolve(blob);
-          else reject(new Error("Blob creation failed"));
-        }, 'image/webp', 0.8);
-      };
-      img.onerror = () => reject(new Error("이미지 로드 실패"));
-      img.src = URL.createObjectURL(file);
-    });
-  }
-
   /**
-   * 스트리밍 썸네일 업로드 프로토콜 (streaming-thumbnails 버킷 사용)
+   * 보드 타입에 따라 다른 버킷으로 이미지 업로드
    */
-  async uploadKukkukImage(file: File): Promise<{ imageUrl: string, thumbnailUrl: string } | null> {
+  async uploadImage(file: File, boardType: BoardType): Promise<{ imageUrl: string, thumbnailUrl: string } | null> {
     if (!supabase) return null;
     
-    // 용량 제한 (512KB)
+    // 프런트엔드 1차 필터링 (용량 및 형식)
     if (file.size > 512 * 1024) throw new Error("이미지 용량은 512KB 이하만 업로드할 수 있습니다.");
-    
-    // 확장자 화이트리스트 검증
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-    if (!allowedTypes.includes(file.type)) {
-      throw new Error("허용되지 않는 이미지 형식입니다. (jpg, png, webp, gif 지원)");
-    }
+    if (!allowedTypes.includes(file.type)) throw new Error("허용되지 않는 파일 형식입니다.");
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
 
-    const fileId = crypto.randomUUID();
-    // 버킷 경로 최적화: storage/v1/object/public/streaming-thumbnails/...
-    const originalPath = `original/${user.id}/${fileId}.webp`;
-    const thumbPath = `thumb/${user.id}/${fileId}_thumb.webp`;
+    // 목적별 버킷 선택
+    const bucketName = boardType === 'stream' ? STREAMING_BUCKET : COMMUNITY_BUCKET;
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${user.id}/${crypto.randomUUID()}.${fileExt}`;
 
-    const webpBlob = await this.convertToWebP(file);
-    const thumbBlob = await this.convertToWebP(file, 400, 400); 
+    const { data, error } = await supabase.storage
+      .from(bucketName)
+      .upload(fileName, file, {
+        cacheControl: '3600',
+        upsert: false
+      });
 
-    const { error: upErr } = await supabase.storage.from(STREAMING_BUCKET).upload(originalPath, webpBlob, { 
-      contentType: 'image/webp',
-      cacheControl: '3600',
-      upsert: false
-    });
-    if (upErr) {
-        if (upErr.message.includes("Bucket not found")) throw new Error(`[Storage Error] '${STREAMING_BUCKET}' 버킷을 찾을 수 없습니다. 관리자에게 문의하세요.`);
-        throw upErr;
-    }
-
-    const { error: thumbErr } = await supabase.storage.from(STREAMING_BUCKET).upload(thumbPath, thumbBlob, { 
-      contentType: 'image/webp',
-      cacheControl: '3600',
-      upsert: false
-    });
-    if (thumbErr) throw thumbErr;
-
-    const imageUrl = supabase.storage.from(STREAMING_BUCKET).getPublicUrl(originalPath).data.publicUrl;
-    const thumbnailUrl = supabase.storage.from(STREAMING_BUCKET).getPublicUrl(thumbPath).data.publicUrl;
-
-    return { imageUrl, thumbnailUrl };
-  }
-
-  async uploadLabUpdateImage(file: File): Promise<{ imageUrl: string, thumbnailUrl: string } | null> {
-    if (!supabase) return null;
-    if (file.size > 512 * 1024) throw new Error("이미지 용량은 512KB 이하만 업로드할 수 있습니다.");
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
-
-    const fileId = crypto.randomUUID();
-    const path = `updates/${user.id}/${fileId}.webp`;
-    const webpBlob = await this.convertToWebP(file);
-
-    const { error } = await supabase.storage.from(STREAMING_BUCKET).upload(path, webpBlob, { contentType: 'image/webp' });
     if (error) throw error;
 
-    const publicUrl = supabase.storage.from(STREAMING_BUCKET).getPublicUrl(path).data.publicUrl;
+    const publicUrl = supabase.storage.from(bucketName).getPublicUrl(fileName).data.publicUrl;
+    
+    // 썸네일과 원본을 동일하게 처리 (Supabase Transformation 미사용 시)
     return { imageUrl: publicUrl, thumbnailUrl: publicUrl };
   }
 
@@ -237,7 +180,7 @@ class CommunityService {
       status: 'APPROVED',
       thumbnail: post.thumbnail || null,
       image_url: post.imageUrl || null,
-      thumbnail_url: post.thumbnail_url || null
+      thumbnail_url: post.thumbnailUrl || null
     };
 
     if (post.boardType === 'balance') {
@@ -250,10 +193,7 @@ class CommunityService {
     }
 
     const { data, error } = await supabase.from('posts').insert(payload).select(`*, votes (vote_type), comments (id)`).single();
-    if (error) {
-      // 쿼터 제한(DB 트리거) 에러 메시지 추출
-      throw new Error(error.message);
-    }
+    if (error) throw new Error(error.message);
     return this.mapRowToPost(data);
   }
 
@@ -263,7 +203,7 @@ class CommunityService {
       board_type: post.boardType === 'balance' ? 'BALANCE' : post.boardType === 'fun' ? 'FUN' : post.boardType,
       thumbnail: post.thumbnail || null,
       image_url: post.imageUrl || null,
-      thumbnail_url: post.thumbnail_url || null
+      thumbnail_url: post.thumbnailUrl || null
     };
     if (post.boardType === 'balance') {
       payload.blue_option = post.blue_option || post.blueOption || '';
@@ -321,13 +261,16 @@ class CommunityService {
   async softDeleteComment(commentId: string, isAdminAction: boolean, nickname: string): Promise<boolean> {
     if (!supabase) return false;
     const { data: { user } } = await supabase.auth.getUser();
-    const content = isAdminAction ? "관리자에 의한 댓글 삭제" : `${nickname} 자진 삭제.`;
-    const { error } = await supabase.from('comments').update({ 
-      content, 
-      is_deleted: true,
-      deleted_by: user?.id,
-      deleted_reason: isAdminAction ? 'ADMIN_ACTION' : 'USER_SELF'
-    }).eq('id', commentId);
+    // 상태만 DELETED로 변경하고 내용은 보존 (프런트에서 분기 처리)
+    const { error } = await supabase
+        .from('comments')
+        .update({ 
+            is_deleted: true, 
+            deleted_by: user?.id,
+            deleted_reason: isAdminAction ? 'ADMIN_ACTION' : 'USER_SELF'
+        })
+        .eq('id', commentId);
+
     if (error) throw new Error(error.message);
     return true;
   }
@@ -379,7 +322,6 @@ class CommunityService {
 
     const queryId = authorId ? { id: authorId } : { nickname };
 
-    // profiles에 존재하지 않는 email 컬럼은 요청하지 않음 (400 방지)
     const { data: prof } = await supabase
       .from('public_profiles')
       .select('created_at, id, post_count, comment_count')

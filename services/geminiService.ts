@@ -1,23 +1,21 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { DEFAULT_GEMINI_MODEL } from "../constants";
 import { UserProfile, RecapStats } from "../types";
 
 export class GeminiService {
   private get ai() {
-    // Create a new GoogleGenAI instance right before making an API call 
-    // to ensure it always uses the most up-to-date API key.
+    // API key must be obtained exclusively from the environment variable process.env.API_KEY
     return new GoogleGenAI({ apiKey: process.env.API_KEY });
   }
 
   public async generateText(prompt: string): Promise<string> {
     try {
-      // Correct implementation: Use ai.models.generateContent and simple string for contents.
       const response = await this.ai.models.generateContent({
         model: DEFAULT_GEMINI_MODEL,
         contents: prompt,
       });
-      
-      // Accessing generated text via the .text property (not method).
+      // Access text property directly
       return response.text || "";
     } catch (error) {
       console.error("Gemini API Error:", error);
@@ -106,22 +104,19 @@ export class GeminiService {
       const isUrl = source.startsWith('http');
       const sourceLabel = isUrl ? "[분석할 URL 링크]" : "[데이터 소스 (원문)]";
 
-      // Guideline Rule: When using googleSearch, do not attempt to parse response.text as JSON.
-      // Grounding citations might inject characters that break standard JSON formatting.
-      // Prompt updated to request structural markers for manual extraction.
+      // Manual extraction markers to avoid JSON parse errors with Search Grounding citations
       const prompt = `
         ${masterPrompt}
 
         **추가 강제 프로토콜**:
-        1. 아래 [출력 형식]을 엄격히 준수하여 텍스트로 결과를 반환하십시오. 
-        2. 결과 제목(Title)에는 반드시 오늘 날짜 태그인 "${dateTag}"를 포함시키십시오.
-        3. 모든 정보는 마크다운(Markdown) 형식을 사용하며, 특히 아이템 목록이나 보상 정보는 반드시 마크다운 표(Table)로 정규화하십시오.
-        4. 본문의 마지막 문장은 반드시 "Su-Lab 매니저 "CUBE" 였습니다." 로 정확히 끝맺음하십시오.
-        ${isUrl ? "5. 제공된 URL에 접속하여 공지사항의 최신 내용을 직접 읽고 분석하십시오." : ""}
+        1. 결과 제목(Title)에는 반드시 오늘 날짜 태그인 "${dateTag}"를 포함시키십시오.
+        2. 모든 정보는 마크다운(Markdown) 형식을 사용하며, 특히 아이템 목록이나 보상 정보는 반드시 마크다운 표(Table)로 정규화하십시오.
+        3. 본문의 마지막 문장은 반드시 "Su-Lab 매니저 "CUBE" 였습니다." 로 정확히 끝맺음하십시오.
+        ${isUrl ? "4. 제공된 URL에 접속하여 공지사항의 최신 내용을 직접 읽고 분석하십시오. 검색 결과에서 최신 정보를 찾아야 합니다." : ""}
 
         [출력 형식]
-        TITLE: [제목 입력]
-        CONTENT: [마크다운 본문 입력]
+        TITLE: [제목]
+        CONTENT: [마크다운 본문]
 
         ${sourceLabel}
         ${source}
@@ -132,28 +127,27 @@ export class GeminiService {
               model: DEFAULT_GEMINI_MODEL,
               contents: prompt,
               config: {
-                tools: [{ googleSearch: {} }], // 실시간 웹 검색 및 링크 접속 허용
+                // Use googleSearch for link summarizing tasks
+                tools: [{ googleSearch: {} }],
               }
           });
           
-          const text = response.text || "";
-          
-          // Guideline: Extract Search Grounding metadata citations.
+          const rawText = response.text || "";
           const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
 
-          // Guideline: Manual parsing instead of JSON.parse to avoid issues with search grounding citations.
+          // Manually parse the structured response
           let title = `${dateTag} 업데이트 요약`;
-          let content = text;
+          let content = rawText;
 
-          const titleMatch = text.match(/TITLE:\s*(.*)/i);
-          const contentMatch = text.match(/CONTENT:\s*([\s\S]*)/i);
+          const titleMatch = rawText.match(/TITLE:\s*(.*)/i);
+          const contentMatch = rawText.match(/CONTENT:\s*([\s\S]*)/i);
 
           if (titleMatch && contentMatch) {
             title = titleMatch[1].trim();
             content = contentMatch[1].trim();
           } else {
-            // Fallback parsing if markers are missing
-            const lines = text.split('\n').filter(l => l.trim() !== '');
+            // Fallback parsing
+            const lines = rawText.split('\n').filter(l => l.trim() !== '');
             if (lines.length > 0) {
               title = lines[0].replace(/^TITLE:\s*/i, '').trim();
               content = lines.slice(1).join('\n').replace(/^CONTENT:\s*/i, '').trim();
@@ -168,7 +162,7 @@ export class GeminiService {
           
           return {
               title: `${dateTag} AI 서비스 연동 오류`,
-              content: `분석 도중 시스템 오류가 발생했습니다.\n\n사유: ${isApiKeyError ? 'API 키 인증 실패 (STALE_KEY)' : (e.message || 'UNKNOWN_PROTO_ERR')}\n\n${isApiKeyError ? '터미널 상단의 **RE-SYNC** 버튼을 눌러 API 연결을 복구한 후 다시 시도하십시오.' : '관리자에게 문의하시기 바랍니다.'}\n\nSu-Lab 매니저 "CUBE" 였습니다.`
+              content: `분석 도중 시스템 오류가 발생했습니다.\n\n사유: ${isApiKeyError ? 'API 키 인증 실패 (STALE_KEY)' : (e.message || 'UNKNOWN_PROTO_ERR')}\n\n터미널 상단의 **RE-SYNC** 버튼을 눌러 API 연결을 복구한 후 다시 시도하십시오.\n\nSu-Lab 매니저 "CUBE" 였습니다.`
           };
       }
   }
@@ -176,7 +170,7 @@ export class GeminiService {
   public async generateFormalRejection(rawReason: string): Promise<string> {
     const prompt = `
       당신은 서든어택 전적 연구소 'Su-Lab'의 운영 AI입니다. 
-      관리자가 작성한 반려 사유를 정중하고 격식 있는 '연구소 프로토콜' 말투로 다듬어주세요.
+      관리자가 작성한 투박한 반려 사유를 정중하고 격식 있는 '연구소 프로토콜' 말투로 다듬어주세요.
       [관리자의 원문 사유] "${rawReason}"
     `;
 

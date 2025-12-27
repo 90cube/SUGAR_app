@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../state/AppContext';
 import { communityService } from '../services/communityService';
@@ -99,6 +100,25 @@ export const CommunityPanel: React.FC = () => {
     });
   };
 
+  /**
+   * 1분 간격 작성 제한 검사
+   */
+  const checkTimeLimit = (type: 'post' | 'comment'): boolean => {
+    const lastTimeKey = `last_${type}_time`;
+    const lastTime = localStorage.getItem(lastTimeKey);
+    const now = Date.now();
+    if (lastTime && now - parseInt(lastTime) < 60000) {
+        const remaining = Math.ceil((60000 - (now - parseInt(lastTime))) / 1000);
+        alert(`작성 제한: ${remaining}초 후에 다시 시도해주세요.`);
+        return false;
+    }
+    return true;
+  };
+
+  const updateLastActionTime = (type: 'post' | 'comment') => {
+    localStorage.setItem(`last_${type}_time`, Date.now().toString());
+  };
+
   const handleAdminAction = async (postId: string, action: 'DELETE' | 'TEMP') => {
     if (!window.confirm("정말 처리하시겠습니까?")) return;
     try {
@@ -132,7 +152,6 @@ export const CommunityPanel: React.FC = () => {
       setIsProcessing(true);
       try {
           const formalMessage = await geminiService.generateFormalRejection(rawRejectReason);
-          // Fixed: Corrected typo 'REVKECTED' to 'REJECTED' to align with the Status type.
           const success = await communityService.processStreamingRequest(requestId, 'REJECTED', formalMessage);
           if (success) {
               setRejectingRequestId(null);
@@ -183,20 +202,21 @@ export const CommunityPanel: React.FC = () => {
     e.preventDefault();
     if (!isLoggedIn) return openAuthModal();
     if (!selectedPost || !commentInput.trim() || isSubmitting) return;
+    
+    // 1분 제한 체크
+    if (!checkTimeLimit('comment')) return;
+
     setIsSubmitting(true);
     try {
         const newComment = await communityService.addComment(selectedPost.id, commentInput, commentTeam);
         if (newComment) {
             setCommentInput('');
             setComments(prev => [...prev, newComment]);
+            updateLastActionTime('comment');
             await refreshAuthUser();
         }
     } catch (err: any) {
-        if (err.message.includes("quota") || err.message.includes("limit")) {
-            alert("댓글 작성 제한: 1분에 1회만 작성 가능합니다.");
-        } else {
-            alert(err.message);
-        }
+        alert(err.message);
     } finally {
         setIsSubmitting(false);
     }
@@ -231,6 +251,8 @@ export const CommunityPanel: React.FC = () => {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    
+    // 512KB 제한 체크
     if (file.size > 512 * 1024) { 
         alert("이미지 용량은 512KB 이하만 업로드할 수 있습니다."); 
         e.target.value = ""; 
@@ -242,6 +264,7 @@ export const CommunityPanel: React.FC = () => {
       e.target.value = "";
       return;
     }
+
     setSelectedFile(file);
     const reader = new FileReader();
     reader.onloadend = () => setFilePreview(reader.result as string);
@@ -252,6 +275,9 @@ export const CommunityPanel: React.FC = () => {
     e.preventDefault();
     if (!isLoggedIn) return openAuthModal();
     if (isSubmitting || uploadProgress) return;
+    
+    // 1분 제한 체크
+    if (!checkTimeLimit('post')) return;
 
     if (writeMode === 'stream') {
         if (!selectedFile) return alert("방송 썸네일 이미지를 업로드해주세요.");
@@ -259,7 +285,7 @@ export const CommunityPanel: React.FC = () => {
         setIsSubmitting(true);
         setUploadProgress(true);
         try {
-            const urls = await communityService.uploadKukkukImage(selectedFile); 
+            const urls = await communityService.uploadImage(selectedFile, 'stream'); 
             if (urls) {
                 await communityService.createStreamingRequest({
                     platform: streamPlatform,
@@ -269,6 +295,7 @@ export const CommunityPanel: React.FC = () => {
                     thumbnail_url: urls.thumbnailUrl
                 });
                 alert("홍보 요청 완료! 승인 후 리스트에 노출됩니다.");
+                updateLastActionTime('post');
                 resetWriteForm();
                 setStreamSubTab('MY_REQUESTS');
             }
@@ -283,12 +310,11 @@ export const CommunityPanel: React.FC = () => {
     setIsSubmitting(true);
     let imageUrl = ''; let thumbnailUrl = '';
     
+    // 이미지가 선택된 경우에만 업로드 시도 (이미지 필수 해제)
     if (selectedFile) {
         setUploadProgress(true);
         try { 
-          const urls = writeMode === 'update' 
-            ? await communityService.uploadLabUpdateImage(selectedFile)
-            : await communityService.uploadKukkukImage(selectedFile); 
+          const urls = await communityService.uploadImage(selectedFile, writeMode); 
           if (urls) { imageUrl = urls.imageUrl; thumbnailUrl = urls.thumbnailUrl; } 
         }
         catch (err: any) { alert(err.message); setIsSubmitting(false); setUploadProgress(false); return; }
@@ -307,6 +333,7 @@ export const CommunityPanel: React.FC = () => {
         else { const author = userProfile?.nickname || authUser?.name || 'Unknown'; result = await communityService.createPost({ ...postData, author }); }
         
         if (result) { 
+          updateLastActionTime('post');
           resetWriteForm(); 
           if (writeMode === 'update') communityService.getPosts('update').then(setUpdatePosts); 
           fetchTabContent(activeTab); 
@@ -315,7 +342,7 @@ export const CommunityPanel: React.FC = () => {
         }
     } catch (err: any) {
         if (err.message.includes("quota") || err.message.includes("limit")) {
-            alert("작성 제한: 1분에 1회, 일일 최대 30회까지 작성 가능합니다.");
+            alert("일일 작성 제한: 하루 최대 30회까지 작성 가능합니다.");
         } else {
             alert(err.message);
         }
@@ -669,7 +696,7 @@ export const CommunityPanel: React.FC = () => {
                                     <div className="p-2 bg-slate-50 border-2 border-dashed border-slate-200 rounded-3xl text-center relative transition-all hover:border-cyan-200">
                                         <input type="file" id="streamFile" onChange={handleFileChange} accept="image/jpeg,image/png,image/webp,image/gif" className="hidden" />
                                         <label htmlFor="streamFile" className="cursor-pointer block py-6">
-                                            {filePreview ? <img src={filePreview} className="max-h-32 mx-auto rounded-xl shadow-2xl" /> : <div className="flex flex-col items-center gap-2 text-slate-300"><svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg><span className="text-[8px] font-black uppercase tracking-widest">Select_Visual_Pkt</span></div>}
+                                            {filePreview ? <img src={filePreview} className="max-h-32 mx-auto rounded-xl shadow-2xl" /> : <div className="flex flex-col items-center gap-2 text-slate-300"><svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg><span className="text-[8px] font-black uppercase tracking-widest">Select_Visual_Pkt</span></div>}
                                         </label>
                                     </div>
                                </div>
@@ -703,7 +730,7 @@ export const CommunityPanel: React.FC = () => {
                                         />
                                         
                                         <label className="text-[9px] font-black text-cyan-600 uppercase tracking-widest ml-2">
-                                            {summaryInputMode === 'TEXT' ? 'Raw_Notice_Buffer (텍스트 붙여넣기)' : 'Target_Notice_URL (링크 주소 입력)'}
+                                            {summaryInputMode === 'TEXT' ? 'Raw_Notice_Buffer (텍스트)' : 'Target_Notice_URL (링크)'}
                                         </label>
                                         <textarea 
                                           value={rawUpdateSource} 
@@ -717,7 +744,7 @@ export const CommunityPanel: React.FC = () => {
                                           disabled={isSummarizing || !rawUpdateSource.trim()}
                                           className="w-full mt-2 py-3 bg-cyan-500 text-slate-950 font-black text-[9px] rounded-xl shadow-lg active:scale-95 disabled:opacity-50 uppercase tracking-widest"
                                         >
-                                          {isSummarizing ? 'Processing_Link...' : summaryInputMode === 'TEXT' ? 'Execute_AI_Summarize' : 'Remote_Analyze_URL'}
+                                          {isSummarizing ? 'Processing...' : summaryInputMode === 'TEXT' ? 'Execute_AI_Summarize' : 'Remote_Analyze_URL'}
                                         </button>
                                     </div>
                                 )}
