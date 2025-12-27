@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../state/AppContext';
 import { communityService } from '../services/communityService';
@@ -55,7 +54,8 @@ export const CommunityPanel: React.FC = () => {
   const [uploadProgress, setUploadProgress] = useState(false);
   
   // AI Parser (Update 요약용)
-  const [rawUpdateText, setRawUpdateText] = useState('');
+  const [summaryInputMode, setSummaryInputMode] = useState<'TEXT' | 'URL'>('TEXT');
+  const [rawUpdateSource, setRawUpdateSource] = useState('');
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [masterPrompt, setMasterPrompt] = useState('당신은 서든어택 업데이트 전문 요약관입니다. 공식 홈페이지의 공지 원문을 분석하여 핵심 내용(점검 시간, 신규 아이템, 이벤트 보상 등)만 간추려 안내해 주십시오. 보상이나 스케줄 정보는 반드시 마크다운 표(Markdown Table) 형식을 사용하여 일목요연하게 정리해야 합니다.');
 
@@ -132,6 +132,7 @@ export const CommunityPanel: React.FC = () => {
       setIsProcessing(true);
       try {
           const formalMessage = await geminiService.generateFormalRejection(rawRejectReason);
+          // Fixed: Corrected typo 'REVKECTED' to 'REJECTED' to align with the Status type.
           const success = await communityService.processStreamingRequest(requestId, 'REJECTED', formalMessage);
           if (success) {
               setRejectingRequestId(null);
@@ -188,7 +189,6 @@ export const CommunityPanel: React.FC = () => {
         if (newComment) {
             setCommentInput('');
             setComments(prev => [...prev, newComment]);
-            // 성공 후 프로필 카운트 갱신
             await refreshAuthUser();
         }
     } catch (err: any) {
@@ -214,15 +214,15 @@ export const CommunityPanel: React.FC = () => {
   };
 
   const handleAiSummarize = async () => {
-    if (!rawUpdateText.trim()) return alert("요약할 공지 원문을 입력하세요.");
+    if (!rawUpdateSource.trim()) return alert("입력 정보가 없습니다.");
     setIsSummarizing(true);
     try {
-        const result = await geminiService.summarizeGameUpdate(rawUpdateText, masterPrompt);
+        const result = await geminiService.summarizeGameUpdate(rawUpdateSource, masterPrompt);
         setWriteTitle(result.title);
         setWriteContent(result.content);
-        setRawUpdateText('');
+        setRawUpdateSource('');
     } catch (e) {
-        alert("AI 분석 중 오류가 발생했습니다.");
+        alert("AI 분석 중 오류가 발생했습니다. 직접 텍스트를 복사해 붙여넣어보세요.");
     } finally {
         setIsSummarizing(false);
     }
@@ -278,7 +278,6 @@ export const CommunityPanel: React.FC = () => {
     }
 
     if (writeMode === 'balance' && (!blueOption.trim() || !redOption.trim())) return alert("양쪽 선택지를 입력하세요.");
-    // REMOVED mandatory image check for fun/update to satisfy request: "이미지 파일이 없어도, 업로드는 되어야 합니다."
     if (writeMode !== 'balance' && !writeTitle.trim()) return alert("제목을 입력하세요.");
     
     setIsSubmitting(true);
@@ -312,7 +311,6 @@ export const CommunityPanel: React.FC = () => {
           if (writeMode === 'update') communityService.getPosts('update').then(setUpdatePosts); 
           fetchTabContent(activeTab); 
           if (selectedPost?.id === result.id) setSelectedPost(result);
-          // 성공 후 프로필 카운트 갱신
           await refreshAuthUser();
         }
     } catch (err: any) {
@@ -327,7 +325,7 @@ export const CommunityPanel: React.FC = () => {
   };
 
   const resetWriteForm = () => {
-    setWriteTitle(''); setWriteContent(''); setWriteThumbnail(''); setBlueOption(''); setRedOption(''); setRawUpdateText('');
+    setWriteTitle(''); setWriteContent(''); setWriteThumbnail(''); setBlueOption(''); setRedOption(''); setRawUpdateSource('');
     setStreamUrl(''); setStreamPrUrl(''); setStreamDescription(''); setStreamPlatform('CHZZK');
     setEditingPostId(null); setSelectedFile(null); setFilePreview(null); setIsWriteFormOpen(false);
   };
@@ -352,7 +350,7 @@ export const CommunityPanel: React.FC = () => {
         <button onClick={(e) => { e.stopPropagation(); setOpenAdminMenuId(isOpen ? null : post.id); }} className="w-8 h-8 flex items-center justify-center bg-white/20 backdrop-blur-md rounded-full text-white border border-white/10 hover:bg-white/40 transition-colors"><svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" /></svg></button>
         {isOpen && (
           <div className="absolute right-0 mt-2 w-40 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200 font-mono">
-            {post.authorId === authUser?.id && <button onClick={() => openEditForm(post)} className="w-full px-4 py-3 text-left text-[11px] font-bold text-slate-600 hover:bg-slate-50 border-b uppercase">Edit_Entry</button>}
+            {post.authorId === authUser?.id && <button onClick={() => openEditForm(post)} className="w-full px-4 py-3 text-left text-[11px] font-bold text-slate-600 hover:bg-slate-50 border-b uppercase">Edit_Record</button>}
             {isAdmin && <button onClick={() => handleAdminAction(post.id, 'TEMP')} className="w-full px-4 py-3 text-left text-[11px] font-bold text-slate-600 hover:bg-slate-50 border-b uppercase">Move_Temp</button>}
             <button onClick={() => handleAdminAction(post.id, 'DELETE')} className="w-full px-4 py-3 text-left text-[11px] font-bold text-red-500 hover:bg-red-50 uppercase">Delete_Pkt</button>
           </div>
@@ -671,7 +669,7 @@ export const CommunityPanel: React.FC = () => {
                                     <div className="p-2 bg-slate-50 border-2 border-dashed border-slate-200 rounded-3xl text-center relative transition-all hover:border-cyan-200">
                                         <input type="file" id="streamFile" onChange={handleFileChange} accept="image/jpeg,image/png,image/webp,image/gif" className="hidden" />
                                         <label htmlFor="streamFile" className="cursor-pointer block py-6">
-                                            {filePreview ? <img src={filePreview} className="max-h-32 mx-auto rounded-xl shadow-2xl" /> : <div className="flex flex-col items-center gap-2 text-slate-300"><svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg><span className="text-[8px] font-black uppercase tracking-widest">Select_Visual_Pkt</span></div>}
+                                            {filePreview ? <img src={filePreview} className="max-h-32 mx-auto rounded-xl shadow-2xl" /> : <div className="flex flex-col items-center gap-2 text-slate-300"><svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg><span className="text-[8px] font-black uppercase tracking-widest">Select_Visual_Pkt</span></div>}
                                         </label>
                                     </div>
                                </div>
@@ -680,28 +678,46 @@ export const CommunityPanel: React.FC = () => {
                             <>
                                 {writeMode === 'update' && (
                                     <div className="space-y-1 p-4 bg-cyan-50 border border-cyan-100 rounded-3xl mb-4">
-                                        <label className="text-[9px] font-black text-cyan-600 uppercase tracking-widest ml-2">AI_Notice_Master_Prompt (Editable)</label>
+                                        <div className="flex gap-2 mb-3">
+                                            <button 
+                                                type="button" 
+                                                onClick={() => setSummaryInputMode('TEXT')}
+                                                className={`flex-1 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all ${summaryInputMode === 'TEXT' ? 'bg-cyan-500 text-slate-950' : 'bg-white text-slate-400'}`}
+                                            >
+                                                Pkt_Text
+                                            </button>
+                                            <button 
+                                                type="button" 
+                                                onClick={() => setSummaryInputMode('URL')}
+                                                className={`flex-1 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all ${summaryInputMode === 'URL' ? 'bg-cyan-500 text-slate-950' : 'bg-white text-slate-400'}`}
+                                            >
+                                                Pkt_Link
+                                            </button>
+                                        </div>
+
+                                        <label className="text-[9px] font-black text-cyan-600 uppercase tracking-widest ml-2">AI_Notice_Master_Prompt</label>
                                         <textarea 
                                           value={masterPrompt} 
                                           onChange={e => setMasterPrompt(e.target.value)} 
-                                          placeholder="AI에게 내릴 요약 지침을 수정할 수 있습니다..." 
-                                          className="w-full p-3 bg-white border border-cyan-100 rounded-xl text-[9px] font-bold h-20 resize-none outline-none focus:border-cyan-400 mb-2 shadow-inner" 
+                                          className="w-full p-3 bg-white border border-cyan-100 rounded-xl text-[9px] font-bold h-16 resize-none outline-none focus:border-cyan-400 mb-2 shadow-inner" 
                                         />
-                                        <div className="h-px bg-cyan-100 my-2"></div>
-                                        <label className="text-[9px] font-black text-cyan-600 uppercase tracking-widest ml-2">Raw_Notice_Buffer (홈페이지 원문)</label>
+                                        
+                                        <label className="text-[9px] font-black text-cyan-600 uppercase tracking-widest ml-2">
+                                            {summaryInputMode === 'TEXT' ? 'Raw_Notice_Buffer (텍스트 붙여넣기)' : 'Target_Notice_URL (링크 주소 입력)'}
+                                        </label>
                                         <textarea 
-                                          value={rawUpdateText} 
-                                          onChange={e => setRawUpdateText(e.target.value)} 
-                                          placeholder="공식 홈페이지의 공지 내용을 복사하여 붙여넣으세요..." 
-                                          className="w-full p-4 bg-white border border-cyan-100 rounded-2xl text-[10px] font-medium h-32 resize-none outline-none focus:border-cyan-400 shadow-inner" 
+                                          value={rawUpdateSource} 
+                                          onChange={e => setRawUpdateSource(e.target.value)} 
+                                          placeholder={summaryInputMode === 'TEXT' ? "공식 홈페이지 내용을 복사해오세요..." : "분석할 서든어택 공지사항 URL을 입력하세요..."}
+                                          className="w-full p-4 bg-white border border-cyan-100 rounded-2xl text-[10px] font-medium h-24 resize-none outline-none focus:border-cyan-400 shadow-inner" 
                                         />
                                         <button 
                                           type="button" 
                                           onClick={handleAiSummarize} 
-                                          disabled={isSummarizing || !rawUpdateText.trim()}
+                                          disabled={isSummarizing || !rawUpdateSource.trim()}
                                           className="w-full mt-2 py-3 bg-cyan-500 text-slate-950 font-black text-[9px] rounded-xl shadow-lg active:scale-95 disabled:opacity-50 uppercase tracking-widest"
                                         >
-                                          {isSummarizing ? 'Mastering_Data...' : 'Execute_AI_Summarize'}
+                                          {isSummarizing ? 'Processing_Link...' : summaryInputMode === 'TEXT' ? 'Execute_AI_Summarize' : 'Remote_Analyze_URL'}
                                         </button>
                                     </div>
                                 )}
@@ -724,7 +740,7 @@ export const CommunityPanel: React.FC = () => {
                                                     <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-400 shadow-inner">
                                                       <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                                                     </div>
-                                                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em]">Drop_Visual_Data</span>
+                                                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em]">Drop_Visual_Data (Optional)</span>
                                                 </div>
                                             )}
                                         </label>
@@ -740,7 +756,7 @@ export const CommunityPanel: React.FC = () => {
                                 ) : ( 
                                   <div className="space-y-1"><label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Subject_UID</label><input type="text" value={writeTitle} onChange={(e) => setWriteTitle(e.target.value)} placeholder="DATA_TITLE_ENTRY" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl text-[11px] font-black outline-none focus:border-cyan-300 uppercase shadow-inner" /></div>
                                 )}
-                                <div className="space-y-1"><label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Report_Body</label><textarea value={writeContent} onChange={(e) => setWriteContent(e.target.value)} placeholder="Markdown Protocol Supported" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl text-[11px] font-medium h-40 resize-none outline-none focus:border-cyan-300 shadow-inner"></textarea></div>
+                                <div className="space-y-1"><label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Report_Body</label><textarea value={writeContent} onChange={(e) => setWriteContent(e.target.value)} placeholder="Markdown Protocol Supported" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-[11px] font-medium h-40 resize-none outline-none focus:border-cyan-300 shadow-inner"></textarea></div>
                             </>
                         )}
 

@@ -1,21 +1,23 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { DEFAULT_GEMINI_MODEL } from "../constants";
 import { UserProfile, RecapStats } from "../types";
 
 export class GeminiService {
   private get ai() {
-    // Create new instance every call to ensure up-to-date environment variables
+    // Create a new GoogleGenAI instance right before making an API call 
+    // to ensure it always uses the most up-to-date API key.
     return new GoogleGenAI({ apiKey: process.env.API_KEY });
   }
 
   public async generateText(prompt: string): Promise<string> {
     try {
+      // Correct implementation: Use ai.models.generateContent and simple string for contents.
       const response = await this.ai.models.generateContent({
         model: DEFAULT_GEMINI_MODEL,
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        contents: prompt,
       });
       
+      // Accessing generated text via the .text property (not method).
       return response.text || "";
     } catch (error) {
       console.error("Gemini API Error:", error);
@@ -63,7 +65,7 @@ export class GeminiService {
     try {
       const response = await this.ai.models.generateContent({
         model: DEFAULT_GEMINI_MODEL,
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        contents: prompt,
       });
       return response.text || "Analysis failed.";
     } catch (error) {
@@ -81,7 +83,7 @@ export class GeminiService {
       try {
         const response = await this.ai.models.generateContent({
             model: DEFAULT_GEMINI_MODEL,
-            contents: [{ role: 'user', parts: [{ text: prompt }] }]
+            contents: prompt,
         });
         return response.text || "분석을 불러올 수 없습니다.";
       } catch (e) {
@@ -92,58 +94,75 @@ export class GeminiService {
 
   /**
    * 공식 공지사항을 요약하여 제목과 본문을 생성합니다.
-   * @param rawText 원문 텍스트
-   * @param masterPrompt 관리자가 설정한 요약 지침
+   * Google Search Grounding을 사용하여 URL 접근을 허용합니다.
    */
-  public async summarizeGameUpdate(rawText: string, masterPrompt: string): Promise<{ title: string; content: string }> {
+  public async summarizeGameUpdate(source: string, masterPrompt: string): Promise<{ title: string; content: string; sources?: any[] }> {
       const today = new Date();
       const yy = today.getFullYear().toString().slice(2);
       const mm = (today.getMonth() + 1).toString().padStart(2, '0');
       const dd = today.getDate().toString().padStart(2, '0');
       const dateTag = `[${yy}.${mm}.${dd}]`;
 
+      const isUrl = source.startsWith('http');
+      const sourceLabel = isUrl ? "[분석할 URL 링크]" : "[데이터 소스 (원문)]";
+
+      // Guideline Rule: When using googleSearch, do not attempt to parse response.text as JSON.
+      // Grounding citations might inject characters that break standard JSON formatting.
+      // Prompt updated to request structural markers for manual extraction.
       const prompt = `
         ${masterPrompt}
 
         **추가 강제 프로토콜**:
-        1. 결과 제목(Title)에는 반드시 오늘 날짜 태그인 "${dateTag}"를 포함시키십시오.
-        2. 모든 정보는 마크다운(Markdown) 형식을 사용하며, 특히 아이템 목록이나 보상 정보는 반드시 마크다운 표(Table)로 정규화하십시오.
-        3. 본문의 마지막 문장은 반드시 "Su-Lab 매니저 "CUBE" 였습니다." 로 정확히 끝맺음하십시오.
+        1. 아래 [출력 형식]을 엄격히 준수하여 텍스트로 결과를 반환하십시오. 
+        2. 결과 제목(Title)에는 반드시 오늘 날짜 태그인 "${dateTag}"를 포함시키십시오.
+        3. 모든 정보는 마크다운(Markdown) 형식을 사용하며, 특히 아이템 목록이나 보상 정보는 반드시 마크다운 표(Table)로 정규화하십시오.
+        4. 본문의 마지막 문장은 반드시 "Su-Lab 매니저 "CUBE" 였습니다." 로 정확히 끝맺음하십시오.
+        ${isUrl ? "5. 제공된 URL에 접속하여 공지사항의 최신 내용을 직접 읽고 분석하십시오." : ""}
 
-        [데이터 소스 (원문)]
-        ${rawText}
+        [출력 형식]
+        TITLE: [제목 입력]
+        CONTENT: [마크다운 본문 입력]
+
+        ${sourceLabel}
+        ${source}
       `;
 
       try {
           const response = await this.ai.models.generateContent({
               model: DEFAULT_GEMINI_MODEL,
-              contents: [{ role: 'user', parts: [{ text: prompt }] }],
+              contents: prompt,
               config: {
-                responseMimeType: "application/json",
-                responseSchema: {
-                  type: Type.OBJECT,
-                  properties: {
-                    title: { type: Type.STRING, description: "Today's summary title with date tag" },
-                    content: { type: Type.STRING, description: "Full report in markdown including tables and CUBE signature" },
-                  },
-                  required: ["title", "content"],
-                }
+                tools: [{ googleSearch: {} }], // 실시간 웹 검색 및 링크 접속 허용
               }
           });
           
-          let jsonStr = response.text || "{}";
-          const parsed = JSON.parse(jsonStr);
+          const text = response.text || "";
+          
+          // Guideline: Extract Search Grounding metadata citations.
+          const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
 
-          // 개행 문자 정규화
-          if (parsed.content) {
-            parsed.content = parsed.content.replace(/\\n/g, '\n').trim();
+          // Guideline: Manual parsing instead of JSON.parse to avoid issues with search grounding citations.
+          let title = `${dateTag} 업데이트 요약`;
+          let content = text;
+
+          const titleMatch = text.match(/TITLE:\s*(.*)/i);
+          const contentMatch = text.match(/CONTENT:\s*([\s\S]*)/i);
+
+          if (titleMatch && contentMatch) {
+            title = titleMatch[1].trim();
+            content = contentMatch[1].trim();
+          } else {
+            // Fallback parsing if markers are missing
+            const lines = text.split('\n').filter(l => l.trim() !== '');
+            if (lines.length > 0) {
+              title = lines[0].replace(/^TITLE:\s*/i, '').trim();
+              content = lines.slice(1).join('\n').replace(/^CONTENT:\s*/i, '').trim();
+            }
           }
 
-          return parsed;
+          return { title, content, sources };
       } catch (e: any) {
           console.error("Update Summary Error", e);
-          // Return structured error so the UI stays consistent
-          // Check for API key invalid specifically
           const errorMsg = (e.message || "").toLowerCase();
           const isApiKeyError = errorMsg.includes("api key not valid") || errorMsg.includes("api_key_invalid");
           
@@ -157,17 +176,14 @@ export class GeminiService {
   public async generateFormalRejection(rawReason: string): Promise<string> {
     const prompt = `
       당신은 서든어택 전적 연구소 'Su-Lab'의 운영 AI입니다. 
-      사용자가 신청한 스트리밍 홍보 게시 요청을 반려해야 합니다.
-      관리자가 작성한 투박한 반려 사유를 정중하고 격식 있는 '연구소 프로토콜' 말투로 다듬어주세요.
-      
-      [관리자의 원문 사유]
-      "${rawReason}"
+      관리자가 작성한 반려 사유를 정중하고 격식 있는 '연구소 프로토콜' 말투로 다듬어주세요.
+      [관리자의 원문 사유] "${rawReason}"
     `;
 
     try {
       const response = await this.ai.models.generateContent({
         model: DEFAULT_GEMINI_MODEL,
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        contents: prompt,
       });
       return response.text || "연구소 내부 기준 미달로 인해 요청이 반려되었습니다.";
     } catch (e) {
