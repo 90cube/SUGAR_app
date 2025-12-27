@@ -331,6 +331,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     openAnalysisModal();
     try {
       const now = new Date();
+      // FIX: Changed timezoneOffset() to getTimezoneOffset()
       const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
       const kstDate = new Date(utc + (9 * 60 * 60 * 1000)).toISOString().split('T')[0];
       const report = await nexonService.runAnomalyDetection(userProfile.nickname, kstDate, userProfile.recentMatches);

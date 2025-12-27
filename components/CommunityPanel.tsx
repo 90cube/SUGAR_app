@@ -278,13 +278,13 @@ export const CommunityPanel: React.FC = () => {
     }
 
     if (writeMode === 'balance' && (!blueOption.trim() || !redOption.trim())) return alert("양쪽 선택지를 입력하세요.");
-    if ((writeMode === 'fun' || writeMode === 'update') && !selectedFile && !editingPostId) return alert("이미지 파일을 업로드하세요.");
+    // REMOVED mandatory image check for fun/update to satisfy request: "이미지 파일이 없어도, 업로드는 되어야 합니다."
     if (writeMode !== 'balance' && !writeTitle.trim()) return alert("제목을 입력하세요.");
     
     setIsSubmitting(true);
     let imageUrl = ''; let thumbnailUrl = '';
     
-    if ((writeMode === 'fun' || writeMode === 'update') && selectedFile) {
+    if (selectedFile) {
         setUploadProgress(true);
         try { 
           const urls = writeMode === 'update' 

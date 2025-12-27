@@ -143,9 +143,13 @@ export class GeminiService {
       } catch (e: any) {
           console.error("Update Summary Error", e);
           // Return structured error so the UI stays consistent
+          // Check for API key invalid specifically
+          const errorMsg = (e.message || "").toLowerCase();
+          const isApiKeyError = errorMsg.includes("api key not valid") || errorMsg.includes("api_key_invalid");
+          
           return {
               title: `${dateTag} AI 서비스 연동 오류`,
-              content: `분석 도중 시스템 오류가 발생했습니다. (사유: ${e.message || 'API_KEY_INVALID'})\n\n관리자라면 터미널 상단의 'RE-SYNC' 버튼을 통해 연결을 복구하십시오.\n\nSu-Lab 매니저 "CUBE" 였습니다.`
+              content: `분석 도중 시스템 오류가 발생했습니다.\n\n사유: ${isApiKeyError ? 'API 키 인증 실패 (STALE_KEY)' : (e.message || 'UNKNOWN_PROTO_ERR')}\n\n${isApiKeyError ? '터미널 상단의 **RE-SYNC** 버튼을 눌러 API 연결을 복구한 후 다시 시도하십시오.' : '관리자에게 문의하시기 바랍니다.'}\n\nSu-Lab 매니저 "CUBE" 였습니다.`
           };
       }
   }
