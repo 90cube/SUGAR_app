@@ -6,7 +6,12 @@ import { UserProfile, RecapStats } from "../types";
 export class GeminiService {
   private get ai() {
     // API key must be obtained exclusively from the environment variable process.env.API_KEY
-    return new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) {
+      // API Key가 없을 경우 사용자에게 시스템 오류 메시지를 발생시킴
+      throw new Error('STALE_CONNECTION: API_KEY_MISSING');
+    }
+    return new GoogleGenAI({ apiKey });
   }
 
   public async generateText(prompt: string): Promise<string> {
@@ -17,8 +22,11 @@ export class GeminiService {
       });
       // Access text property directly
       return response.text || "";
-    } catch (error) {
+    } catch (error: any) {
       console.error("Gemini API Error:", error);
+      if (error.message?.includes("API key not valid")) {
+        throw new Error("API 키 인증 실패. 도메인 환경 변수를 확인하십시오.");
+      }
       throw error;
     }
   }
@@ -104,7 +112,6 @@ export class GeminiService {
       const isUrl = source.startsWith('http');
       const sourceLabel = isUrl ? "[분석할 URL 링크]" : "[데이터 소스 (원문)]";
 
-      // Manual extraction markers to avoid JSON parse errors with Search Grounding citations
       const prompt = `
         ${masterPrompt}
 
@@ -127,7 +134,6 @@ export class GeminiService {
               model: DEFAULT_GEMINI_MODEL,
               contents: prompt,
               config: {
-                // Use googleSearch for link summarizing tasks
                 tools: [{ googleSearch: {} }],
               }
           });
@@ -135,7 +141,6 @@ export class GeminiService {
           const rawText = response.text || "";
           const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
 
-          // Manually parse the structured response
           let title = `${dateTag} 업데이트 요약`;
           let content = rawText;
 
@@ -146,7 +151,6 @@ export class GeminiService {
             title = titleMatch[1].trim();
             content = contentMatch[1].trim();
           } else {
-            // Fallback parsing
             const lines = rawText.split('\n').filter(l => l.trim() !== '');
             if (lines.length > 0) {
               title = lines[0].replace(/^TITLE:\s*/i, '').trim();
@@ -162,7 +166,7 @@ export class GeminiService {
           
           return {
               title: `${dateTag} AI 서비스 연동 오류`,
-              content: `분석 도중 시스템 오류가 발생했습니다.\n\n사유: ${isApiKeyError ? 'API 키 인증 실패 (STALE_KEY)' : (e.message || 'UNKNOWN_PROTO_ERR')}\n\n터미널 상단의 **RE-SYNC** 버튼을 눌러 API 연결을 복구한 후 다시 시도하십시오.\n\nSu-Lab 매니저 "CUBE" 였습니다.`
+              content: `분석 도중 시스템 오류가 발생했습니다.\n\n사유: ${isApiKeyError ? 'API 키 인증 실패 (STALE_KEY)' : (e.message || 'UNKNOWN_PROTO_ERR')}\n\n도메인 관리 환경변수 설정을 확인하십시오.\n\nSu-Lab 매니저 "CUBE" 였습니다.`
           };
       }
   }

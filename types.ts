@@ -188,7 +188,8 @@ export interface CommunityComment {
   createdAt: string;
   teamType: 'BLUE' | 'RED' | 'GRAY';
   isDeleted?: boolean;
-  deletedBy?: string; // ID of the person who deleted
+  deletedBy?: string;
+  deletedReason?: 'USER_SELF' | 'ADMIN_ACTION';
 }
 
 export interface CommunityUserProfile {

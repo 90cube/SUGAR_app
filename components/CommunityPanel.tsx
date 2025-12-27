@@ -101,22 +101,23 @@ export const CommunityPanel: React.FC = () => {
   };
 
   /**
-   * 1분 간격 작성 제한 검사
+   * 프론트엔드 작성 시간 제한 체크 (1분)
    */
-  const checkTimeLimit = (type: 'post' | 'comment'): boolean => {
-    const lastTimeKey = `last_${type}_time`;
-    const lastTime = localStorage.getItem(lastTimeKey);
+  const checkThrottle = (type: 'POST' | 'COMMENT'): boolean => {
+    const lastKey = `last_${type.toLowerCase()}_ts`;
+    const lastTs = localStorage.getItem(lastKey);
     const now = Date.now();
-    if (lastTime && now - parseInt(lastTime) < 60000) {
-        const remaining = Math.ceil((60000 - (now - parseInt(lastTime))) / 1000);
-        alert(`작성 제한: ${remaining}초 후에 다시 시도해주세요.`);
+    
+    if (lastTs && now - parseInt(lastTs) < 60000) {
+        const remaining = Math.ceil((60000 - (now - parseInt(lastTs))) / 1000);
+        alert(`과도한 데이터 요청 감지: ${remaining}초 후에 다시 시도하십시오.`);
         return false;
     }
     return true;
   };
 
-  const updateLastActionTime = (type: 'post' | 'comment') => {
-    localStorage.setItem(`last_${type}_time`, Date.now().toString());
+  const updateThrottle = (type: 'POST' | 'COMMENT') => {
+    localStorage.setItem(`last_${type.toLowerCase()}_ts`, Date.now().toString());
   };
 
   const handleAdminAction = async (postId: string, action: 'DELETE' | 'TEMP') => {
@@ -202,9 +203,8 @@ export const CommunityPanel: React.FC = () => {
     e.preventDefault();
     if (!isLoggedIn) return openAuthModal();
     if (!selectedPost || !commentInput.trim() || isSubmitting) return;
-    
-    // 1분 제한 체크
-    if (!checkTimeLimit('comment')) return;
+
+    if (!checkThrottle('COMMENT')) return;
 
     setIsSubmitting(true);
     try {
@@ -212,7 +212,7 @@ export const CommunityPanel: React.FC = () => {
         if (newComment) {
             setCommentInput('');
             setComments(prev => [...prev, newComment]);
-            updateLastActionTime('comment');
+            updateThrottle('COMMENT');
             await refreshAuthUser();
         }
     } catch (err: any) {
@@ -227,6 +227,7 @@ export const CommunityPanel: React.FC = () => {
     try {
         const success = await communityService.softDeleteComment(commentId, isAdmin, authorNickname);
         if (success) {
+          // 삭제 후 다시 목록 불러와서 상태 갱신
           if (selectedPost) communityService.getComments(selectedPost.id).then(setComments);
           await refreshAuthUser();
         }
@@ -251,13 +252,15 @@ export const CommunityPanel: React.FC = () => {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    
-    // 512KB 제한 체크
+
+    // 1. 용량 필터링 (512KB)
     if (file.size > 512 * 1024) { 
         alert("이미지 용량은 512KB 이하만 업로드할 수 있습니다."); 
         e.target.value = ""; 
         return; 
     }
+
+    // 2. 타입 필터링
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
     if (!allowedTypes.includes(file.type)) {
       alert("허용되지 않는 파일 형식입니다. (jpg, png, webp, gif)");
@@ -275,9 +278,9 @@ export const CommunityPanel: React.FC = () => {
     e.preventDefault();
     if (!isLoggedIn) return openAuthModal();
     if (isSubmitting || uploadProgress) return;
-    
-    // 1분 제한 체크
-    if (!checkTimeLimit('post')) return;
+
+    // 1분 간격 제한 체크
+    if (!checkThrottle('POST')) return;
 
     if (writeMode === 'stream') {
         if (!selectedFile) return alert("방송 썸네일 이미지를 업로드해주세요.");
@@ -285,6 +288,7 @@ export const CommunityPanel: React.FC = () => {
         setIsSubmitting(true);
         setUploadProgress(true);
         try {
+            // 스트리밍 버킷으로 업로드
             const urls = await communityService.uploadImage(selectedFile, 'stream'); 
             if (urls) {
                 await communityService.createStreamingRequest({
@@ -295,7 +299,7 @@ export const CommunityPanel: React.FC = () => {
                     thumbnail_url: urls.thumbnailUrl
                 });
                 alert("홍보 요청 완료! 승인 후 리스트에 노출됩니다.");
-                updateLastActionTime('post');
+                updateThrottle('POST');
                 resetWriteForm();
                 setStreamSubTab('MY_REQUESTS');
             }
@@ -310,7 +314,7 @@ export const CommunityPanel: React.FC = () => {
     setIsSubmitting(true);
     let imageUrl = ''; let thumbnailUrl = '';
     
-    // 이미지가 선택된 경우에만 업로드 시도 (이미지 필수 해제)
+    // 이미지는 필수가 아님 (선택시에만 업로드)
     if (selectedFile) {
         setUploadProgress(true);
         try { 
@@ -333,7 +337,7 @@ export const CommunityPanel: React.FC = () => {
         else { const author = userProfile?.nickname || authUser?.name || 'Unknown'; result = await communityService.createPost({ ...postData, author }); }
         
         if (result) { 
-          updateLastActionTime('post');
+          updateThrottle('POST');
           resetWriteForm(); 
           if (writeMode === 'update') communityService.getPosts('update').then(setUpdatePosts); 
           fetchTabContent(activeTab); 
@@ -641,7 +645,7 @@ export const CommunityPanel: React.FC = () => {
                                     <div className="flex items-center gap-2 mb-1"><span onClick={() => openCommunityUserProfile(c.authorNickname, c.authorId)} className="text-[10px] font-black text-slate-900 hover:text-cyan-600 cursor-pointer transition-colors">{c.authorNickname}</span>{c.teamType !== 'GRAY' && <span className={`px-1.5 py-0.5 rounded text-[7px] font-black text-white ${c.teamType === 'BLUE' ? 'bg-blue-600' : 'bg-red-600'}`}>{c.teamType}</span>}<span className="text-[8px] text-slate-300 font-bold uppercase">TS_{c.createdAt.split('T')[0]}</span></div>
                                     <div className={`p-4 rounded-2xl text-[11px] font-medium transition-colors ${c.isDeleted ? 'bg-slate-100 text-slate-400 border border-slate-100 italic' : 'bg-slate-50 text-slate-600 border border-slate-100'}`}>
                                       {c.isDeleted ? (
-                                        c.deletedBy === c.authorId ? `${c.authorNickname} 자진 삭제` : "관리자에 의한 삭제"
+                                        c.deletedReason === 'ADMIN_ACTION' ? "관리자에 의한 댓글 삭제" : `${c.authorNickname} 자진 삭제`
                                       ) : c.content}
                                     </div>
                                     {(isAdmin || c.authorId === authUser?.id) && !c.isDeleted && <button onClick={() => handleCommentDelete(c.id, c.authorNickname)} className="absolute top-0 right-0 p-1 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg></button>}
@@ -696,7 +700,7 @@ export const CommunityPanel: React.FC = () => {
                                     <div className="p-2 bg-slate-50 border-2 border-dashed border-slate-200 rounded-3xl text-center relative transition-all hover:border-cyan-200">
                                         <input type="file" id="streamFile" onChange={handleFileChange} accept="image/jpeg,image/png,image/webp,image/gif" className="hidden" />
                                         <label htmlFor="streamFile" className="cursor-pointer block py-6">
-                                            {filePreview ? <img src={filePreview} className="max-h-32 mx-auto rounded-xl shadow-2xl" /> : <div className="flex flex-col items-center gap-2 text-slate-300"><svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg><span className="text-[8px] font-black uppercase tracking-widest">Select_Visual_Pkt</span></div>}
+                                            {filePreview ? <img src={filePreview} className="max-h-32 mx-auto rounded-xl shadow-2xl" /> : <div className="flex flex-col items-center gap-2 text-slate-300"><svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg><span className="text-[8px] font-black uppercase tracking-widest">Select_Visual_Pkt</span></div>}
                                         </label>
                                     </div>
                                </div>
@@ -765,7 +769,7 @@ export const CommunityPanel: React.FC = () => {
                                             ) : (
                                                 <div className="py-8 flex flex-col items-center justify-center gap-2">
                                                     <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-400 shadow-inner">
-                                                      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                                      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                                                     </div>
                                                     <span className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em]">Drop_Visual_Data (Optional)</span>
                                                 </div>

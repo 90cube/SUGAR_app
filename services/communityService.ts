@@ -99,37 +99,46 @@ class CommunityService {
   }
 
   /**
-   * 보드 타입에 따라 다른 버킷으로 이미지 업로드
+   * 목적에 맞는 버킷으로 업로드 (파일 크기 및 타입 검증 포함)
    */
   async uploadImage(file: File, boardType: BoardType): Promise<{ imageUrl: string, thumbnailUrl: string } | null> {
     if (!supabase) return null;
-    
-    // 프런트엔드 1차 필터링 (용량 및 형식)
+
+    // 1. 프론트엔드 검증 (512KB)
     if (file.size > 512 * 1024) throw new Error("이미지 용량은 512KB 이하만 업로드할 수 있습니다.");
+    
+    // 2. MIME 타입 검증
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-    if (!allowedTypes.includes(file.type)) throw new Error("허용되지 않는 파일 형식입니다.");
+    if (!allowedTypes.includes(file.type)) throw new Error("허용되지 않는 파일 형식입니다. (jpg, png, webp, gif)");
 
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
+    if (!user) throw new Error("인증 정보가 없습니다.");
 
-    // 목적별 버킷 선택
+    // 3. 버킷 결정
     const bucketName = boardType === 'stream' ? STREAMING_BUCKET : COMMUNITY_BUCKET;
     const fileExt = file.name.split('.').pop();
     const fileName = `${user.id}/${crypto.randomUUID()}.${fileExt}`;
 
-    const { data, error } = await supabase.storage
-      .from(bucketName)
-      .upload(fileName, file, {
-        cacheControl: '3600',
-        upsert: false
-      });
+    const { error: upErr } = await supabase.storage.from(bucketName).upload(fileName, file, {
+      contentType: file.type,
+      cacheControl: '3600',
+      upsert: false
+    });
 
-    if (error) throw error;
+    if (upErr) throw upErr;
 
     const publicUrl = supabase.storage.from(bucketName).getPublicUrl(fileName).data.publicUrl;
     
-    // 썸네일과 원본을 동일하게 처리 (Supabase Transformation 미사용 시)
     return { imageUrl: publicUrl, thumbnailUrl: publicUrl };
+  }
+
+  // 레거시 호환용 래퍼
+  async uploadKukkukImage(file: File): Promise<{ imageUrl: string, thumbnailUrl: string } | null> {
+    return this.uploadImage(file, 'fun');
+  }
+
+  async uploadLabUpdateImage(file: File): Promise<{ imageUrl: string, thumbnailUrl: string } | null> {
+    return this.uploadImage(file, 'update');
   }
 
   async createStreamingRequest(payload: { platform: string, stream_url: string, pr_url: string, description: string, thumbnail_url: string }): Promise<boolean> {
@@ -176,11 +185,11 @@ class CommunityService {
     const payload: any = {
       author_id: user.id,
       author_nickname: nickname,
-      board_type: post.boardType === 'balance' ? 'BALANCE' : post.boardType === 'fun' ? 'FUN' : post.boardType,
+      board_type: post.boardType === 'balance' ? 'BALANCE' : post.board_type === 'fun' ? 'FUN' : post.boardType,
       status: 'APPROVED',
       thumbnail: post.thumbnail || null,
       image_url: post.imageUrl || null,
-      thumbnail_url: post.thumbnailUrl || null
+      thumbnail_url: post.thumbnail_url || null
     };
 
     if (post.boardType === 'balance') {
@@ -203,7 +212,7 @@ class CommunityService {
       board_type: post.boardType === 'balance' ? 'BALANCE' : post.boardType === 'fun' ? 'FUN' : post.boardType,
       thumbnail: post.thumbnail || null,
       image_url: post.imageUrl || null,
-      thumbnail_url: post.thumbnailUrl || null
+      thumbnail_url: post.thumbnail_url || null
     };
     if (post.boardType === 'balance') {
       payload.blue_option = post.blue_option || post.blueOption || '';
@@ -261,7 +270,8 @@ class CommunityService {
   async softDeleteComment(commentId: string, isAdminAction: boolean, nickname: string): Promise<boolean> {
     if (!supabase) return false;
     const { data: { user } } = await supabase.auth.getUser();
-    // 상태만 DELETED로 변경하고 내용은 보존 (프런트에서 분기 처리)
+    
+    // 내용과 닉네임을 수정하지 않고 상태만 변경
     const { error } = await supabase
         .from('comments')
         .update({ 
@@ -288,7 +298,8 @@ class CommunityService {
       createdAt: c.created_at, 
       teamType: (c.team_type as any) || 'GRAY', 
       isDeleted: c.is_deleted,
-      deletedBy: c.deleted_by
+      deletedBy: c.deleted_by,
+      deletedReason: c.deleted_reason
     }));
   }
 
