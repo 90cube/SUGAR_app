@@ -54,9 +54,10 @@ export const CommunityPanel: React.FC = () => {
   const [filePreview, setFilePreview] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState(false);
   
-  // AI Parser
+  // AI Parser (Update 요약용)
   const [rawUpdateText, setRawUpdateText] = useState('');
   const [isSummarizing, setIsSummarizing] = useState(false);
+  const [masterPrompt, setMasterPrompt] = useState('당신은 서든어택 업데이트 전문 요약관입니다. 공지의 모든 핵심 내용을 정리하되, 보상이나 스케줄 정보는 반드시 Markdown Table 형식을 사용하여 정갈하게 작성하세요.');
 
   // Comment
   const [commentInput, setCommentInput] = useState('');
@@ -209,7 +210,7 @@ export const CommunityPanel: React.FC = () => {
     if (!rawUpdateText.trim()) return alert("요약할 공지 원문을 입력하세요.");
     setIsSummarizing(true);
     try {
-        const result = await geminiService.summarizeGameUpdate(rawUpdateText);
+        const result = await geminiService.summarizeGameUpdate(rawUpdateText, masterPrompt);
         setWriteTitle(result.title);
         setWriteContent(result.content);
         setRawUpdateText('');
@@ -655,7 +656,7 @@ export const CommunityPanel: React.FC = () => {
                                     <div className="p-2 bg-slate-50 border-2 border-dashed border-slate-200 rounded-3xl text-center relative transition-all hover:border-cyan-200">
                                         <input type="file" id="streamFile" onChange={handleFileChange} accept="image/*" className="hidden" />
                                         <label htmlFor="streamFile" className="cursor-pointer block py-6">
-                                            {filePreview ? <img src={filePreview} className="max-h-32 mx-auto rounded-xl shadow-2xl" /> : <div className="flex flex-col items-center gap-2 text-slate-300"><svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg><span className="text-[8px] font-black uppercase tracking-widest">Select_Visual_Pkt</span></div>}
+                                            {filePreview ? <img src={filePreview} className="max-h-32 mx-auto rounded-xl shadow-2xl" /> : <div className="flex flex-col items-center gap-2 text-slate-300"><svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg><span className="text-[8px] font-black uppercase tracking-widest">Select_Visual_Pkt</span></div>}
                                         </label>
                                     </div>
                                </div>
@@ -664,11 +665,19 @@ export const CommunityPanel: React.FC = () => {
                             <>
                                 {writeMode === 'update' && (
                                     <div className="space-y-1 p-4 bg-cyan-50 border border-cyan-100 rounded-3xl mb-4">
-                                        <label className="text-[9px] font-black text-cyan-600 uppercase tracking-widest ml-2">AI_Notice_Summarizer (Raw Buffer)</label>
+                                        <label className="text-[9px] font-black text-cyan-600 uppercase tracking-widest ml-2">AI_Notice_Master_Prompt (Editable)</label>
+                                        <textarea 
+                                          value={masterPrompt} 
+                                          onChange={e => setMasterPrompt(e.target.value)} 
+                                          placeholder="AI 요약 프롬프트를 입력하세요..." 
+                                          className="w-full p-3 bg-white border border-cyan-100 rounded-xl text-[9px] font-bold h-20 resize-none outline-none focus:border-cyan-400 mb-2" 
+                                        />
+                                        <div className="h-px bg-cyan-100 my-2"></div>
+                                        <label className="text-[9px] font-black text-cyan-600 uppercase tracking-widest ml-2">Raw_Notice_Buffer</label>
                                         <textarea 
                                           value={rawUpdateText} 
                                           onChange={e => setRawUpdateText(e.target.value)} 
-                                          placeholder="서든어택 공지 내용을 이곳에 붙여넣으세요..." 
+                                          placeholder="공지사항 원문을 이곳에 붙여넣으세요..." 
                                           className="w-full p-4 bg-white border border-cyan-100 rounded-2xl text-[10px] font-medium h-32 resize-none outline-none focus:border-cyan-400" 
                                         />
                                         <button 
@@ -698,7 +707,7 @@ export const CommunityPanel: React.FC = () => {
                                             ) : (
                                                 <div className="py-8 flex flex-col items-center justify-center gap-2">
                                                     <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-400 shadow-inner">
-                                                      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                                      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                                                     </div>
                                                     <span className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em]">Drop_Visual_Data</span>
                                                 </div>

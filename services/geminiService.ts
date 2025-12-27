@@ -89,21 +89,22 @@ export class GeminiService {
       }
   }
 
-  public async summarizeGameUpdate(rawText: string): Promise<{ title: string; content: string }> {
+  public async summarizeGameUpdate(rawText: string, masterPrompt: string): Promise<{ title: string; content: string }> {
       const today = new Date();
-      const dateStr = `[${today.getFullYear().toString().slice(2)}.${(today.getMonth()+1).toString().padStart(2,'0')}.${today.getDate().toString().padStart(2,'0')}]`;
+      const yy = today.getFullYear().toString().slice(2);
+      const mm = (today.getMonth() + 1).toString().padStart(2, '0');
+      const dd = today.getDate().toString().padStart(2, '0');
+      const dateTag = `[${yy}.${mm}.${dd}]`;
 
       const prompt = `
-        당신은 서든어택 업데이트 전문 요약관입니다. 서든어택 공식 홈페이지의 공지 내용을 긁어온 텍스트를 분석하여 핵심만 요약해 주십시오.
+        ${masterPrompt}
 
-        **요약 지침**:
-        1. **일목요연한 정리**: 항목별로 깔끔하게 구분하고, 마크다운(Markdown) 형식을 적극 사용하십시오.
-        2. **표(Table) 사용**: 아이템 사양, 보상 리스트, 점검 일정 등 구조화가 필요한 데이터는 반드시 마크다운 표(Table) 형식을 사용하여 출력하십시오.
-        3. **내용 간추리기**: 수식어나 불필요한 인사는 제외하고 정보 전달에 집중하십시오.
-        4. **날짜 태그**: 제목에 반드시 ${dateStr} 태그를 포함하십시오.
-        5. **마무리 서명**: **본문의 마지막 문장은 반드시 "Su-Lab 매니저 "CUBE" 였습니다." 로 끝나야 합니다.**
+        **추가 강제 지침**:
+        1. 제목에는 반드시 오늘 날짜 태그인 "${dateTag}"를 포함시키십시오.
+        2. 모든 정보는 마크다운(Markdown) 형식을 사용하며, 특히 표(Table)가 필요한 부분은 반드시 표로 작성하십시오.
+        3. 본문의 마지막 문장은 반드시 "Su-Lab 매니저 "CUBE" 였습니다." 로 끝나야 합니다.
 
-        [원문 텍스트]
+        [분석할 원문 데이터]
         ${rawText}
       `;
 
@@ -116,8 +117,8 @@ export class GeminiService {
                 responseSchema: {
                   type: Type.OBJECT,
                   properties: {
-                    title: { type: Type.STRING, description: "The summary title including date tag" },
-                    content: { type: Type.STRING, description: "The summarized content in markdown format including tables" },
+                    title: { type: Type.STRING, description: "The summary title with date tag" },
+                    content: { type: Type.STRING, description: "The summarized report in markdown including CUBE signature" },
                   },
                   required: ["title", "content"],
                 }
@@ -127,22 +128,17 @@ export class GeminiService {
           let jsonStr = response.text || "{}";
           const parsed = JSON.parse(jsonStr);
 
-          // Advanced Sanitization
+          // Ensure proper line breaks in the content
           if (parsed.content) {
-            parsed.content = parsed.content
-              .replace(/\\n/g, '\n')
-              .replace(/\\\n/g, '\n')
-              .replace(/\r\n/g, '\n')
-              .replace(/\n{3,}/g, '\n\n')
-              .trim();
+            parsed.content = parsed.content.replace(/\\n/g, '\n').trim();
           }
 
           return parsed;
       } catch (e) {
           console.error("Update Summary Error", e);
           return {
-              title: `${dateStr} 업데이트 마스터링 실패`,
-              content: "원문 분석 중 기술적 오류가 발생했습니다. 원문을 직접 등록하시거나 다시 시도해주십시오.\n\n---\n**Su-Lab 매니저 \"CUBE\" 였습니다.**"
+              title: `${dateTag} 업데이트 데이터 마스터링 실패`,
+              content: "원문 분석 중 기술적 오류가 발생했습니다. 직접 내용을 입력해 주십시오.\n\nSu-Lab 매니저 \"CUBE\" 였습니다."
           };
       }
   }
