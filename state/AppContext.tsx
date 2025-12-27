@@ -77,6 +77,8 @@ interface AppContextType {
   setIsCommunityWriteFormOpen: (open: boolean) => void;
   selectedCommunityPost: CommunityPost | null;
   setSelectedCommunityPost: React.Dispatch<React.SetStateAction<CommunityPost | null>>;
+  // API Key Protocol
+  openKeySelector: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -161,6 +163,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const refreshAuthUser = async () => {
     await recoverSession();
+  };
+
+  const openKeySelector = async () => {
+    if (window.aistudio && window.aistudio.openSelectKey) {
+      await window.aistudio.openSelectKey();
+    } else {
+      console.warn("API Key Selector not available in this environment.");
+    }
   };
 
   useEffect(() => {
@@ -321,7 +331,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     openAnalysisModal();
     try {
       const now = new Date();
-      // FIX: Changed timezoneOffset() (which does not exist) to getTimezoneOffset()
       const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
       const kstDate = new Date(utc + (9 * 60 * 60 * 1000)).toISOString().split('T')[0];
       const report = await nexonService.runAnomalyDetection(userProfile.nickname, kstDate, userProfile.recentMatches);
@@ -357,7 +366,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       selectedCommunityUser, openCommunityUserProfile, closeCommunityUserProfile,
       communityViewMode, setCommunityViewMode,
       isCommunityWriteFormOpen, setIsCommunityWriteFormOpen,
-      selectedCommunityPost, setSelectedCommunityPost
+      selectedCommunityPost, setSelectedCommunityPost,
+      openKeySelector
     }}>
       {children}
     </AppContext.Provider>

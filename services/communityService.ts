@@ -142,7 +142,7 @@ class CommunityService {
     if (!user) return null;
 
     const fileId = crypto.randomUUID();
-    // 버킷 경로 고정: storage/v1/object/streaming-thumbnails/...
+    // 버킷 경로 최적화: storage/v1/object/public/streaming-thumbnails/...
     const originalPath = `original/${user.id}/${fileId}.webp`;
     const thumbPath = `thumb/${user.id}/${fileId}_thumb.webp`;
 
@@ -154,7 +154,10 @@ class CommunityService {
       cacheControl: '3600',
       upsert: false
     });
-    if (upErr) throw upErr;
+    if (upErr) {
+        if (upErr.message.includes("Bucket not found")) throw new Error(`[Storage Error] '${STREAMING_BUCKET}' 버킷을 찾을 수 없습니다. 관리자에게 문의하세요.`);
+        throw upErr;
+    }
 
     const { error: thumbErr } = await supabase.storage.from(STREAMING_BUCKET).upload(thumbPath, thumbBlob, { 
       contentType: 'image/webp',
@@ -248,7 +251,7 @@ class CommunityService {
 
     const { data, error } = await supabase.from('posts').insert(payload).select(`*, votes (vote_type), comments (id)`).single();
     if (error) {
-      // DB 트리거 에러 메시지 처리 (1분 제한 등)
+      // 쿼터 제한(DB 트리거) 에러 메시지 추출
       throw new Error(error.message);
     }
     return this.mapRowToPost(data);
@@ -376,7 +379,7 @@ class CommunityService {
 
     const queryId = authorId ? { id: authorId } : { nickname };
 
-    // public_profiles 뷰 사용 (존재하지 않는 email 컬럼은 요청하지 않음)
+    // profiles에 존재하지 않는 email 컬럼은 요청하지 않음 (400 방지)
     const { data: prof } = await supabase
       .from('public_profiles')
       .select('created_at, id, post_count, comment_count')

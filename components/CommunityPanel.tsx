@@ -192,7 +192,11 @@ export const CommunityPanel: React.FC = () => {
             await refreshAuthUser();
         }
     } catch (err: any) {
-        alert(err.message);
+        if (err.message.includes("quota") || err.message.includes("limit")) {
+            alert("댓글 작성 제한: 1분에 1회만 작성 가능합니다.");
+        } else {
+            alert(err.message);
+        }
     } finally {
         setIsSubmitting(false);
     }
@@ -312,7 +316,11 @@ export const CommunityPanel: React.FC = () => {
           await refreshAuthUser();
         }
     } catch (err: any) {
-        alert(err.message);
+        if (err.message.includes("quota") || err.message.includes("limit")) {
+            alert("작성 제한: 1분에 1회, 일일 최대 30회까지 작성 가능합니다.");
+        } else {
+            alert(err.message);
+        }
     } finally {
         setIsSubmitting(false);
     }
@@ -663,7 +671,7 @@ export const CommunityPanel: React.FC = () => {
                                     <div className="p-2 bg-slate-50 border-2 border-dashed border-slate-200 rounded-3xl text-center relative transition-all hover:border-cyan-200">
                                         <input type="file" id="streamFile" onChange={handleFileChange} accept="image/jpeg,image/png,image/webp,image/gif" className="hidden" />
                                         <label htmlFor="streamFile" className="cursor-pointer block py-6">
-                                            {filePreview ? <img src={filePreview} className="max-h-32 mx-auto rounded-xl shadow-2xl" /> : <div className="flex flex-col items-center gap-2 text-slate-300"><svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg><span className="text-[8px] font-black uppercase tracking-widest">Select_Visual_Pkt</span></div>}
+                                            {filePreview ? <img src={filePreview} className="max-h-32 mx-auto rounded-xl shadow-2xl" /> : <div className="flex flex-col items-center gap-2 text-slate-300"><svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg><span className="text-[8px] font-black uppercase tracking-widest">Select_Visual_Pkt</span></div>}
                                         </label>
                                     </div>
                                </div>

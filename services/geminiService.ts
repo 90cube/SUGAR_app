@@ -5,6 +5,7 @@ import { UserProfile, RecapStats } from "../types";
 
 export class GeminiService {
   private get ai() {
+    // Create new instance every call to ensure up-to-date environment variables
     return new GoogleGenAI({ apiKey: process.env.API_KEY });
   }
 
@@ -12,7 +13,7 @@ export class GeminiService {
     try {
       const response = await this.ai.models.generateContent({
         model: DEFAULT_GEMINI_MODEL,
-        contents: prompt,
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
       });
       
       return response.text || "";
@@ -62,7 +63,7 @@ export class GeminiService {
     try {
       const response = await this.ai.models.generateContent({
         model: DEFAULT_GEMINI_MODEL,
-        contents: prompt,
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
       });
       return response.text || "Analysis failed.";
     } catch (error) {
@@ -80,7 +81,7 @@ export class GeminiService {
       try {
         const response = await this.ai.models.generateContent({
             model: DEFAULT_GEMINI_MODEL,
-            contents: prompt
+            contents: [{ role: 'user', parts: [{ text: prompt }] }]
         });
         return response.text || "분석을 불러올 수 없습니다.";
       } catch (e) {
@@ -116,7 +117,7 @@ export class GeminiService {
       try {
           const response = await this.ai.models.generateContent({
               model: DEFAULT_GEMINI_MODEL,
-              contents: prompt,
+              contents: [{ role: 'user', parts: [{ text: prompt }] }],
               config: {
                 responseMimeType: "application/json",
                 responseSchema: {
@@ -139,11 +140,12 @@ export class GeminiService {
           }
 
           return parsed;
-      } catch (e) {
+      } catch (e: any) {
           console.error("Update Summary Error", e);
+          // Return structured error so the UI stays consistent
           return {
-              title: `${dateTag} 데이터 마스터링 기술 오류`,
-              content: "AI 분석 도중 시스템 오류가 발생했습니다. 원문을 직접 편집하시거나 잠시 후 다시 시도하십시오.\n\nSu-Lab 매니저 \"CUBE\" 였습니다."
+              title: `${dateTag} AI 서비스 연동 오류`,
+              content: `분석 도중 시스템 오류가 발생했습니다. (사유: ${e.message || 'API_KEY_INVALID'})\n\n관리자라면 터미널 상단의 'RE-SYNC' 버튼을 통해 연결을 복구하십시오.\n\nSu-Lab 매니저 "CUBE" 였습니다.`
           };
       }
   }
@@ -161,7 +163,7 @@ export class GeminiService {
     try {
       const response = await this.ai.models.generateContent({
         model: DEFAULT_GEMINI_MODEL,
-        contents: prompt,
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
       });
       return response.text || "연구소 내부 기준 미달로 인해 요청이 반려되었습니다.";
     } catch (e) {
