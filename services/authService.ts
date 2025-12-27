@@ -5,8 +5,7 @@ import { ADMIN_EMAILS } from "../constants";
 
 class AuthService {
   /**
-   * Supabase Auth 유저 정보를 바탕으로 프로필 정보를 가져옵니다.
-   * DB 조회 실패(400/500) 시에도 ADMIN_EMAILS 목록에 있다면 관리자 권한을 부여합니다.
+   * 본인 정보 조회 시에만 profiles 테이블을 직접 조회합니다 (RLS 허용됨).
    */
   async fetchMyProfile(): Promise<AuthUser | null> {
     if (!supabase) return null;
@@ -16,11 +15,9 @@ class AuthService {
       if (userError || !user) return null;
 
       const userEmail = user.email || "";
-      // 이메일 화이트리스트 확인 (DB 상태와 무관하게 권한 부여의 기준이 됨)
       const isEmailInAdminList = ADMIN_EMAILS.some(email => email.toLowerCase() === userEmail.toLowerCase());
       const meta = user.user_metadata || {};
       
-      // 1. 기본 사용자 객체 (이메일 기반 권한 설정)
       const fallbackUser: AuthUser = {
         id: user.id,
         loginId: meta.login_id || '',
@@ -31,8 +28,6 @@ class AuthService {
       };
 
       try {
-        // 2. DB profiles 테이블 조회 시도
-        // 여기서 400 에러가 발생하더라도 catch 블록에서 fallbackUser를 반환함
         const { data, error } = await supabase
           .from('profiles')
           .select('login_id, nickname, role')
@@ -40,7 +35,6 @@ class AuthService {
           .maybeSingle();
 
         if (error || !data) {
-          // DB 조회 실패 시 이메일 기반의 권한을 가진 객체 반환
           return fallbackUser;
         }
 
@@ -48,11 +42,9 @@ class AuthService {
           ...fallbackUser,
           loginId: data.login_id || fallbackUser.loginId,
           name: data.nickname || fallbackUser.name,
-          // DB에 명시된 role이 있으면 사용하되, 없으면 이메일 체크 결과(fallbackUser.role) 유지
           role: (data.role as 'admin' | 'user') || fallbackUser.role
         };
       } catch (dbErr) {
-        // DB 테이블 구조가 다르거나 컬럼이 없어서 발생하는 400/500 에러 대응
         return fallbackUser;
       }
     } catch (e) {
@@ -75,7 +67,8 @@ class AuthService {
     let emailToUse = idOrEmail;
     if (!idOrEmail.includes('@')) {
       try {
-        const { data } = await supabase.from('profiles').select('email').eq('login_id', idOrEmail).maybeSingle();
+        // ID 조희 시에도 public_profiles 뷰 사용 권장 (하지만 본인 확인 로직상 profiles 접근 가능)
+        const { data } = await supabase.from('public_profiles').select('email').eq('login_id', idOrEmail).maybeSingle();
         if (data) emailToUse = data.email;
       } catch { }
     }
@@ -105,13 +98,14 @@ class AuthService {
   }
 
   async logout(): Promise<void> {
-    if (supabase) await supabase.auth.signOut();
+    if (supabase) await supabase.signOut();
   }
 
   async isIdAvailable(loginId: string): Promise<{available: boolean, message: string}> {
     if (!supabase) return { available: true, message: "Offline" };
     try {
-      const { data } = await supabase.from('profiles').select('login_id').eq('login_id', loginId).maybeSingle();
+      // public_profiles 뷰 사용
+      const { data } = await supabase.from('public_profiles').select('login_id').eq('login_id', loginId).maybeSingle();
       return { available: !data, message: data ? "이미 사용 중인 아이디" : "사용 가능" };
     } catch { return { available: true, message: "검증 불가" }; }
   }
@@ -119,7 +113,8 @@ class AuthService {
   async isEmailAvailable(email: string): Promise<{available: boolean, message: string}> {
     if (!supabase) return { available: true, message: "Offline" };
     try {
-      const { data } = await supabase.from('profiles').select('email').eq('email', email).maybeSingle();
+      // public_profiles 뷰 사용
+      const { data } = await supabase.from('public_profiles').select('email').eq('email', email).maybeSingle();
       return { available: !data, message: data ? "이미 가입된 이메일" : "사용 가능" };
     } catch { return { available: true, message: "검증 불가" }; }
   }

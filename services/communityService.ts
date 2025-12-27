@@ -11,7 +11,7 @@ class CommunityService {
       if (boardType === 'stream') {
           const { data, error } = await supabase
             .from('streaming_posts')
-            .select(`*, profiles(nickname)`)
+            .select(`*, profiles:public_profiles(nickname)`)
             .eq('status', 'VISIBLE')
             .order('created_at', { ascending: false });
           
@@ -19,7 +19,7 @@ class CommunityService {
           return (data || []).map((row: any) => ({
               id: row.id,
               boardType: 'stream',
-              title: `${row.profiles?.nickname} 님의 방송`,
+              title: `${row.profiles?.nickname || 'Unknown'} 님의 방송`,
               content: row.description || '',
               author: row.profiles?.nickname || 'Unknown',
               authorId: row.requester_id,
@@ -66,7 +66,7 @@ class CommunityService {
   }
 
   private async checkIsAdmin(userId: string): Promise<boolean> {
-    const { data } = await supabase.from('profiles').select('role').eq('id', userId).maybeSingle();
+    const { data } = await supabase.from('public_profiles').select('role').eq('id', userId).maybeSingle();
     return data?.role === 'admin';
   }
 
@@ -126,7 +126,6 @@ class CommunityService {
   async uploadKukkukImage(file: File): Promise<{ imageUrl: string, thumbnailUrl: string } | null> {
     if (!supabase) return null;
     if (file.size > 512 * 1024) throw new Error("이미지 용량은 512KB 이하만 업로드할 수 있습니다.");
-    
     const userId = (await supabase.auth.getUser()).data.user?.id;
     if (!userId) return null;
 
@@ -152,13 +151,11 @@ class CommunityService {
   async uploadLabUpdateImage(file: File): Promise<{ imageUrl: string, thumbnailUrl: string } | null> {
     if (!supabase) return null;
     if (file.size > 512 * 1024) throw new Error("이미지 용량은 512KB 이하만 업로드할 수 있습니다.");
-    
     const userId = (await supabase.auth.getUser()).data.user?.id;
     if (!userId) return null;
 
     const fileId = crypto.randomUUID();
     const path = `updates/${userId}/${fileId}.webp`;
-
     const webpBlob = await this.convertToWebP(file);
 
     const { error } = await supabase.storage.from(STREAMING_BUCKET).upload(path, webpBlob, { contentType: 'image/webp' });
@@ -173,7 +170,8 @@ class CommunityService {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return false;
     const { error } = await supabase.from('streaming_requests').insert({ requester_id: user.id, ...payload });
-    return !error;
+    if (error) throw new Error(error.message);
+    return true;
   }
 
   async getMyStreamingRequests(): Promise<StreamingRequest[]> {
@@ -187,7 +185,7 @@ class CommunityService {
 
   async getPendingStreamingRequests(): Promise<StreamingRequest[]> {
     if (!supabase) return [];
-    const { data, error } = await supabase.from('streaming_requests').select('*, profiles(nickname)').eq('status', 'PENDING').order('created_at', { ascending: true });
+    const { data, error } = await supabase.from('streaming_requests').select('*, profiles:public_profiles(nickname)').eq('status', 'PENDING').order('created_at', { ascending: true });
     if (error) return [];
     return data || [];
   }
@@ -197,14 +195,15 @@ class CommunityService {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return false;
     const { error } = await supabase.from('streaming_requests').update({ status, admin_message: message, reviewed_by: user.id, reviewed_at: new Date().toISOString() }).eq('id', requestId);
-    return !error;
+    if (error) throw new Error(error.message);
+    return true;
   }
 
   async createPost(post: any): Promise<CommunityPost | null> {
     if (!supabase) return null;
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
-    const { data: profile } = await supabase.from('profiles').select('nickname').eq('id', user.id).maybeSingle();
+    const { data: profile } = await supabase.from('public_profiles').select('nickname').eq('id', user.id).maybeSingle();
     const nickname = profile?.nickname || 'Unknown';
 
     const payload: any = {
@@ -227,7 +226,7 @@ class CommunityService {
     }
 
     const { data, error } = await supabase.from('posts').insert(payload).select(`*, votes (vote_type), comments (id)`).single();
-    if (error) return null;
+    if (error) throw new Error(error.message);
     return this.mapRowToPost(data);
   }
 
@@ -240,22 +239,23 @@ class CommunityService {
       thumbnail_url: post.thumbnail_url || null
     };
     if (post.boardType === 'balance') {
-      payload.blue_option = post.blueOption || '';
-      payload.red_option = post.redOption || '';
+      payload.blue_option = post.blue_option || post.blueOption || '';
+      payload.red_option = post.red_option || post.redOption || '';
       payload.extra_content = post.content || '';
     } else {
       payload.title = post.title || '';
       payload.content = post.content || '';
     }
     const { data, error } = await supabase.from('posts').update(payload).eq('id', postId).select(`*, votes (vote_type), comments (id)`).single();
-    if (error) return null;
+    if (error) throw new Error(error.message);
     return this.mapRowToPost(data);
   }
 
   async deletePost(postId: string) {
     if (!supabase) return false;
     const { error } = await supabase.from('posts').update({ status: 'DELETED' }).eq('id', postId);
-    return !error;
+    if (error) throw new Error(error.message);
+    return true;
   }
 
   async votePost(postId: string, voteType: 'HEAD' | 'HALF') {
@@ -264,8 +264,9 @@ class CommunityService {
     if (!user) return false;
     const { data: existing } = await supabase.from('votes').select('id').eq('post_id', postId).eq('author_id', user.id).maybeSingle();
     if (existing) return false;
-    const { error = null } = await supabase.from('votes').insert({ post_id: postId, author_id: user.id, vote_type: voteType });
-    return !error;
+    const { error } = await supabase.from('votes').insert({ post_id: postId, author_id: user.id, vote_type: voteType });
+    if (error) throw new Error(error.message);
+    return true;
   }
 
   async voteBalance(postId: string, voteSide: 'BLUE' | 'RED') {
@@ -274,25 +275,28 @@ class CommunityService {
     if (!user) return false;
     const { data: existing } = await supabase.from('balance_votes').select('id').eq('post_id', postId).eq('user_id', user.id).maybeSingle();
     if (existing) return false;
-    const { error = null } = await supabase.from('balance_votes').insert({ post_id: postId, user_id: user.id, vote_side: voteSide });
-    return !error;
+    const { error } = await supabase.from('balance_votes').insert({ post_id: postId, user_id: user.id, vote_side: voteSide });
+    if (error) throw new Error(error.message);
+    return true;
   }
 
   async addComment(postId: string, content: string, teamType: 'BLUE' | 'RED' | 'GRAY' = 'GRAY'): Promise<CommunityComment | null> {
     if (!supabase) return null;
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
-    const { data: profile } = await supabase.from('profiles').select('nickname').eq('id', user.id).maybeSingle();
+    const { data: profile } = await supabase.from('public_profiles').select('nickname').eq('id', user.id).maybeSingle();
     const nickname = profile?.nickname || 'Unknown';
     const { data, error } = await supabase.from('comments').insert({ post_id: postId, author_id: user.id, author_nickname: nickname, content, team_type: teamType }).select().single();
-    if (error) return null;
+    if (error) throw new Error(error.message);
     return { id: data.id, postId: data.post_id, authorId: data.author_id, authorNickname: data.author_nickname, content: data.content, createdAt: data.created_at, teamType: data.team_type as any || 'GRAY' };
   }
 
-  async softDeleteComment(commentId: string): Promise<boolean> {
+  async softDeleteComment(commentId: string, isAdminAction: boolean, nickname: string): Promise<boolean> {
     if (!supabase) return false;
-    const { error } = await supabase.from('comments').update({ is_deleted: true }).eq('id', commentId);
-    return !error;
+    const content = isAdminAction ? "관리자에 의한 댓글 삭제" : `닉네임: ${nickname} 자진 삭제.`;
+    const { error } = await supabase.from('comments').update({ content, is_deleted: true }).eq('id', commentId);
+    if (error) throw new Error(error.message);
+    return true;
   }
 
   async getComments(postId: string): Promise<CommunityComment[]> {
@@ -305,7 +309,8 @@ class CommunityService {
   async movePostToTemp(postId: string) {
     if (!supabase) return false;
     const { error } = await supabase.from('posts').update({ board_type: 'TEMP' }).eq('id', postId);
-    return !error;
+    if (error) throw new Error(error.message);
+    return true;
   }
 
   async getPostsByAuthorId(authorId: string): Promise<CommunityPost[]> {
@@ -331,9 +336,9 @@ class CommunityService {
 
     const queryId = authorId ? { id: authorId } : { nickname };
 
-    // 1. Fetch profile basics
+    // public_profiles 뷰 사용
     const { data: prof } = await supabase
-      .from('profiles')
+      .from('public_profiles')
       .select('created_at, id')
       .match(queryId)
       .maybeSingle();
@@ -342,7 +347,7 @@ class CommunityService {
         joinDate = prof.created_at ? prof.created_at.split('T')[0] : '-';
         const targetOuid = prof.id;
 
-        // 2. Real-time post count (ignoring profiles.post_count for now)
+        // 실시간 posts 테이블 count (DELETED 제외)
         const { count: pCount } = await supabase
             .from('posts')
             .select('*', { count: 'exact', head: true })
@@ -351,7 +356,7 @@ class CommunityService {
         
         postCount = pCount || 0;
 
-        // 3. Real-time comment count
+        // 실시간 comments 테이블 count (is_deleted 제외)
         const { count: cCount } = await supabase
             .from('comments')
             .select('*', { count: 'exact', head: true })
