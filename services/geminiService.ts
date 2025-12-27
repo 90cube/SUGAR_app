@@ -89,17 +89,21 @@ export class GeminiService {
       }
   }
 
-  public async summarizeGameUpdate(rawText: string, masterPrompt: string): Promise<{ title: string; content: string }> {
+  public async summarizeGameUpdate(rawText: string): Promise<{ title: string; content: string }> {
+      const today = new Date();
+      const dateStr = `[${today.getFullYear().toString().slice(2)}.${(today.getMonth()+1).toString().padStart(2,'0')}.${today.getDate().toString().padStart(2,'0')}]`;
+
       const prompt = `
-        ${masterPrompt}
+        당신은 서든어택 업데이트 전문 요약관입니다. 서든어택 공식 홈페이지의 공지 내용을 긁어온 텍스트를 분석하여 핵심만 요약해 주십시오.
 
-        **Strict Protocol**:
-        - Use Standard Markdown Tables for all structured info (schedules, rewards, item specs).
-        - DO NOT escape newlines with double backslashes in the final text. Use single real newline characters.
-        - Ensure table syntax (| Header |) is correct and separated from surrounding text by actual newlines.
-        - Title must include the date as [YY.MM.DD].
+        **요약 지침**:
+        1. **일목요연한 정리**: 항목별로 깔끔하게 구분하고, 마크다운(Markdown) 형식을 적극 사용하십시오.
+        2. **표(Table) 사용**: 아이템 사양, 보상 리스트, 점검 일정 등 구조화가 필요한 데이터는 반드시 마크다운 표(Table) 형식을 사용하여 출력하십시오.
+        3. **내용 간추리기**: 수식어나 불필요한 인사는 제외하고 정보 전달에 집중하십시오.
+        4. **날짜 태그**: 제목에 반드시 ${dateStr} 태그를 포함하십시오.
+        5. **마무리 서명**: **본문의 마지막 문장은 반드시 "Su-Lab 매니저 "CUBE" 였습니다." 로 끝나야 합니다.**
 
-        [Source Text]
+        [원문 텍스트]
         ${rawText}
       `;
 
@@ -112,8 +116,8 @@ export class GeminiService {
                 responseSchema: {
                   type: Type.OBJECT,
                   properties: {
-                    title: { type: Type.STRING },
-                    content: { type: Type.STRING },
+                    title: { type: Type.STRING, description: "The summary title including date tag" },
+                    content: { type: Type.STRING, description: "The summarized content in markdown format including tables" },
                   },
                   required: ["title", "content"],
                 }
@@ -123,13 +127,13 @@ export class GeminiService {
           let jsonStr = response.text || "{}";
           const parsed = JSON.parse(jsonStr);
 
-          // Advanced Sanitization: Fixes common JSON escaping issues from Gemini
+          // Advanced Sanitization
           if (parsed.content) {
             parsed.content = parsed.content
-              .replace(/\\n/g, '\n') // Replace literal \n string with actual newline
-              .replace(/\\\n/g, '\n') // Handle potentially triple-escaped
+              .replace(/\\n/g, '\n')
+              .replace(/\\\n/g, '\n')
               .replace(/\r\n/g, '\n')
-              .replace(/\n{3,}/g, '\n\n') // Normalize excessive newlines
+              .replace(/\n{3,}/g, '\n\n')
               .trim();
           }
 
@@ -137,8 +141,8 @@ export class GeminiService {
       } catch (e) {
           console.error("Update Summary Error", e);
           return {
-              title: "데이터 요약 실패",
-              content: "연구소 AI가 마스터 프롬프트 프로토콜에 따라 데이터를 정제하는 데 실패했습니다. 원문을 직접 확인하시거나 다시 시도해주십시오."
+              title: `${dateStr} 업데이트 마스터링 실패`,
+              content: "원문 분석 중 기술적 오류가 발생했습니다. 원문을 직접 등록하시거나 다시 시도해주십시오.\n\n---\n**Su-Lab 매니저 \"CUBE\" 였습니다.**"
           };
       }
   }

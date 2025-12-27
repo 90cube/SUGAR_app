@@ -205,6 +205,21 @@ export const CommunityPanel: React.FC = () => {
     } catch (e: any) { alert(e.message); }
   };
 
+  const handleAiSummarize = async () => {
+    if (!rawUpdateText.trim()) return alert("요약할 공지 원문을 입력하세요.");
+    setIsSummarizing(true);
+    try {
+        const result = await geminiService.summarizeGameUpdate(rawUpdateText);
+        setWriteTitle(result.title);
+        setWriteContent(result.content);
+        setRawUpdateText('');
+    } catch (e) {
+        alert("AI 분석 중 오류가 발생했습니다.");
+    } finally {
+        setIsSummarizing(false);
+    }
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -298,7 +313,7 @@ export const CommunityPanel: React.FC = () => {
   };
 
   const resetWriteForm = () => {
-    setWriteTitle(''); setWriteContent(''); setWriteThumbnail(''); setBlueOption(''); setRedOption('');
+    setWriteTitle(''); setWriteContent(''); setWriteThumbnail(''); setBlueOption(''); setRedOption(''); setRawUpdateText('');
     setStreamUrl(''); setStreamPrUrl(''); setStreamDescription(''); setStreamPlatform('CHZZK');
     setEditingPostId(null); setSelectedFile(null); setFilePreview(null); setIsWriteFormOpen(false);
   };
@@ -322,10 +337,10 @@ export const CommunityPanel: React.FC = () => {
       <div className="relative">
         <button onClick={(e) => { e.stopPropagation(); setOpenAdminMenuId(isOpen ? null : post.id); }} className="w-8 h-8 flex items-center justify-center bg-white/20 backdrop-blur-md rounded-full text-white border border-white/10 hover:bg-white/40 transition-colors"><svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" /></svg></button>
         {isOpen && (
-          <div className="absolute right-0 mt-2 w-40 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            {post.authorId === authUser?.id && <button onClick={() => openEditForm(post)} className="w-full px-4 py-3 text-left text-[11px] font-bold text-slate-600 hover:bg-slate-50 border-b">📝 수정하기</button>}
-            {isAdmin && <button onClick={() => handleAdminAction(post.id, 'TEMP')} className="w-full px-4 py-3 text-left text-[11px] font-bold text-slate-600 hover:bg-slate-50 border-b">📁 격리(TEMP)</button>}
-            <button onClick={() => handleAdminAction(post.id, 'DELETE')} className="w-full px-4 py-3 text-left text-[11px] font-bold text-red-500 hover:bg-red-50">🗑️ 삭제</button>
+          <div className="absolute right-0 mt-2 w-40 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200 font-mono">
+            {post.authorId === authUser?.id && <button onClick={() => openEditForm(post)} className="w-full px-4 py-3 text-left text-[11px] font-bold text-slate-600 hover:bg-slate-50 border-b uppercase">Edit_Entry</button>}
+            {isAdmin && <button onClick={() => handleAdminAction(post.id, 'TEMP')} className="w-full px-4 py-3 text-left text-[11px] font-bold text-slate-600 hover:bg-slate-50 border-b uppercase">Move_Temp</button>}
+            <button onClick={() => handleAdminAction(post.id, 'DELETE')} className="w-full px-4 py-3 text-left text-[11px] font-bold text-red-500 hover:bg-red-50 uppercase">Delete_Pkt</button>
           </div>
         )}
       </div>
@@ -351,7 +366,7 @@ export const CommunityPanel: React.FC = () => {
                   <div className="flex items-center justify-between px-1 font-mono">
                      <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><span className="w-1.5 h-1.5 bg-yellow-400 rounded-full"></span>Official_Data_Feed</h3>
                      <div className="flex gap-2">
-                        {isAdmin && <button onClick={() => openWriteForm('update')} className="text-[9px] font-black bg-cyan-500 text-slate-950 px-3 py-1.5 rounded-xl shadow-lg active:scale-95 transition-transform uppercase">Deploy_Notice</button>}
+                        {isAdmin && <button onClick={() => openWriteForm('update')} className="text-[9px] font-black bg-cyan-500 text-slate-950 px-3 py-1.5 rounded-xl shadow-lg active:scale-95 transition-transform uppercase">New_Notice</button>}
                         <button onClick={() => setViewMode(viewMode === 'MAIN' ? 'UPDATE_ARCHIVE' : 'MAIN')} className="text-[9px] font-black bg-slate-900 text-white px-3 py-1.5 rounded-xl shadow-lg transition-all active:scale-95 uppercase">{viewMode === 'MAIN' ? 'LIST_VIEW' : 'DASHBOARD'}</button>
                      </div>
                   </div>
@@ -640,13 +655,32 @@ export const CommunityPanel: React.FC = () => {
                                     <div className="p-2 bg-slate-50 border-2 border-dashed border-slate-200 rounded-3xl text-center relative transition-all hover:border-cyan-200">
                                         <input type="file" id="streamFile" onChange={handleFileChange} accept="image/*" className="hidden" />
                                         <label htmlFor="streamFile" className="cursor-pointer block py-6">
-                                            {filePreview ? <img src={filePreview} className="max-h-32 mx-auto rounded-xl shadow-2xl" /> : <div className="flex flex-col items-center gap-2 text-slate-300"><svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg><span className="text-[8px] font-black uppercase tracking-widest">Select_Visual_Pkt</span></div>}
+                                            {filePreview ? <img src={filePreview} className="max-h-32 mx-auto rounded-xl shadow-2xl" /> : <div className="flex flex-col items-center gap-2 text-slate-300"><svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg><span className="text-[8px] font-black uppercase tracking-widest">Select_Visual_Pkt</span></div>}
                                         </label>
                                     </div>
                                </div>
                             </div>
                         ) : (
                             <>
+                                {writeMode === 'update' && (
+                                    <div className="space-y-1 p-4 bg-cyan-50 border border-cyan-100 rounded-3xl mb-4">
+                                        <label className="text-[9px] font-black text-cyan-600 uppercase tracking-widest ml-2">AI_Notice_Summarizer (Raw Buffer)</label>
+                                        <textarea 
+                                          value={rawUpdateText} 
+                                          onChange={e => setRawUpdateText(e.target.value)} 
+                                          placeholder="서든어택 공지 내용을 이곳에 붙여넣으세요..." 
+                                          className="w-full p-4 bg-white border border-cyan-100 rounded-2xl text-[10px] font-medium h-32 resize-none outline-none focus:border-cyan-400" 
+                                        />
+                                        <button 
+                                          type="button" 
+                                          onClick={handleAiSummarize} 
+                                          disabled={isSummarizing || !rawUpdateText.trim()}
+                                          className="w-full mt-2 py-3 bg-cyan-500 text-slate-950 font-black text-[9px] rounded-xl shadow-lg active:scale-95 disabled:opacity-50 uppercase tracking-widest"
+                                        >
+                                          {isSummarizing ? 'Mastering_Pkt...' : 'Execute_AI_Summarize'}
+                                        </button>
+                                    </div>
+                                )}
                                 {writeMode !== 'balance' && ( 
                                   <div className="space-y-1">
                                     <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Visual_Buffer_Load (Max 512KB)</label>
@@ -664,7 +698,7 @@ export const CommunityPanel: React.FC = () => {
                                             ) : (
                                                 <div className="py-8 flex flex-col items-center justify-center gap-2">
                                                     <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-400 shadow-inner">
-                                                      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                                      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                                                     </div>
                                                     <span className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em]">Drop_Visual_Data</span>
                                                 </div>
