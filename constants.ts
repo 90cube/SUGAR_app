@@ -28,7 +28,7 @@ export const ADMIN_EMAILS = [
     "test@test.com"
 ];
 
-// Supabase Config
+// Supabase Config (Updated to current instance)
 export const SUPABASE_URL = "https://uwjjnncbpyhwslnipons.supabase.co"; 
 export const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV3ampubmNicHlod3Nsbmlwb25zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY1Mjc2MjUsImV4cCI6MjA4MjEwMzYyNX0.CGahTXEhj1kPCnU389xrquf_TMd7q1XLvnNmAEqxGqc";
 

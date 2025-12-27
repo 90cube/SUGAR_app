@@ -123,23 +123,44 @@ class CommunityService {
     });
   }
 
+  /**
+   * 스트리밍 썸네일 업로드 프로토콜 (streaming-thumbnails 버킷 사용)
+   */
   async uploadKukkukImage(file: File): Promise<{ imageUrl: string, thumbnailUrl: string } | null> {
     if (!supabase) return null;
+    
+    // 용량 제한 (512KB)
     if (file.size > 512 * 1024) throw new Error("이미지 용량은 512KB 이하만 업로드할 수 있습니다.");
-    const userId = (await supabase.auth.getUser()).data.user?.id;
-    if (!userId) return null;
+    
+    // 확장자 화이트리스트 검증
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    if (!allowedTypes.includes(file.type)) {
+      throw new Error("허용되지 않는 이미지 형식입니다. (jpg, png, webp, gif 지원)");
+    }
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
 
     const fileId = crypto.randomUUID();
-    const originalPath = `community/original/${userId}/${fileId}.webp`;
-    const thumbPath = `community/thumb/${userId}/${fileId}_thumb.webp`;
+    // 버킷 경로 고정: storage/v1/object/streaming-thumbnails/...
+    const originalPath = `original/${user.id}/${fileId}.webp`;
+    const thumbPath = `thumb/${user.id}/${fileId}_thumb.webp`;
 
     const webpBlob = await this.convertToWebP(file);
     const thumbBlob = await this.convertToWebP(file, 400, 400); 
 
-    const { error: upErr } = await supabase.storage.from(STREAMING_BUCKET).upload(originalPath, webpBlob, { contentType: 'image/webp' });
+    const { error: upErr } = await supabase.storage.from(STREAMING_BUCKET).upload(originalPath, webpBlob, { 
+      contentType: 'image/webp',
+      cacheControl: '3600',
+      upsert: false
+    });
     if (upErr) throw upErr;
 
-    const { error: thumbErr } = await supabase.storage.from(STREAMING_BUCKET).upload(thumbPath, thumbBlob, { contentType: 'image/webp' });
+    const { error: thumbErr } = await supabase.storage.from(STREAMING_BUCKET).upload(thumbPath, thumbBlob, { 
+      contentType: 'image/webp',
+      cacheControl: '3600',
+      upsert: false
+    });
     if (thumbErr) throw thumbErr;
 
     const imageUrl = supabase.storage.from(STREAMING_BUCKET).getPublicUrl(originalPath).data.publicUrl;
@@ -151,11 +172,11 @@ class CommunityService {
   async uploadLabUpdateImage(file: File): Promise<{ imageUrl: string, thumbnailUrl: string } | null> {
     if (!supabase) return null;
     if (file.size > 512 * 1024) throw new Error("이미지 용량은 512KB 이하만 업로드할 수 있습니다.");
-    const userId = (await supabase.auth.getUser()).data.user?.id;
-    if (!userId) return null;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
 
     const fileId = crypto.randomUUID();
-    const path = `updates/${userId}/${fileId}.webp`;
+    const path = `updates/${user.id}/${fileId}.webp`;
     const webpBlob = await this.convertToWebP(file);
 
     const { error } = await supabase.storage.from(STREAMING_BUCKET).upload(path, webpBlob, { contentType: 'image/webp' });
@@ -226,7 +247,10 @@ class CommunityService {
     }
 
     const { data, error } = await supabase.from('posts').insert(payload).select(`*, votes (vote_type), comments (id)`).single();
-    if (error) throw new Error(error.message);
+    if (error) {
+      // DB 트리거 에러 메시지 처리 (1분 제한 등)
+      throw new Error(error.message);
+    }
     return this.mapRowToPost(data);
   }
 
@@ -293,8 +317,14 @@ class CommunityService {
 
   async softDeleteComment(commentId: string, isAdminAction: boolean, nickname: string): Promise<boolean> {
     if (!supabase) return false;
-    const content = isAdminAction ? "관리자에 의한 댓글 삭제" : `닉네임: ${nickname} 자진 삭제.`;
-    const { error } = await supabase.from('comments').update({ content, is_deleted: true }).eq('id', commentId);
+    const { data: { user } } = await supabase.auth.getUser();
+    const content = isAdminAction ? "관리자에 의한 댓글 삭제" : `${nickname} 자진 삭제.`;
+    const { error } = await supabase.from('comments').update({ 
+      content, 
+      is_deleted: true,
+      deleted_by: user?.id,
+      deleted_reason: isAdminAction ? 'ADMIN_ACTION' : 'USER_SELF'
+    }).eq('id', commentId);
     if (error) throw new Error(error.message);
     return true;
   }
@@ -303,7 +333,17 @@ class CommunityService {
     if (!supabase) return [];
     const { data, error } = await supabase.from('comments').select('*').eq('post_id', postId).order('created_at', { ascending: true });
     if (error) return [];
-    return (data || []).map((c: any) => ({ id: c.id, postId: c.post_id, authorId: c.author_id, authorNickname: c.author_nickname, content: c.content, createdAt: c.created_at, teamType: (c.team_type as any) || 'GRAY', isDeleted: c.is_deleted }));
+    return (data || []).map((c: any) => ({ 
+      id: c.id, 
+      postId: c.post_id, 
+      authorId: c.author_id, 
+      authorNickname: c.author_nickname, 
+      content: c.content, 
+      createdAt: c.created_at, 
+      teamType: (c.team_type as any) || 'GRAY', 
+      isDeleted: c.is_deleted,
+      deletedBy: c.deleted_by
+    }));
   }
 
   async movePostToTemp(postId: string) {
@@ -336,34 +376,17 @@ class CommunityService {
 
     const queryId = authorId ? { id: authorId } : { nickname };
 
-    // public_profiles 뷰 사용
+    // public_profiles 뷰 사용 (존재하지 않는 email 컬럼은 요청하지 않음)
     const { data: prof } = await supabase
       .from('public_profiles')
-      .select('created_at, id')
+      .select('created_at, id, post_count, comment_count')
       .match(queryId)
       .maybeSingle();
     
     if (prof) {
         joinDate = prof.created_at ? prof.created_at.split('T')[0] : '-';
-        const targetOuid = prof.id;
-
-        // 실시간 posts 테이블 count (DELETED 제외)
-        const { count: pCount } = await supabase
-            .from('posts')
-            .select('*', { count: 'exact', head: true })
-            .eq('author_id', targetOuid)
-            .neq('status', 'DELETED');
-        
-        postCount = pCount || 0;
-
-        // 실시간 comments 테이블 count (is_deleted 제외)
-        const { count: cCount } = await supabase
-            .from('comments')
-            .select('*', { count: 'exact', head: true })
-            .eq('author_id', targetOuid)
-            .eq('is_deleted', false);
-        
-        commentCount = cCount || 0;
+        postCount = prof.post_count || 0;
+        commentCount = prof.comment_count || 0;
     }
 
     return { nickname, joinDate, postCount, commentCount, guillotineCount: 0 };

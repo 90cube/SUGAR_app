@@ -15,6 +15,7 @@ interface AppContextType {
   setStatus: (status: AppStatus) => void;
   isLoggedIn: boolean;
   authUser: AuthUser | null;
+  refreshAuthUser: () => Promise<void>;
   login: (id: string, pw: string) => Promise<boolean>;
   logout: () => void;
   isAdmin: boolean;
@@ -158,6 +159,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
+  const refreshAuthUser = async () => {
+    await recoverSession();
+  };
+
   useEffect(() => {
      cloudStorageService.fetchContentConfig().then(setPageContent);
      recoverSession();
@@ -204,7 +209,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const closeAdminGuillotine = () => setIsAdminGuillotineOpen(false);
 
   const openCommunityUserProfile = async (nickname: string, authorId?: string) => {
-      // authorId를 전달하여 posts 테이블에서 실제 count를 가져올 수 있게 함
       const targetId = authorId || (nickname === authUser?.name ? authUser?.id : undefined);
       const profile = await communityService.getCommunityUserProfile(nickname, targetId);
       setSelectedCommunityUser({ ...profile, authorId: targetId });
@@ -317,6 +321,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     openAnalysisModal();
     try {
       const now = new Date();
+      // FIX: Changed timezoneOffset() (which does not exist) to getTimezoneOffset()
       const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
       const kstDate = new Date(utc + (9 * 60 * 60 * 1000)).toISOString().split('T')[0];
       const report = await nexonService.runAnomalyDetection(userProfile.nickname, kstDate, userProfile.recentMatches);
@@ -336,7 +341,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   return (
     <AppContext.Provider value={{ 
-      status, setStatus, isLoggedIn, authUser, login, logout, isAdmin, isAdminToastOpen,
+      status, setStatus, isLoggedIn, authUser, refreshAuthUser, login, logout, isAdmin, isAdminToastOpen,
       isAuthModalOpen, openAuthModal, closeAuthModal, userProfile, searchUser,
       activeMatch, activeMatchDetail, isMatchDetailLoading, openMatchDetail, closeMatchDetail,
       visibleMatchCount, loadMoreMatches, isLoadingMore,

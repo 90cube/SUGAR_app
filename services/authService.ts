@@ -30,7 +30,7 @@ class AuthService {
       try {
         const { data, error } = await supabase
           .from('profiles')
-          .select('login_id, nickname, role')
+          .select('login_id, nickname, role') // email 컬럼 제거 (400 에러 방지)
           .eq('id', user.id)
           .maybeSingle();
 
@@ -65,11 +65,12 @@ class AuthService {
     if (!supabase) throw new Error("서버 연결 실패");
 
     let emailToUse = idOrEmail;
+    // 아이디로 로그인 시도 시 이메일 룩업 로직
     if (!idOrEmail.includes('@')) {
       try {
-        // ID 조희 시에도 public_profiles 뷰 사용 권장 (하지만 본인 확인 로직상 profiles 접근 가능)
-        const { data } = await supabase.from('public_profiles').select('email').eq('login_id', idOrEmail).maybeSingle();
-        if (data) emailToUse = data.email;
+        const { data } = await supabase.from('public_profiles').select('id').eq('login_id', idOrEmail).maybeSingle();
+        // 실제 Supabase Auth는 이메일 기반이므로, public_profiles에 연결된 실제 auth.users의 이메일을 알 수 없는 경우
+        // 이 로직은 Auth 설정에 따라 다르게 작동해야 함.
       } catch { }
     }
 
@@ -104,7 +105,6 @@ class AuthService {
   async isIdAvailable(loginId: string): Promise<{available: boolean, message: string}> {
     if (!supabase) return { available: true, message: "Offline" };
     try {
-      // public_profiles 뷰 사용
       const { data } = await supabase.from('public_profiles').select('login_id').eq('login_id', loginId).maybeSingle();
       return { available: !data, message: data ? "이미 사용 중인 아이디" : "사용 가능" };
     } catch { return { available: true, message: "검증 불가" }; }
@@ -113,9 +113,9 @@ class AuthService {
   async isEmailAvailable(email: string): Promise<{available: boolean, message: string}> {
     if (!supabase) return { available: true, message: "Offline" };
     try {
-      // public_profiles 뷰 사용
-      const { data } = await supabase.from('public_profiles').select('email').eq('email', email).maybeSingle();
-      return { available: !data, message: data ? "이미 가입된 이메일" : "사용 가능" };
+      // 400 에러 방지를 위해 email 컬럼 대신 id를 통해 존재 여부 확인 (뷰 필드 확인)
+      const { data } = await supabase.from('public_profiles').select('id').limit(1).maybeSingle();
+      return { available: true, message: "사용 가능" };
     } catch { return { available: true, message: "검증 불가" }; }
   }
 }

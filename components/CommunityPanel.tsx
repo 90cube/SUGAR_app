@@ -11,7 +11,7 @@ type TabType = 'balance' | 'keuk' | 'stream' | 'temp';
 export const CommunityPanel: React.FC = () => {
   const { 
     isCommunityOpen, closeCommunity, isLoggedIn, authUser, userProfile, isAdmin, 
-    openCommunityUserProfile, openAuthModal,
+    openCommunityUserProfile, openAuthModal, refreshAuthUser,
     communityViewMode: viewMode, setCommunityViewMode: setViewMode,
     isCommunityWriteFormOpen: isWriteFormOpen, setIsCommunityWriteFormOpen: setIsWriteFormOpen,
     selectedCommunityPost: selectedPost, setSelectedCommunityPost: setSelectedPost
@@ -57,7 +57,7 @@ export const CommunityPanel: React.FC = () => {
   // AI Parser (Update 요약용)
   const [rawUpdateText, setRawUpdateText] = useState('');
   const [isSummarizing, setIsSummarizing] = useState(false);
-  const [masterPrompt, setMasterPrompt] = useState('당신은 서든어택 업데이트 전문 요약관입니다. 공지의 모든 핵심 내용을 정리하되, 보상이나 스케줄 정보는 반드시 Markdown Table 형식을 사용하여 정갈하게 작성하세요.');
+  const [masterPrompt, setMasterPrompt] = useState('당신은 서든어택 업데이트 전문 요약관입니다. 공식 홈페이지의 공지 원문을 분석하여 핵심 내용(점검 시간, 신규 아이템, 이벤트 보상 등)만 간추려 안내해 주십시오. 보상이나 스케줄 정보는 반드시 마크다운 표(Markdown Table) 형식을 사용하여 일목요연하게 정리해야 합니다.');
 
   // Comment
   const [commentInput, setCommentInput] = useState('');
@@ -188,6 +188,8 @@ export const CommunityPanel: React.FC = () => {
         if (newComment) {
             setCommentInput('');
             setComments(prev => [...prev, newComment]);
+            // 성공 후 프로필 카운트 갱신
+            await refreshAuthUser();
         }
     } catch (err: any) {
         alert(err.message);
@@ -202,6 +204,7 @@ export const CommunityPanel: React.FC = () => {
         const success = await communityService.softDeleteComment(commentId, isAdmin, authorNickname);
         if (success) {
           if (selectedPost) communityService.getComments(selectedPost.id).then(setComments);
+          await refreshAuthUser();
         }
     } catch (e: any) { alert(e.message); }
   };
@@ -305,6 +308,8 @@ export const CommunityPanel: React.FC = () => {
           if (writeMode === 'update') communityService.getPosts('update').then(setUpdatePosts); 
           fetchTabContent(activeTab); 
           if (selectedPost?.id === result.id) setSelectedPost(result);
+          // 성공 후 프로필 카운트 갱신
+          await refreshAuthUser();
         }
     } catch (err: any) {
         alert(err.message);
@@ -367,7 +372,7 @@ export const CommunityPanel: React.FC = () => {
                   <div className="flex items-center justify-between px-1 font-mono">
                      <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><span className="w-1.5 h-1.5 bg-yellow-400 rounded-full"></span>Official_Data_Feed</h3>
                      <div className="flex gap-2">
-                        {isAdmin && <button onClick={() => openWriteForm('update')} className="text-[9px] font-black bg-cyan-500 text-slate-950 px-3 py-1.5 rounded-xl shadow-lg active:scale-95 transition-transform uppercase">New_Notice</button>}
+                        {isAdmin && <button onClick={() => openWriteForm('update')} className="text-[9px] font-black bg-cyan-500 text-slate-950 px-3 py-1.5 rounded-xl shadow-lg active:scale-95 transition-transform uppercase tracking-widest">New_Notice</button>}
                         <button onClick={() => setViewMode(viewMode === 'MAIN' ? 'UPDATE_ARCHIVE' : 'MAIN')} className="text-[9px] font-black bg-slate-900 text-white px-3 py-1.5 rounded-xl shadow-lg transition-all active:scale-95 uppercase">{viewMode === 'MAIN' ? 'LIST_VIEW' : 'DASHBOARD'}</button>
                      </div>
                   </div>
@@ -602,7 +607,9 @@ export const CommunityPanel: React.FC = () => {
                                  <div key={c.id} className="group relative animate-in fade-in duration-300">
                                     <div className="flex items-center gap-2 mb-1"><span onClick={() => openCommunityUserProfile(c.authorNickname, c.authorId)} className="text-[10px] font-black text-slate-900 hover:text-cyan-600 cursor-pointer transition-colors">{c.authorNickname}</span>{c.teamType !== 'GRAY' && <span className={`px-1.5 py-0.5 rounded text-[7px] font-black text-white ${c.teamType === 'BLUE' ? 'bg-blue-600' : 'bg-red-600'}`}>{c.teamType}</span>}<span className="text-[8px] text-slate-300 font-bold uppercase">TS_{c.createdAt.split('T')[0]}</span></div>
                                     <div className={`p-4 rounded-2xl text-[11px] font-medium transition-colors ${c.isDeleted ? 'bg-slate-100 text-slate-400 border border-slate-100 italic' : 'bg-slate-50 text-slate-600 border border-slate-100'}`}>
-                                      {c.content}
+                                      {c.isDeleted ? (
+                                        c.deletedBy === c.authorId ? `${c.authorNickname} 자진 삭제` : "관리자에 의한 삭제"
+                                      ) : c.content}
                                     </div>
                                     {(isAdmin || c.authorId === authUser?.id) && !c.isDeleted && <button onClick={() => handleCommentDelete(c.id, c.authorNickname)} className="absolute top-0 right-0 p-1 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg></button>}
                                  </div>
@@ -652,11 +659,11 @@ export const CommunityPanel: React.FC = () => {
                                    <textarea value={streamDescription} onChange={e => setStreamDescription(e.target.value)} placeholder="Sync Schedule & Concept" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl text-[11px] font-medium h-24 resize-none outline-none focus:border-cyan-300" />
                                </div>
                                <div className="space-y-1">
-                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Thumb_Pkt_Upload</label>
+                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Thumb_Pkt_Upload (Max 512KB)</label>
                                     <div className="p-2 bg-slate-50 border-2 border-dashed border-slate-200 rounded-3xl text-center relative transition-all hover:border-cyan-200">
-                                        <input type="file" id="streamFile" onChange={handleFileChange} accept="image/*" className="hidden" />
+                                        <input type="file" id="streamFile" onChange={handleFileChange} accept="image/jpeg,image/png,image/webp,image/gif" className="hidden" />
                                         <label htmlFor="streamFile" className="cursor-pointer block py-6">
-                                            {filePreview ? <img src={filePreview} className="max-h-32 mx-auto rounded-xl shadow-2xl" /> : <div className="flex flex-col items-center gap-2 text-slate-300"><svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg><span className="text-[8px] font-black uppercase tracking-widest">Select_Visual_Pkt</span></div>}
+                                            {filePreview ? <img src={filePreview} className="max-h-32 mx-auto rounded-xl shadow-2xl" /> : <div className="flex flex-col items-center gap-2 text-slate-300"><svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg><span className="text-[8px] font-black uppercase tracking-widest">Select_Visual_Pkt</span></div>}
                                         </label>
                                     </div>
                                </div>
@@ -669,16 +676,16 @@ export const CommunityPanel: React.FC = () => {
                                         <textarea 
                                           value={masterPrompt} 
                                           onChange={e => setMasterPrompt(e.target.value)} 
-                                          placeholder="AI 요약 프롬프트를 입력하세요..." 
-                                          className="w-full p-3 bg-white border border-cyan-100 rounded-xl text-[9px] font-bold h-20 resize-none outline-none focus:border-cyan-400 mb-2" 
+                                          placeholder="AI에게 내릴 요약 지침을 수정할 수 있습니다..." 
+                                          className="w-full p-3 bg-white border border-cyan-100 rounded-xl text-[9px] font-bold h-20 resize-none outline-none focus:border-cyan-400 mb-2 shadow-inner" 
                                         />
                                         <div className="h-px bg-cyan-100 my-2"></div>
-                                        <label className="text-[9px] font-black text-cyan-600 uppercase tracking-widest ml-2">Raw_Notice_Buffer</label>
+                                        <label className="text-[9px] font-black text-cyan-600 uppercase tracking-widest ml-2">Raw_Notice_Buffer (홈페이지 원문)</label>
                                         <textarea 
                                           value={rawUpdateText} 
                                           onChange={e => setRawUpdateText(e.target.value)} 
-                                          placeholder="공지사항 원문을 이곳에 붙여넣으세요..." 
-                                          className="w-full p-4 bg-white border border-cyan-100 rounded-2xl text-[10px] font-medium h-32 resize-none outline-none focus:border-cyan-400" 
+                                          placeholder="공식 홈페이지의 공지 내용을 복사하여 붙여넣으세요..." 
+                                          className="w-full p-4 bg-white border border-cyan-100 rounded-2xl text-[10px] font-medium h-32 resize-none outline-none focus:border-cyan-400 shadow-inner" 
                                         />
                                         <button 
                                           type="button" 
@@ -686,7 +693,7 @@ export const CommunityPanel: React.FC = () => {
                                           disabled={isSummarizing || !rawUpdateText.trim()}
                                           className="w-full mt-2 py-3 bg-cyan-500 text-slate-950 font-black text-[9px] rounded-xl shadow-lg active:scale-95 disabled:opacity-50 uppercase tracking-widest"
                                         >
-                                          {isSummarizing ? 'Mastering_Pkt...' : 'Execute_AI_Summarize'}
+                                          {isSummarizing ? 'Mastering_Data...' : 'Execute_AI_Summarize'}
                                         </button>
                                     </div>
                                 )}
@@ -694,7 +701,7 @@ export const CommunityPanel: React.FC = () => {
                                   <div className="space-y-1">
                                     <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Visual_Buffer_Load (Max 512KB)</label>
                                     <div className={`relative p-2 bg-slate-50 border-2 border-dashed rounded-3xl text-center transition-all ${filePreview ? 'border-cyan-500 bg-cyan-50/20' : 'border-slate-200 hover:border-cyan-200'}`}>
-                                        <input type="file" id="fileInput" onChange={handleFileChange} accept=".jpg,.jpeg,.png,.webp,.gif" className="hidden" />
+                                        <input type="file" id="fileInput" onChange={handleFileChange} accept="image/jpeg,image/png,image/webp,image/gif" className="hidden" />
                                         <label htmlFor="fileInput" className="cursor-pointer block">
                                             {filePreview ? (
                                                 <div className="relative group overflow-hidden rounded-2xl aspect-video bg-slate-900 shadow-xl">

@@ -89,6 +89,11 @@ export class GeminiService {
       }
   }
 
+  /**
+   * 공식 공지사항을 요약하여 제목과 본문을 생성합니다.
+   * @param rawText 원문 텍스트
+   * @param masterPrompt 관리자가 설정한 요약 지침
+   */
   public async summarizeGameUpdate(rawText: string, masterPrompt: string): Promise<{ title: string; content: string }> {
       const today = new Date();
       const yy = today.getFullYear().toString().slice(2);
@@ -99,12 +104,12 @@ export class GeminiService {
       const prompt = `
         ${masterPrompt}
 
-        **추가 강제 지침**:
-        1. 제목에는 반드시 오늘 날짜 태그인 "${dateTag}"를 포함시키십시오.
-        2. 모든 정보는 마크다운(Markdown) 형식을 사용하며, 특히 표(Table)가 필요한 부분은 반드시 표로 작성하십시오.
-        3. 본문의 마지막 문장은 반드시 "Su-Lab 매니저 "CUBE" 였습니다." 로 끝나야 합니다.
+        **추가 강제 프로토콜**:
+        1. 결과 제목(Title)에는 반드시 오늘 날짜 태그인 "${dateTag}"를 포함시키십시오.
+        2. 모든 정보는 마크다운(Markdown) 형식을 사용하며, 특히 아이템 목록이나 보상 정보는 반드시 마크다운 표(Table)로 정규화하십시오.
+        3. 본문의 마지막 문장은 반드시 "Su-Lab 매니저 "CUBE" 였습니다." 로 정확히 끝맺음하십시오.
 
-        [분석할 원문 데이터]
+        [데이터 소스 (원문)]
         ${rawText}
       `;
 
@@ -117,8 +122,8 @@ export class GeminiService {
                 responseSchema: {
                   type: Type.OBJECT,
                   properties: {
-                    title: { type: Type.STRING, description: "The summary title with date tag" },
-                    content: { type: Type.STRING, description: "The summarized report in markdown including CUBE signature" },
+                    title: { type: Type.STRING, description: "Today's summary title with date tag" },
+                    content: { type: Type.STRING, description: "Full report in markdown including tables and CUBE signature" },
                   },
                   required: ["title", "content"],
                 }
@@ -128,7 +133,7 @@ export class GeminiService {
           let jsonStr = response.text || "{}";
           const parsed = JSON.parse(jsonStr);
 
-          // Ensure proper line breaks in the content
+          // 개행 문자 정규화
           if (parsed.content) {
             parsed.content = parsed.content.replace(/\\n/g, '\n').trim();
           }
@@ -137,8 +142,8 @@ export class GeminiService {
       } catch (e) {
           console.error("Update Summary Error", e);
           return {
-              title: `${dateTag} 업데이트 데이터 마스터링 실패`,
-              content: "원문 분석 중 기술적 오류가 발생했습니다. 직접 내용을 입력해 주십시오.\n\nSu-Lab 매니저 \"CUBE\" 였습니다."
+              title: `${dateTag} 데이터 마스터링 기술 오류`,
+              content: "AI 분석 도중 시스템 오류가 발생했습니다. 원문을 직접 편집하시거나 잠시 후 다시 시도하십시오.\n\nSu-Lab 매니저 \"CUBE\" 였습니다."
           };
       }
   }
