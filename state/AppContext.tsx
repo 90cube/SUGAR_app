@@ -117,6 +117,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [isCommunityWriteFormOpen, setIsCommunityWriteFormOpen] = useState(false);
   const [selectedCommunityPost, setSelectedCommunityPost] = useState<CommunityPost | null>(null);
 
+  // isAdmin 계산: authUser.role이 정확히 'admin'이어야 함.
   const isAdmin = authUser?.role === 'admin';
 
   useEffect(() => {
@@ -151,11 +152,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const recoverSession = async () => {
     const profile = await authService.fetchMyProfile();
+    
+    // [Debug] 최종 적용되는 프로필 상태 확인
     if (profile) {
+      console.log(`[AppContext] Session Recovered. User: ${profile.name}, Role: ${profile.role}`);
       setAuthUser(profile);
       setIsLoggedIn(true);
       if (profile.role === 'admin') showAdminToast();
     } else {
+      console.log('[AppContext] No Active Session.');
       setAuthUser(null);
       setIsLoggedIn(false);
     }
