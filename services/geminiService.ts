@@ -4,29 +4,24 @@ import { DEFAULT_GEMINI_MODEL } from "../constants";
 import { UserProfile, RecapStats } from "../types";
 
 export class GeminiService {
-  private get ai() {
-    // API key must be obtained exclusively from the environment variable process.env.API_KEY
-    const apiKey = process.env.API_KEY;
-    if (!apiKey) {
-      // API Key가 없을 경우 사용자에게 시스템 오류 메시지를 발생시킴
-      throw new Error('STALE_CONNECTION: API_KEY_MISSING');
-    }
-    return new GoogleGenAI({ apiKey });
+  /**
+   * 가이드라인에 따라 API 호출 직전에 인스턴스를 생성합니다.
+   * API_KEY는 반드시 process.env.API_KEY에서 가져옵니다.
+   */
+  private createClient() {
+    return new GoogleGenAI({ apiKey: process.env.API_KEY });
   }
 
   public async generateText(prompt: string): Promise<string> {
+    const ai = this.createClient();
     try {
-      const response = await this.ai.models.generateContent({
+      const response = await ai.models.generateContent({
         model: DEFAULT_GEMINI_MODEL,
         contents: prompt,
       });
-      // Access text property directly
       return response.text || "";
-    } catch (error: any) {
+    } catch (error) {
       console.error("Gemini API Error:", error);
-      if (error.message?.includes("API key not valid")) {
-        throw new Error("API 키 인증 실패. 도메인 환경 변수를 확인하십시오.");
-      }
       throw error;
     }
   }
@@ -48,89 +43,74 @@ export class GeminiService {
   }
 
   public async analyzeTeamMatchup(teamA: UserProfile[], teamB: UserProfile[]): Promise<string> {
+    const ai = this.createClient();
     const teamAData = teamA.map(p => this.masterPlayerData(p)).join('\n');
     const teamBData = teamB.map(p => this.masterPlayerData(p)).join('\n');
 
     const prompt = `
       당신은 대한민국 No.1 FPS 게임 '서든어택'의 전문 AI 전력 분석관입니다.
-      서든어택의 방대한 빅데이터와 최신 랭크전 메타(Meta)를 기반으로 Team A(블루팀)와 Team B(레드팀)의 매치업을 분석하십시오.
+      Team A(블루팀)와 Team B(레드팀)의 매치업을 분석하십시오.
+      결과물에 숫자 데이터(%, 점수 등)를 직접 나열하지 말고 실전 전략 위주로 단정적인 어체를 사용하십시오.
 
-      [Team A 선수 명단]
+      [Team A 명단]
       ${teamAData}
 
-      [Team B 선수 명단]
+      [Team B 명단]
       ${teamBData}
-
-      **분석 지침 (필수 준수):**
-      1. **빅데이터 기반 심층 분석**: 단순히 제공된 수치를 나열하지 마십시오. 결과물에 직접적인 숫자 데이터(%, 점수 등)를 절대 포함하지 마십시오.
-      2. **최신 트렌드 반영**: 현재 서든어택의 랭크전 메타를 반영하여 팀의 조합 완성도를 평가하십시오.
-      3. **맵 상성 분석**: 유리한 맵과 불리한 맵을 구체적으로 지목하십시오.
-      4. **어조**: 전문가답게 간결하고 단정적인 어체를 사용하십시오.
     `;
 
     try {
-      const response = await this.ai.models.generateContent({
-        model: DEFAULT_GEMINI_MODEL,
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-pro-preview',
         contents: prompt,
       });
-      return response.text || "Analysis failed.";
+      return response.text || "분석 실패";
     } catch (error) {
       console.error("Team Analysis Error:", error);
-      return "Failed to generate analysis due to an API error.";
+      return "분석 엔진 연동 오류";
     }
   }
 
   public async analyzeDailyRecap(stats: RecapStats): Promise<string> {
+      const ai = this.createClient();
       const prompt = `
-        당신은 서든어택 전문 개인 코치입니다. 플레이어의 데이터를 분석하여 피드백하세요.
-        [오늘의 데이터] - 승률: ${stats.winRate}% (평소: ${stats.comparison.restWinRate}%) - K/D: ${stats.kd}%
+        서든어택 전문 코치로서 다음 데이터를 분석해 플레이어에게 피드백하세요.
+        [오늘의 데이터] 승률: ${stats.winRate}%, K/D: ${stats.kd}% (평소: ${stats.comparison.restWinRate}%)
       `;
 
       try {
-        const response = await this.ai.models.generateContent({
+        const response = await ai.models.generateContent({
             model: DEFAULT_GEMINI_MODEL,
             contents: prompt,
         });
-        return response.text || "분석을 불러올 수 없습니다.";
+        return response.text || "데이터 분석 중";
       } catch (e) {
-          console.error("Recap Analysis Error", e);
-          return "AI 분석 중 오류가 발생했습니다.";
+          return "AI 분석 일시 중단";
       }
   }
 
   /**
-   * 공식 공지사항을 요약하여 제목과 본문을 생성합니다.
-   * Google Search Grounding을 사용하여 URL 접근을 허용합니다.
+   * 공식 공지사항을 요약하고 검색 접지를 활용합니다.
    */
-  public async summarizeGameUpdate(source: string, masterPrompt: string): Promise<{ title: string; content: string; sources?: any[] }> {
+  public async summarizeGameUpdate(source: string, masterPrompt: string): Promise<{ title: string; content: string; sources?: {uri: string, title: string}[] }> {
+      const ai = this.createClient();
       const today = new Date();
-      const yy = today.getFullYear().toString().slice(2);
-      const mm = (today.getMonth() + 1).toString().padStart(2, '0');
-      const dd = today.getDate().toString().padStart(2, '0');
-      const dateTag = `[${yy}.${mm}.${dd}]`;
-
-      const isUrl = source.startsWith('http');
-      const sourceLabel = isUrl ? "[분석할 URL 링크]" : "[데이터 소스 (원문)]";
+      const dateTag = `[${today.getFullYear().toString().slice(2)}.${(today.getMonth() + 1).toString().padStart(2, '0')}.${today.getDate().toString().padStart(2, '0')}]`;
 
       const prompt = `
         ${masterPrompt}
+        
+        **출력 규칙**:
+        1. TITLE: [제목] / CONTENT: [마크다운 본문] 형식을 유지하십시오.
+        2. 제목에 "${dateTag}"를 포함하십시오.
+        3. 마지막에 "Su-Lab 매니저 "CUBE" 였습니다."를 붙이십시오.
 
-        **추가 강제 프로토콜**:
-        1. 결과 제목(Title)에는 반드시 오늘 날짜 태그인 "${dateTag}"를 포함시키십시오.
-        2. 모든 정보는 마크다운(Markdown) 형식을 사용하며, 특히 아이템 목록이나 보상 정보는 반드시 마크다운 표(Table)로 정규화하십시오.
-        3. 본문의 마지막 문장은 반드시 "Su-Lab 매니저 "CUBE" 였습니다." 로 정확히 끝맺음하십시오.
-        ${isUrl ? "4. 제공된 URL에 접속하여 공지사항의 최신 내용을 직접 읽고 분석하십시오. 검색 결과에서 최신 정보를 찾아야 합니다." : ""}
-
-        [출력 형식]
-        TITLE: [제목]
-        CONTENT: [마크다운 본문]
-
-        ${sourceLabel}
+        [데이터 소스]
         ${source}
       `;
 
       try {
-          const response = await this.ai.models.generateContent({
+          const response = await ai.models.generateContent({
               model: DEFAULT_GEMINI_MODEL,
               contents: prompt,
               config: {
@@ -138,54 +118,52 @@ export class GeminiService {
               }
           });
           
-          const rawText = response.text || "";
-          const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
+          const text = response.text || "";
+          
+          // 가이드라인에 따라 groundingChunks에서 URL 추출
+          const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
+          const sources: {uri: string, title: string}[] = [];
+          
+          if (groundingChunks) {
+            groundingChunks.forEach((chunk: any) => {
+              if (chunk.web && chunk.web.uri) {
+                sources.push({ uri: chunk.web.uri, title: chunk.web.title || chunk.web.uri });
+              }
+            });
+          }
 
           let title = `${dateTag} 업데이트 요약`;
-          let content = rawText;
+          let content = text;
 
-          const titleMatch = rawText.match(/TITLE:\s*(.*)/i);
-          const contentMatch = rawText.match(/CONTENT:\s*([\s\S]*)/i);
+          const titleMatch = text.match(/TITLE:\s*(.*)/i);
+          const contentMatch = text.match(/CONTENT:\s*([\s\S]*)/i);
 
           if (titleMatch && contentMatch) {
             title = titleMatch[1].trim();
             content = contentMatch[1].trim();
-          } else {
-            const lines = rawText.split('\n').filter(l => l.trim() !== '');
-            if (lines.length > 0) {
-              title = lines[0].replace(/^TITLE:\s*/i, '').trim();
-              content = lines.slice(1).join('\n').replace(/^CONTENT:\s*/i, '').trim();
-            }
           }
 
-          return { title, content, sources };
+          return { title, content, sources: sources.length > 0 ? sources : undefined };
       } catch (e: any) {
-          console.error("Update Summary Error", e);
-          const errorMsg = (e.message || "").toLowerCase();
-          const isApiKeyError = errorMsg.includes("api key not valid") || errorMsg.includes("api_key_invalid");
-          
+          console.error("Summary Error", e);
           return {
-              title: `${dateTag} AI 서비스 연동 오류`,
-              content: `분석 도중 시스템 오류가 발생했습니다.\n\n사유: ${isApiKeyError ? 'API 키 인증 실패 (STALE_KEY)' : (e.message || 'UNKNOWN_PROTO_ERR')}\n\n도메인 관리 환경변수 설정을 확인하십시오.\n\nSu-Lab 매니저 "CUBE" 였습니다.`
+              title: `${dateTag} 시스템 연결 대기 중`,
+              content: `분석 도중 API 인증 오류가 발생했습니다. (Reason: ${e.message})\n도메인 환경변수에 API_KEY가 정상 등록되었는지 확인하십시오.`
           };
       }
   }
 
   public async generateFormalRejection(rawReason: string): Promise<string> {
-    const prompt = `
-      당신은 서든어택 전적 연구소 'Su-Lab'의 운영 AI입니다. 
-      관리자가 작성한 투박한 반려 사유를 정중하고 격식 있는 '연구소 프로토콜' 말투로 다듬어주세요.
-      [관리자의 원문 사유] "${rawReason}"
-    `;
-
+    const ai = this.createClient();
+    const prompt = `연구소 운영자로서 정중한 반려 사유를 작성하십시오: "${rawReason}"`;
     try {
-      const response = await this.ai.models.generateContent({
+      const response = await ai.models.generateContent({
         model: DEFAULT_GEMINI_MODEL,
         contents: prompt,
       });
-      return response.text || "연구소 내부 기준 미달로 인해 요청이 반려되었습니다.";
+      return response.text || "내부 기준 미달로 반려되었습니다.";
     } catch (e) {
-      return `요청이 반려되었습니다. 사유: ${rawReason}`;
+      return rawReason;
     }
   }
 }
