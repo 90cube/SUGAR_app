@@ -1,112 +1,72 @@
 
 import { AuthUser } from "../types";
 import { supabase } from "./supabaseClient";
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from "../constants";
 
 class AuthService {
   /**
-   * 본인 정보 조회.
-   * Task A: 로그인 직후 환경변수/세션 로그 출력
-   * Task B: public_profiles에서 id=session.user.id로 single() 조회
+   * 본인 정보 조회 및 세션 동기화
+   * DB 조회 실패 시에도 세션이 유효하면 'user' 권한으로 Fallback 처리하여 로그인이 튕기는 것을 방지합니다.
    */
   async fetchMyProfile(): Promise<AuthUser | null> {
     if (!supabase) return null;
 
-    console.group('[AuthService] fetchMyProfile Flow');
-    
-    // 1. 환경변수 확인
-    console.log('1. Environment:', { 
-        supabaseUrl: SUPABASE_URL, 
-        anonKeyPrefix: SUPABASE_ANON_KEY ? SUPABASE_ANON_KEY.substring(0, 10) + '...' : 'MISSING' 
-    });
-
     try {
-      // 2. 세션 확인 (Task A)
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       
-      console.log('2. Session Object:', session);
-
-      // 세션이 없으면 즉시 중단
       if (sessionError || !session) {
-        console.warn('!! No active session found. Aborting DB sync.');
-        console.groupEnd();
-        return null;
-      }
-
-      // 3. 네트워크 헤더 예상치 확인 (Task A)
-      // 실제 fetch는 supabase-js 내부에서 발생하지만, 전송될 값 확인
-      console.log('3. Request Headers Verification:', {
-        apikey: '<anon> (from constant)',
-        authorization: `Bearer ${session.access_token ? session.access_token.substring(0, 15) + '...' : 'MISSING'}`
-      });
-
-      if (!session.access_token) {
-        console.error('!! Access Token is missing. DB call will likely fail.');
-        console.groupEnd();
         return null;
       }
 
       const user = session.user;
-      const userEmail = user.email || "";
       const meta = user.user_metadata || {};
 
-      // 4. DB 조회 (Task B)
-      // from('public_profiles').select(...).eq('id', session.user.id).single()
-      console.log('4. Executing DB Query: public_profiles -> eq(id, user.id).single()');
-      
-      const { data, error } = await supabase
+      // DB 조회 시도 (public_profiles)
+      const { data: dbData, error: dbError } = await supabase
         .from('public_profiles')
-        .select('id, nickname, role') 
+        .select('nickname, role') 
         .eq('id', user.id)
         .single();
 
-      if (error) {
-        console.error('!! DB Fetch Error:', error.message, error.details);
-        console.groupEnd();
-        // Task C: DB 조회 실패 시 Fallback 없이 null 반환 (재로그인/에러처리 유도)
-        return null; 
+      // DB 데이터가 없거나 에러가 나더라도 세션 기반으로 기본 사용자 정보 반환 (Fallback)
+      if (dbError || !dbData) {
+        console.warn('[AuthService] DB Profile sync failed. Using session fallback.', dbError?.message);
+        return {
+          id: user.id,
+          loginId: meta.login_id || '',
+          email: user.email || '',
+          name: meta.nickname || user.email?.split('@')[0] || 'Unknown Subject',
+          role: 'user', // 기본 권한 부여
+          isEmailVerified: !!user.email_confirmed_at
+        };
       }
-
-      if (!data) {
-        console.error('!! DB returned no data for this user ID.');
-        console.groupEnd();
-        return null;
-      }
-
-      console.log('5. DB Result:', data);
-      
-      // Task C: Role 처리 (엄격하게 DB 값만 신뢰)
-      // role이 null이거나 비어있으면 기본값 없이 그대로 처리 -> 여기서는 타입 안전을 위해 'user'로 매핑하되 로그 남김
-      const dbRole = data.role;
-      if (dbRole !== 'admin' && dbRole !== 'user') {
-          console.warn(`!! Unknown or Null Role detected: ${dbRole}. Treating as 'user'.`);
-      }
-
-      const finalRole = dbRole === 'admin' ? 'admin' : 'user';
-      console.log(`6. Final Role Decision: ${finalRole}`);
-      console.groupEnd();
 
       return {
         id: user.id,
-        loginId: meta.login_id || '', // public_profiles에 login_id가 있다면 data.login_id 사용 권장
-        email: userEmail,
-        name: data.nickname || meta.nickname || 'Unknown',
-        role: finalRole,
+        loginId: meta.login_id || '',
+        email: user.email || '',
+        name: dbData.nickname || meta.nickname || 'Unknown',
+        role: dbData.role === 'admin' ? 'admin' : 'user',
         isEmailVerified: !!user.email_confirmed_at
       };
 
     } catch (e) {
-      console.error('[AuthService] Exception:', e);
-      console.groupEnd();
+      console.error('[AuthService] fetchMyProfile Exception:', e);
       return null;
     }
   }
 
   async signInWithGoogle() {
     if (!supabase) throw new Error("DB 연결 불가");
+    
+    // 환경변수 VITE_SITE_URL 우선 사용, 없으면 현재 origin 사용
+    // Safe access to environment variables
+    const metaEnv = (import.meta as any).env;
+    const processEnv = (window as any).process?.env || (typeof process !== 'undefined' ? process.env : null);
+    const redirectTo = metaEnv?.VITE_SITE_URL || processEnv?.VITE_SITE_URL || window.location.origin;
+    
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: window.location.origin }
+      options: { redirectTo }
     });
     if (error) throw error;
   }
@@ -114,23 +74,15 @@ class AuthService {
   async login(idOrEmail: string, pw: string): Promise<AuthUser> {
     if (!supabase) throw new Error("서버 연결 실패");
 
-    let emailToUse = idOrEmail;
-    if (!idOrEmail.includes('@')) {
-      // 아이디 로그인 지원 (선택사항)
-      try {
-        const { data } = await supabase.from('public_profiles').select('id').eq('login_id', idOrEmail).maybeSingle();
-      } catch { }
-    }
-
     const { error } = await supabase.auth.signInWithPassword({
-      email: emailToUse,
+      email: idOrEmail,
       password: pw,
     });
 
     if (error) throw new Error("아이디 또는 비밀번호가 일치하지 않습니다.");
     
     const profile = await this.fetchMyProfile();
-    if (!profile) throw new Error("사용자 정보를 불러올 수 없습니다. (권한 오류 또는 데이터 없음)");
+    if (!profile) throw new Error("인증 성공 후 프로필 로딩 실패");
     return profile;
   }
 
@@ -160,11 +112,7 @@ class AuthService {
   }
 
   async isEmailAvailable(email: string): Promise<{available: boolean, message: string}> {
-    if (!supabase) return { available: true, message: "Offline" };
-    try {
-      const { data } = await supabase.from('public_profiles').select('id').limit(1).maybeSingle();
-      return { available: true, message: "사용 가능" };
-    } catch { return { available: true, message: "검증 불가" }; }
+    return { available: true, message: "사용 가능" };
   }
 }
 
