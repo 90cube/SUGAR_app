@@ -1,86 +1,103 @@
 
 import { AuthUser } from "../types";
 import { supabase } from "./supabaseClient";
-import { ADMIN_EMAILS } from "../constants";
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "../constants";
 
 class AuthService {
   /**
    * 본인 정보 조회.
-   * 보안 지침에 따라 'profiles' 테이블 직접 접근 대신 'public_profiles' 뷰를 조회합니다.
+   * Task A: 로그인 직후 환경변수/세션 로그 출력
+   * Task B: public_profiles에서 id=session.user.id로 single() 조회
    */
   async fetchMyProfile(): Promise<AuthUser | null> {
     if (!supabase) return null;
 
+    console.group('[AuthService] fetchMyProfile Flow');
+    
+    // 1. 환경변수 확인
+    console.log('1. Environment:', { 
+        supabaseUrl: SUPABASE_URL, 
+        anonKeyPrefix: SUPABASE_ANON_KEY ? SUPABASE_ANON_KEY.substring(0, 10) + '...' : 'MISSING' 
+    });
+
     try {
-      // [Debug] 1. 로그인 직후 getSession() 확인
+      // 2. 세션 확인 (Task A)
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       
-      console.groupCollapsed('[AuthService] Session Check');
-      console.log('Session Object:', session);
-      
-      // [Debug] 2. session이 없으면 중단
+      console.log('2. Session Object:', session);
+
+      // 세션이 없으면 즉시 중단
       if (sessionError || !session) {
-        console.warn('No active session found. Aborting DB sync.');
+        console.warn('!! No active session found. Aborting DB sync.');
         console.groupEnd();
         return null;
       }
 
-      // [Debug] 3. 네트워크 요청 헤더 확인 (Authorization)
-      if (session.access_token) {
-        console.log('Authorization Header: Bearer', session.access_token.substring(0, 15) + '...');
-        console.log('API Key Header:', process.env.REACT_APP_SUPABASE_ANON_KEY ? 'Present' : 'Missing (Check Constants)');
+      // 3. 네트워크 헤더 예상치 확인 (Task A)
+      // 실제 fetch는 supabase-js 내부에서 발생하지만, 전송될 값 확인
+      console.log('3. Request Headers Verification:', {
+        apikey: '<anon> (from constant)',
+        authorization: `Bearer ${session.access_token ? session.access_token.substring(0, 15) + '...' : 'MISSING'}`
+      });
+
+      if (!session.access_token) {
+        console.error('!! Access Token is missing. DB call will likely fail.');
+        console.groupEnd();
+        return null;
       }
-      console.groupEnd();
 
       const user = session.user;
       const userEmail = user.email || "";
       const meta = user.user_metadata || {};
+
+      // 4. DB 조회 (Task B)
+      // from('public_profiles').select(...).eq('id', session.user.id).single()
+      console.log('4. Executing DB Query: public_profiles -> eq(id, user.id).single()');
       
-      // 1. Auth 메타데이터 기반 기본값 설정 (DB 조회 실패 시 Fallback)
-      const isEmailInAdminList = ADMIN_EMAILS.some(email => email.toLowerCase() === userEmail.toLowerCase());
+      const { data, error } = await supabase
+        .from('public_profiles')
+        .select('id, nickname, role') 
+        .eq('id', user.id)
+        .single();
+
+      if (error) {
+        console.error('!! DB Fetch Error:', error.message, error.details);
+        console.groupEnd();
+        // Task C: DB 조회 실패 시 Fallback 없이 null 반환 (재로그인/에러처리 유도)
+        return null; 
+      }
+
+      if (!data) {
+        console.error('!! DB returned no data for this user ID.');
+        console.groupEnd();
+        return null;
+      }
+
+      console.log('5. DB Result:', data);
       
-      const fallbackUser: AuthUser = {
+      // Task C: Role 처리 (엄격하게 DB 값만 신뢰)
+      // role이 null이거나 비어있으면 기본값 없이 그대로 처리 -> 여기서는 타입 안전을 위해 'user'로 매핑하되 로그 남김
+      const dbRole = data.role;
+      if (dbRole !== 'admin' && dbRole !== 'user') {
+          console.warn(`!! Unknown or Null Role detected: ${dbRole}. Treating as 'user'.`);
+      }
+
+      const finalRole = dbRole === 'admin' ? 'admin' : 'user';
+      console.log(`6. Final Role Decision: ${finalRole}`);
+      console.groupEnd();
+
+      return {
         id: user.id,
-        loginId: meta.login_id || '',
+        loginId: meta.login_id || '', // public_profiles에 login_id가 있다면 data.login_id 사용 권장
         email: userEmail,
-        name: meta.nickname || meta.full_name || userEmail.split('@')[0] || 'Unknown',
-        role: isEmailInAdminList ? 'admin' : 'user', // 임시 Fallback Role
+        name: data.nickname || meta.nickname || 'Unknown',
+        role: finalRole,
         isEmailVerified: !!user.email_confirmed_at
       };
 
-      try {
-        // [Debug] 4. DB 조회 (public_profiles)
-        // session이 있을 때만 실행됨. single() 사용.
-        const { data, error } = await supabase
-          .from('public_profiles')
-          .select('login_id, nickname, role') 
-          .eq('id', user.id)
-          .single();
-
-        if (error) {
-          console.error('[AuthService] Profile DB Fetch Error:', error.message);
-          // DB 조회가 실패해도 인증 세션은 유효하므로 fallbackUser 반환
-          return fallbackUser;
-        }
-
-        if (data) {
-            console.log('[AuthService] Profile Loaded:', data);
-        }
-
-        // 5. DB 데이터 우선 적용 및 Role 저장
-        // role 필드가 정확히 'admin' (소문자, 공백 없음)인지 확인
-        return {
-          ...fallbackUser,
-          loginId: data.login_id || fallbackUser.loginId,
-          name: data.nickname || fallbackUser.name,
-          role: (data.role === 'admin') ? 'admin' : 'user'
-        };
-      } catch (dbErr) {
-        console.error('[AuthService] DB Exception:', dbErr);
-        return fallbackUser;
-      }
     } catch (e) {
-      console.error('[AuthService] General Error:', e);
+      console.error('[AuthService] Exception:', e);
+      console.groupEnd();
       return null;
     }
   }
@@ -98,13 +115,10 @@ class AuthService {
     if (!supabase) throw new Error("서버 연결 실패");
 
     let emailToUse = idOrEmail;
-    // 아이디로 로그인 시도 시 이메일 룩업 로직
     if (!idOrEmail.includes('@')) {
+      // 아이디 로그인 지원 (선택사항)
       try {
         const { data } = await supabase.from('public_profiles').select('id').eq('login_id', idOrEmail).maybeSingle();
-        // Supabase Auth는 이메일 로그인이 기본이므로, 실제 구현에서는 
-        // Edge Function을 사용하거나 별도 매핑 로직이 필요할 수 있습니다.
-        // 현재는 클라이언트 단에서 1차적으로 뷰를 확인하는 로직입니다.
       } catch { }
     }
 
@@ -115,9 +129,8 @@ class AuthService {
 
     if (error) throw new Error("아이디 또는 비밀번호가 일치하지 않습니다.");
     
-    // 로그인 성공 후 프로필 정보를 가져와 상태를 갱신합니다.
     const profile = await this.fetchMyProfile();
-    if (!profile) throw new Error("사용자 정보를 불러올 수 없습니다.");
+    if (!profile) throw new Error("사용자 정보를 불러올 수 없습니다. (권한 오류 또는 데이터 없음)");
     return profile;
   }
 
@@ -149,7 +162,6 @@ class AuthService {
   async isEmailAvailable(email: string): Promise<{available: boolean, message: string}> {
     if (!supabase) return { available: true, message: "Offline" };
     try {
-      // 400 에러 방지를 위해 email 컬럼 대신 id를 통해 존재 여부 확인 (뷰 필드 확인)
       const { data } = await supabase.from('public_profiles').select('id').limit(1).maybeSingle();
       return { available: true, message: "사용 가능" };
     } catch { return { available: true, message: "검증 불가" }; }

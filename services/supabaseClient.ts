@@ -6,8 +6,10 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../constants';
 const isConfigured = SUPABASE_URL && SUPABASE_ANON_KEY;
 
 if (isConfigured) {
-  console.log(`%c[Supabase] Client Initialized`, 'color: #4ade80; font-weight: bold;');
-  console.log(`[Supabase] URL: ${SUPABASE_URL}`);
+  console.group('[Supabase] Client Initialization');
+  console.log(`Target URL: ${SUPABASE_URL}`);
+  console.log(`Anon Key: ${SUPABASE_ANON_KEY ? SUPABASE_ANON_KEY.substring(0, 15) + '...' : 'MISSING'}`);
+  console.groupEnd();
 } else {
   console.warn(`%c[Supabase] Client NOT Configured - Using Mock Mode`, 'color: #f87171; font-weight: bold;');
 }
