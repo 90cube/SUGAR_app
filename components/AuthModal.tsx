@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../state/AppContext';
 import { authService } from '../services/authService';
+import { supabase } from '../services/supabaseClient';
 
 type AuthMode = 'LOGIN' | 'SIGNUP' | 'VERIFY_SENT';
 type Status = 'NONE' | 'VALID' | 'INVALID';
@@ -73,6 +74,10 @@ export const AuthModal: React.FC = () => {
   };
 
   const handleGoogleLogin = async () => {
+    if (!supabase) {
+        setError("서버 환경 변수(Supabase)가 설정되지 않아 구글 로그인을 사용할 수 없습니다.");
+        return;
+    }
     setIsLoading(true);
     try {
       await authService.signInWithGoogle();
@@ -113,7 +118,7 @@ export const AuthModal: React.FC = () => {
 
   return (
     <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in duration-300">
-      <div className="w-full max-w-sm bg-white rounded-[2.5rem] shadow-2xl overflow-hidden border border-white/50">
+      <div className="w-full max-sm bg-white rounded-[2.5rem] shadow-2xl overflow-hidden border border-white/50">
         <div className="flex border-b border-slate-100">
             <button onClick={() => {setMode('LOGIN'); setError('');}} className={`flex-1 py-4 text-xs font-black transition-all ${mode === 'LOGIN' ? 'text-slate-900 bg-white border-b-2 border-slate-900' : 'bg-slate-50 text-slate-400'}`}>LOGIN</button>
             <button onClick={() => {setMode('SIGNUP'); setError('');}} className={`flex-1 py-4 text-xs font-black transition-all ${mode === 'SIGNUP' ? 'text-slate-900 bg-white border-b-2 border-slate-900' : 'bg-slate-50 text-slate-400'}`}>JOIN</button>
