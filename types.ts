@@ -6,7 +6,7 @@ declare global {
   }
 }
 
-export enum AppStatus {
+export enum SearchStatus {
   IDLE = 'IDLE',
   LOADING = 'LOADING',
   SUCCESS = 'SUCCESS',

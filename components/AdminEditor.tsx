@@ -1,10 +1,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../state/AppContext';
+// Import useUI for modal control state
+import { useUI } from '../state/UIContext';
 import { PageContent } from '../types';
 
 export const AdminEditor: React.FC = () => {
-  const { isAdminEditorOpen, closeAdminEditor, pageContent, updatePageContent, isSavingContent } = useApp();
+  // Fix: Destructure UI state from useUI and content data from useApp
+  const { isAdminEditorOpen, closeAdminEditor } = useUI();
+  const { pageContent, updatePageContent, isSavingContent } = useApp();
   
   const [formData, setFormData] = useState<PageContent>(pageContent);
 

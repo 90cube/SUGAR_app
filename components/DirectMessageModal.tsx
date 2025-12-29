@@ -1,9 +1,11 @@
 
 import React from 'react';
-import { useApp } from '../state/AppContext';
+// Import useUI for DM modal control state
+import { useUI } from '../state/UIContext';
 
 export const DirectMessageModal: React.FC = () => {
-  const { isDMModalOpen, closeDMModal, activeDMUser } = useApp();
+  // Fix: Use useUI for DM modal state properties
+  const { isDMModalOpen, closeDMModal, activeDMUser } = useUI();
 
   if (!isDMModalOpen) return null;
 

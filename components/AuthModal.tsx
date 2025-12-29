@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { useApp } from '../state/AppContext';
+import { useAuth } from '../state/AuthContext';
 import { authService } from '../services/authService';
 import { supabase } from '../services/supabaseClient';
 
@@ -8,7 +8,7 @@ type AuthMode = 'LOGIN' | 'SIGNUP' | 'VERIFY_SENT';
 type Status = 'NONE' | 'VALID' | 'INVALID';
 
 export const AuthModal: React.FC = () => {
-  const { isAuthModalOpen, closeAuthModal, login } = useApp();
+  const { isAuthModalOpen, closeAuthModal, login, signInWithGoogle } = useAuth();
   
   const [mode, setMode] = useState<AuthMode>('LOGIN');
   const [isLoading, setIsLoading] = useState(false);
@@ -80,7 +80,7 @@ export const AuthModal: React.FC = () => {
     }
     setIsLoading(true);
     try {
-      await authService.signInWithGoogle();
+      await signInWithGoogle();
     } catch (err: any) {
       setError("Google 로그인 중 오류가 발생했습니다.");
       setIsLoading(false);

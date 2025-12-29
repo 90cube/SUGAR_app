@@ -12,7 +12,8 @@ import { AdminEditor } from './AdminEditor';
 import { AdminHiddenBoardModal } from './AdminHiddenBoardModal';
 import { AdminGuillotineModal } from './AdminGuillotineModal';
 import { CommunityUserProfileModal } from './CommunityUserProfileModal';
-import { useApp } from '../state/AppContext';
+import { useAuth } from '../state/AuthContext';
+import { useUI } from '../state/UIContext';
 import AdminGuard from './AdminGuard';
 
 interface LayoutProps {
@@ -20,7 +21,7 @@ interface LayoutProps {
 }
 
 const AdminToast: React.FC = () => {
-  const { isAdminToastOpen } = useApp();
+  const { isAdminToastOpen } = useAuth();
   
   return (
     <div className={`fixed bottom-12 left-1/2 -translate-x-1/2 z-[1000] transition-all duration-700 cubic-bezier(0.19, 1, 0.22, 1) transform ${isAdminToastOpen ? 'translate-y-0 opacity-100 scale-100' : 'translate-y-24 opacity-0 scale-90 pointer-events-none'}`}>
@@ -41,15 +42,17 @@ const AdminToast: React.FC = () => {
 };
 
 export const Layout: React.FC<LayoutProps> = ({ children }) => {
+  const { 
+    isCommunityOpen, isRecapModalOpen, isAnalysisModalOpen, 
+    isVirtualMatchingModalOpen, isDMModalOpen, isAdminEditorOpen, 
+    isAdminHiddenBoardOpen, isAdminGuillotineOpen, selectedCommunityUser 
+  } = useUI();
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 relative overflow-x-hidden selection:bg-cyan-500 selection:text-slate-950">
-      {/* Ambient Background - Research Lab Atmosphere */}
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
-        {/* Technical Data Glows */}
         <div className="absolute top-[-10%] left-[-10%] w-[600px] h-[600px] bg-cyan-400/10 rounded-full blur-[120px] mix-blend-multiply animate-pulse" style={{ animationDuration: '8s' }}></div>
         <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-slate-400/10 rounded-full blur-[100px] mix-blend-multiply animate-pulse" style={{ animationDuration: '10s', animationDelay: '1s' }}></div>
-        
-        {/* Background Grid Pattern is handled in index.html via CSS */}
       </div>
 
       <Header />
@@ -57,23 +60,21 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         {children}
       </main>
       
-      <CommunityPanel />
-
-      {/* Global Modals */}
+      {isCommunityOpen && <CommunityPanel />}
       <AuthModal />
       <MatchDetailModal />
-      <RecapModal />
-      <AnalysisModal />
+      {isRecapModalOpen && <RecapModal />}
+      {isAnalysisModalOpen && <AnalysisModal />}
       
       <AdminGuard>
-        <AdminEditor />
-        <AdminHiddenBoardModal />
-        <AdminGuillotineModal />
+        {isAdminEditorOpen && <AdminEditor />}
+        {isAdminHiddenBoardOpen && <AdminHiddenBoardModal />}
+        {isAdminGuillotineOpen && <AdminGuillotineModal />}
       </AdminGuard>
 
-      <CommunityUserProfileModal />
-      <VirtualMatchingModal />
-      <DirectMessageModal />
+      {selectedCommunityUser && <CommunityUserProfileModal />}
+      {isVirtualMatchingModalOpen && <VirtualMatchingModal />}
+      {isDMModalOpen && <DirectMessageModal />}
       
       <AdminToast />
     </div>

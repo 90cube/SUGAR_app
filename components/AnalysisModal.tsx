@@ -1,9 +1,13 @@
 
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../state/AppContext';
+// Import useUI for modal control state
+import { useUI } from '../state/UIContext';
 
 export const AnalysisModal: React.FC = () => {
-  const { isAnalysisModalOpen, closeAnalysisModal, anomalyReport, isAnomalyLoading } = useApp();
+  // Fix: Destructure UI state from useUI and analysis data from useApp
+  const { isAnalysisModalOpen, closeAnalysisModal } = useUI();
+  const { anomalyReport, isAnomalyLoading } = useApp();
   const [logLines, setLogLines] = useState<{id: number, text: string}[]>([]);
 
   // Simulate laboratory data stream

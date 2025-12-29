@@ -1,11 +1,14 @@
 
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../state/AppContext';
+// Import useUI for hidden board modal control state
+import { useUI } from '../state/UIContext';
 import { communityService } from '../services/communityService';
 import { CommunityPost } from '../types';
 
 export const AdminHiddenBoardModal: React.FC = () => {
-    const { isAdminHiddenBoardOpen, closeAdminHiddenBoard } = useApp();
+    // Fix: Use useUI for hidden board modal state properties
+    const { isAdminHiddenBoardOpen, closeAdminHiddenBoard } = useUI();
     const [posts, setPosts] = useState<CommunityPost[]>([]);
 
     useEffect(() => {

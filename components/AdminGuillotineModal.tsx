@@ -1,11 +1,14 @@
 
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../state/AppContext';
+// Import useUI for guillotine modal control state
+import { useUI } from '../state/UIContext';
 import { communityService } from '../services/communityService';
 import { CommunityPost, CommunityUserProfile } from '../types';
 
 export const AdminGuillotineModal: React.FC = () => {
-    const { isAdminGuillotineOpen, closeAdminGuillotine } = useApp();
+    // Fix: Use useUI for guillotine modal state properties
+    const { isAdminGuillotineOpen, closeAdminGuillotine } = useUI();
     const [users, setUsers] = useState<CommunityUserProfile[]>([]);
     const [posts, setPosts] = useState<CommunityPost[]>([]);
     const [tab, setTab] = useState<'USERS' | 'POSTS'>('USERS');

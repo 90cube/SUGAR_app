@@ -1,6 +1,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../state/AppContext';
+import { useAuth } from '../state/AuthContext';
+import { useUI } from '../state/UIContext';
 import { communityService } from '../services/communityService';
 import { geminiService } from '../services/geminiService';
 import { CommunityPost, BoardType } from '../types';
@@ -8,11 +10,13 @@ import { marked } from 'marked';
 
 export const CommunityPanel: React.FC = () => {
   const { 
-    isCommunityOpen, 
-    closeCommunity, 
+    closeCommunity,
+  } = useUI();
+
+  const {
     isLoggedIn,
     refreshAuthUser
-  } = useApp();
+  } = useAuth();
 
   const [posts, setPosts] = useState<CommunityPost[]>([]);
   const [updatePost, setUpdatePost] = useState<CommunityPost | null>(null);
@@ -33,10 +37,8 @@ export const CommunityPanel: React.FC = () => {
   const [showAiInput, setShowAiInput] = useState(false);
 
   useEffect(() => {
-    if (isCommunityOpen) {
-      loadEssentialData();
-    }
-  }, [isCommunityOpen, activeBoard]);
+    loadEssentialData();
+  }, [activeBoard]);
 
   const loadEssentialData = async () => {
     setIsLoading(true);
@@ -133,8 +135,6 @@ export const CommunityPanel: React.FC = () => {
     streaming: '스트리밍'
   };
 
-  if (!isCommunityOpen) return null;
-
   return (
     <div 
       className="fixed inset-0 z-[150] flex justify-center items-center bg-slate-950/70 backdrop-blur-md p-4 font-mono animate-in fade-in duration-300"
@@ -144,7 +144,6 @@ export const CommunityPanel: React.FC = () => {
         className="w-full max-w-xl bg-slate-50 h-[85vh] shadow-2xl flex flex-col rounded-[2.5rem] overflow-hidden border border-white/20 relative"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
         <div className="p-6 bg-slate-950 text-white flex items-center justify-between border-b border-cyan-500/20">
           <div className="flex flex-col">
             <h2 className="text-xl font-black italic tracking-tighter uppercase">Lab_Archive</h2>
@@ -163,8 +162,6 @@ export const CommunityPanel: React.FC = () => {
         </div>
 
         <div className="flex-1 overflow-y-auto overscroll-contain bg-slate-50 scrollbar-hide">
-          
-          {/* DETAIL VIEW MODE */}
           {selectedPost ? (
             <div className="p-6 animate-in slide-in-from-right-4 duration-300">
               <button 
@@ -212,7 +209,6 @@ export const CommunityPanel: React.FC = () => {
               </div>
             </div>
           ) : isWriteMode ? (
-            /* WRITE MODE */
             <div className="p-6">
               <form onSubmit={handleWriteSubmit} className="bg-white p-6 rounded-[2.5rem] border border-cyan-500/20 shadow-2xl animate-in zoom-in-95 duration-300 space-y-4">
                 <div className="bg-slate-950 rounded-2xl p-4 border border-cyan-500/20 shadow-inner overflow-hidden">
@@ -268,9 +264,7 @@ export const CommunityPanel: React.FC = () => {
               </form>
             </div>
           ) : (
-            /* LIST MODE */
             <>
-              {/* 1. CENTRAL UPDATE PREVIEW */}
               <section className="p-6">
                 <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
                   <span className="text-cyan-500">▶</span> Critical_Update_Preview
@@ -297,7 +291,6 @@ export const CommunityPanel: React.FC = () => {
                 </div>
               </section>
 
-              {/* 2. TABS */}
               <section className="px-6 sticky top-0 bg-slate-50 z-20 pt-2 pb-4">
                 <div className="flex bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm gap-1 overflow-x-auto scrollbar-hide">
                   {(['update', 'balance', 'kukkuk', 'streaming'] as const).map((tab) => (
@@ -314,7 +307,6 @@ export const CommunityPanel: React.FC = () => {
                 </div>
               </section>
 
-              {/* 3. FEED */}
               <div className="px-6 pb-32 min-h-[300px]">
                 <div className="space-y-3">
                   {isLoading ? (
@@ -355,7 +347,6 @@ export const CommunityPanel: React.FC = () => {
           )}
         </div>
 
-        {/* FAB - Only shown in LIST MODE */}
         {!isWriteMode && !selectedPost && isLoggedIn && (
           <div className="absolute bottom-8 left-8 right-8 animate-in slide-in-from-bottom-4">
             <button 

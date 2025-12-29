@@ -1,6 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../state/AppContext';
+// Import useUI for modal control state
+import { useUI } from '../state/UIContext';
 import { nexonService } from '../services/nexonService';
 import { geminiService } from '../services/geminiService';
 import { UserProfile } from '../types';
@@ -29,7 +31,8 @@ const PlayerCard: React.FC<PlayerCardProps> = ({ profile, side, onRemove }) => (
 );
 
 export const VirtualMatchingModal: React.FC = () => {
-  const { isVirtualMatchingModalOpen, closeVirtualMatchingModal } = useApp();
+  // Fix: Use useUI for modal state properties
+  const { isVirtualMatchingModalOpen, closeVirtualMatchingModal } = useUI();
   
   const [step, setStep] = useState<'INPUT' | 'ANALYZING' | 'RESULT'>('INPUT');
   

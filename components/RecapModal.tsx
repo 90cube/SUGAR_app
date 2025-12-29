@@ -1,9 +1,13 @@
 
 import React, { useState } from 'react';
 import { useApp } from '../state/AppContext';
+// Import useUI for modal control state
+import { useUI } from '../state/UIContext';
 
 export const RecapModal: React.FC = () => {
-  const { isRecapModalOpen, closeRecapModal, calculateRecap, recapStats, isRecapLoading } = useApp();
+  // Fix: Destructure UI state from useUI and recap data from useApp
+  const { isRecapModalOpen, closeRecapModal } = useUI();
+  const { calculateRecap, recapStats, isRecapLoading } = useApp();
   
   const getTodayKST = () => {
     const now = new Date();

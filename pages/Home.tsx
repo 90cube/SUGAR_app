@@ -1,7 +1,9 @@
 
 import React, { useState } from 'react';
 import { useApp } from '../state/AppContext';
-import { AppStatus } from '../types';
+import { useAuth } from '../state/AuthContext';
+import { useUI } from '../state/UIContext';
+import { SearchStatus } from '../types';
 import { ProfileCard } from '../components/ProfileCard';
 import { TierCard } from '../components/TierCard';
 import { RecentTrend } from '../components/RecentTrend';
@@ -9,7 +11,9 @@ import { RecentMatches } from '../components/RecentMatches';
 import AdminGuard from '../components/AdminGuard';
 
 export const Home: React.FC = () => {
-  const { status, userProfile, searchUser, isLoggedIn, openAuthModal, performAnomalyCheck, pageContent, openAdminEditor } = useApp();
+  const { searchStatus, userProfile, searchUser, performAnomalyCheck, pageContent } = useApp();
+  const { openAdminEditor } = useUI();
+  const { isLoggedIn, openAuthModal } = useAuth();
   const [nickname, setNickname] = useState('');
 
   const handleSearch = (e: React.FormEvent) => {
@@ -39,11 +43,8 @@ export const Home: React.FC = () => {
       </AdminGuard>
       
       <div className="flex-grow space-y-6">
-        {/* Section 0: Su-Lab Hero Branding */}
         <section className="space-y-8 pt-12 animate-in fade-in slide-in-from-bottom-8 duration-700">
-          
           <div className="group relative flex flex-col items-center justify-center select-none cursor-default z-20 w-full font-mono">
-              {/* Main Lab Logo Animation */}
               <div className="flex justify-between items-center w-full px-4 sm:px-12 flex-nowrap transition-transform duration-500 group-hover:scale-105">
                   <div className="text-6xl sm:text-7xl font-black text-slate-900 flex flex-col items-center">
                     <span className="group-hover:-translate-y-2 transition-transform duration-300">S</span>
@@ -55,8 +56,6 @@ export const Home: React.FC = () => {
                   <div className="text-6xl sm:text-7xl font-black text-slate-900 delay-200">A</div>
                   <div className="text-6xl sm:text-7xl font-black text-slate-400 group-hover:text-cyan-500 transition-colors duration-300 delay-300">B</div>
               </div>
-              
-              {/* Acronym Expansion / Drawer Concept */}
               <div className="mt-8 w-full px-2">
                   <div className="flex flex-col items-center bg-slate-100/50 backdrop-blur-md border border-slate-200 p-4 rounded-2xl group-hover:border-cyan-500/50 group-hover:bg-cyan-50/30 transition-all duration-500">
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-2">Terminal Access Point</p>
@@ -74,7 +73,6 @@ export const Home: React.FC = () => {
           
           <div className="h-4"></div>
 
-          {/* Console Search Bar */}
           <form onSubmit={handleSearch} className="space-y-4 px-2 relative z-10 font-mono">
             <div className="flex gap-3">
               <div className="relative flex-1 group">
@@ -103,10 +101,10 @@ export const Home: React.FC = () => {
             
             <button 
               type="submit"
-              disabled={status === AppStatus.LOADING}
+              disabled={searchStatus === SearchStatus.LOADING}
               className="w-full h-14 bg-cyan-500 text-slate-950 font-black rounded-xl active:scale-[0.98] transition-all hover:bg-cyan-400 hover:shadow-[0_0_30px_rgba(34,211,238,0.4)] disabled:opacity-50 flex items-center justify-center border-b-4 border-cyan-700 tracking-widest text-xs"
             >
-              {status === AppStatus.LOADING ? (
+              {searchStatus === SearchStatus.LOADING ? (
                 <div className="flex items-center gap-3">
                   <span className="w-5 h-5 border-3 border-slate-950/20 border-t-slate-950 rounded-full animate-spin" />
                   <span className="animate-pulse">RUNNING_LAB_QUERIES...</span>
@@ -116,8 +114,7 @@ export const Home: React.FC = () => {
           </form>
         </section>
 
-        {/* Results Section - Laboratory Cards */}
-        {status === AppStatus.SUCCESS && userProfile && (
+        {searchStatus === SearchStatus.SUCCESS && userProfile && (
           <div className="space-y-5">
             <div className="animate-in fade-in slide-in-from-bottom-8 duration-700 fill-mode-backwards" style={{ animationDelay: '100ms' }}>
               <ProfileCard profile={userProfile} />
@@ -135,14 +132,13 @@ export const Home: React.FC = () => {
           </div>
         )}
 
-        {status === AppStatus.ERROR && (
+        {searchStatus === SearchStatus.ERROR && (
           <div className="animate-in fade-in zoom-in-95 duration-500 p-6 bg-slate-950 text-red-500 rounded-xl text-center text-[10px] font-black border border-red-500/50 shadow-2xl font-mono">
             [CRITICAL_ERROR]: {pageContent.errorText.toUpperCase()}
           </div>
         )}
       </div>
 
-      {/* Light Blue NEXON Open API Attribution - Attached at bottom */}
       <div className="mt-auto pt-10 pb-4 text-center animate-in fade-in duration-1000 fill-mode-backwards" style={{ animationDelay: '800ms' }}>
         <p className="text-[7px] sm:text-[9px] font-black text-cyan-400/60 uppercase tracking-[0.3em] font-mono select-none drop-shadow-[0_0_8px_rgba(34,211,238,0.2)]">
           Data based on NEXON Open API

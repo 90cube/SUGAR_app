@@ -3,6 +3,8 @@ import React from 'react';
 import { Match, MatchResult } from '../types';
 import { UI_STRINGS } from '../constants';
 import { useApp } from '../state/AppContext';
+import { useAuth } from '../state/AuthContext';
+import { useUI } from '../state/UIContext';
 
 interface RecentMatchesProps {
   matches: Match[];
@@ -27,7 +29,9 @@ const getResultBadge = (result: MatchResult) => {
 };
 
 export const RecentMatches: React.FC<RecentMatchesProps> = ({ matches }) => {
-  const { isLoggedIn, openAuthModal, openMatchDetail, visibleMatchCount, loadMoreMatches, isLoadingMore, openRecapModal } = useApp();
+  const { openMatchDetail, visibleMatchCount, loadMoreMatches, isLoadingMore } = useApp();
+  const { openRecapModal } = useUI();
+  const { isLoggedIn, openAuthModal } = useAuth();
 
   const displayedMatches = matches.slice(0, visibleMatchCount);
   const hasMore = visibleMatchCount < matches.length;
@@ -46,7 +50,6 @@ export const RecentMatches: React.FC<RecentMatchesProps> = ({ matches }) => {
   };
 
   const formatKd = (kdStr: string) => {
-      // "123%" -> 123.0%
       const val = parseFloat(kdStr.replace('%', ''));
       if (isNaN(val)) return kdStr;
       return `${val.toFixed(1)}%`;

@@ -1,20 +1,28 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../state/AppContext';
+import { useUI } from '../state/UIContext';
+import { useAuth } from '../state/AuthContext';
 import AdminGuard from './AdminGuard';
 
 export const Header: React.FC = () => {
   const { 
-    openAuthModal, 
-    openCommunity, 
-    openAdminHiddenBoard, 
-    openAdminGuillotine,
-    isLoggedIn,
-    authUser,
-    logout,
     openCommunityUserProfile,
     openKeySelector
   } = useApp();
+
+  const {
+    openCommunity,
+    openAdminHiddenBoard,
+    openAdminGuillotine
+  } = useUI();
+
+  const {
+    openAuthModal,
+    isLoggedIn,
+    authUser,
+    logout
+  } = useAuth();
 
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -70,7 +78,6 @@ export const Header: React.FC = () => {
 
           {isLoggedIn ? (
             <div className="flex items-center gap-2">
-              {/* API Key Re-sync button to fix auth errors */}
               <button 
                 onClick={openKeySelector}
                 className="w-8 h-8 flex items-center justify-center bg-white/5 border border-white/10 rounded text-cyan-500 hover:bg-cyan-500/10 transition-colors"

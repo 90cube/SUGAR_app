@@ -1,11 +1,16 @@
 
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../state/AppContext';
+import { useAuth } from '../state/AuthContext';
+// Import useUI for community user profile state
+import { useUI } from '../state/UIContext';
 import { communityService } from '../services/communityService';
 import { CommunityPost } from '../types';
 
 export const CommunityUserProfileModal: React.FC = () => {
-    const { selectedCommunityUser, closeCommunityUserProfile, authUser } = useApp();
+    // Fix: Use useUI for selected community user and close callback
+    const { selectedCommunityUser, closeCommunityUserProfile } = useUI();
+    const { authUser } = useAuth();
     const [posts, setPosts] = useState<CommunityPost[]>([]);
     const [viewMode, setViewMode] = useState<'INFO' | 'POSTS' | 'COMMENTS'>('INFO');
     const [guillotineConfirm, setGuillotineConfirm] = useState(false);
