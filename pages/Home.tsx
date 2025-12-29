@@ -52,11 +52,11 @@ export const Home: React.FC = () => {
                 <div className="absolute inset-0 bg-cyan-500/5 rounded-[2rem] blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
                 
                 <img 
-                  src="/logo.png" 
+                  src="logo/logo.png" 
                   alt="Su-Lab Main Logo" 
                   className="w-full max-w-[300px] h-auto rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.15)] border border-white/30 relative z-10 transition-all duration-500 group-hover:scale-105 group-hover:shadow-cyan-500/10"
                   onError={(e) => {
-                      // If image fails, show fallback text UI
+                      // 이미지가 404등으로 로드되지 않을 경우에만 대체 텍스트 로고 표시
                       e.currentTarget.style.display = 'none';
                       const fallback = e.currentTarget.nextElementSibling as HTMLElement;
                       if (fallback) fallback.classList.remove('hidden');

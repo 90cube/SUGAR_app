@@ -57,22 +57,16 @@ export const Header: React.FC = () => {
     <header className="sticky top-0 z-[140] w-full bg-slate-950 border-b border-cyan-500/20 shadow-[0_4px_30px_rgba(0,0,0,0.5)]">
       <div className="container max-w-md mx-auto h-16 flex items-center justify-between px-5">
         
-        {/* Logo Image + Text Side by Side */}
+        {/* Logo Section */}
         <button 
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-          className="flex items-center gap-2.5 active:scale-95 transition-transform group"
+          className="flex items-center gap-3 active:scale-95 transition-transform group"
         >
-          <div className="flex items-center">
-            <img 
-              src="/logo.png" 
-              alt="Logo" 
-              className="h-9 w-auto rounded-lg object-contain border border-white/10 bg-white/5 group-hover:border-cyan-500/50 transition-all duration-300 shadow-sm shadow-cyan-500/10"
-              onError={(e) => {
-                // 이미지가 없을 경우 해당 태그를 숨깁니다.
-                e.currentTarget.style.display = 'none';
-              }}
-            />
-          </div>
+          <img 
+            src="logo/logo.png" 
+            alt="Su-Lab Logo" 
+            className="h-10 w-auto object-contain filter drop-shadow-[0_0_3px_rgba(34,211,238,0.5)]"
+          />
           
           <div className="flex flex-col items-start -space-y-1 font-mono">
             <span className="text-white font-black tracking-tighter text-sm uppercase group-hover:text-cyan-400 transition-colors">Su-Lab</span>
