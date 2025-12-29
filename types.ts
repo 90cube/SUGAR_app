@@ -26,8 +26,8 @@ export interface Match {
   matchType: string;
   matchMode: string;
   kd: string;
-  date: string; // KST formatted string
-  rawDate: string; // UTC string from API
+  date: string; 
+  rawDate: string; 
   kill: number;
   death: number;
   assist: number;
@@ -35,7 +35,7 @@ export interface Match {
 
 export interface PlayerMatchDetail {
   team_id: string;
-  match_result: string; // "1": Win, "2": Loss
+  match_result: string; 
   user_name: string;
   season_grade: string;
   guild_name: string | null;
@@ -133,23 +133,8 @@ export interface AnomalyReport {
   };
 }
 
-export type BoardType = 'update' | 'balance' | 'fun' | 'stream' | 'hidden' | 'TEMP';
-
-export interface StreamingRequest {
-  id: string;
-  requester_id: string;
-  platform: 'CHZZK' | 'SOOP' | 'YOUTUBE';
-  stream_url: string;
-  pr_url: string;
-  description: string;
-  thumbnail_url: string;
-  status: 'PENDING' | 'APPROVED' | 'REJECTED';
-  admin_message?: string;
-  reviewed_by?: string;
-  reviewed_at?: string;
-  created_at: string;
-  profiles?: { nickname: string };
-}
+// SQL 스키마와 동일한 소문자 값 사용
+export type BoardType = 'update' | 'balance' | 'kukkuk' | 'streaming' | 'temp' | 'hidden';
 
 export interface CommunityPost {
   id: string;
@@ -173,10 +158,6 @@ export interface CommunityPost {
   isHidden?: boolean;
   blueOption?: string;
   redOption?: string;
-  // Streaming specific
-  streamUrl?: string;
-  prUrl?: string;
-  platform?: string;
 }
 
 export interface CommunityComment {
@@ -187,9 +168,6 @@ export interface CommunityComment {
   content: string;
   createdAt: string;
   teamType: 'BLUE' | 'RED' | 'GRAY';
-  isDeleted?: boolean;
-  deletedBy?: string;
-  deletedReason?: 'USER_SELF' | 'ADMIN_ACTION';
 }
 
 export interface CommunityUserProfile {

@@ -158,7 +158,7 @@ export class GeminiService {
 
   public async generateFormalRejection(rawReason: string): Promise<string> {
     const ai = this.createClient();
-    const prompt = `연구소 운영자로서 정중한 반려 사유를 작성하십시오: "${rawReason}"`;
+    const prompt = `Su-Lab 커뮤니티 운영자로서 정중한 반려 사유를 작성하십시오: "${rawReason}"`;
     try {
       const response = await ai.models.generateContent({
         model: DEFAULT_GEMINI_MODEL,

@@ -13,6 +13,7 @@ class AuthService {
       const user = session.user;
       const meta = user.user_metadata || {};
 
+      // 지침: profiles 대신 public_profiles 사용
       const { data: dbData, error: dbError } = await supabase
         .from('public_profiles')
         .select('nickname, role') 
@@ -45,7 +46,7 @@ class AuthService {
 
   async signInWithGoogle() {
     if (!supabase) {
-      throw new Error("Supabase 클라이언트가 초기화되지 않았습니다. 환경 변수(VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY)를 확인하세요.");
+      throw new Error("Supabase 클라이언트가 초기화되지 않았습니다.");
     }
     
     const redirectTo = window.location.origin;
