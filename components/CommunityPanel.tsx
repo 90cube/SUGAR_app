@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../state/AppContext';
 import { communityService } from '../services/communityService';
+import { geminiService } from '../services/geminiService';
 import { CommunityPost, BoardType } from '../types';
 
 export const CommunityPanel: React.FC = () => {
@@ -9,20 +10,26 @@ export const CommunityPanel: React.FC = () => {
     isCommunityOpen, 
     closeCommunity, 
     isLoggedIn,
-    refreshAuthUser
+    refreshAuthUser,
+    authUser
   } = useApp();
 
   const [posts, setPosts] = useState<CommunityPost[]>([]);
   const [updatePost, setUpdatePost] = useState<CommunityPost | null>(null);
-  // 지침에 따라 정확한 소문자 board_type 사용
   const [activeBoard, setActiveBoard] = useState<Exclude<BoardType, 'hidden' | 'temp'>>('update');
   const [isLoading, setIsLoading] = useState(false);
   const [isWriteMode, setIsWriteMode] = useState(false);
   
+  // Post States
   const [newTitle, setNewTitle] = useState('');
   const [newContent, setNewContent] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // AI Summarize States
+  const [aiSource, setAiSource] = useState('');
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const [showAiInput, setShowAiInput] = useState(false);
 
   useEffect(() => {
     if (isCommunityOpen) {
@@ -33,12 +40,12 @@ export const CommunityPanel: React.FC = () => {
   const loadEssentialData = async () => {
     setIsLoading(true);
     try {
-      // 1. UPDATE 게시판 최신 항목 (메인 비주얼용)
+      // 1. UPDATE 게시판 최신 항목 (프리뷰용)
       const updates = await communityService.getPosts('update');
       if (updates.length > 0) setUpdatePost(updates[0]);
       else setUpdatePost(null);
 
-      // 2. 현재 활성화된 탭 리스트 (대소문자 변환 없이 그대로 쿼리)
+      // 2. 현재 활성화된 탭 리스트 (대소문자 구분 없이 정확한 문자열 매칭)
       const list = await communityService.getPosts(activeBoard);
       setPosts(list);
     } catch (e) {
@@ -48,37 +55,57 @@ export const CommunityPanel: React.FC = () => {
     }
   };
 
+  const handleAISummarize = async () => {
+    if (!aiSource.trim()) {
+      alert("요약할 공지사항 원문을 입력해주세요.");
+      return;
+    }
+    
+    setIsAiLoading(true);
+    try {
+      const masterPrompt = `
+        당신은 서든어택 연구소 Su-Lab의 관리자 AI "CUBE"입니다.
+        제공된 공지사항 원문을 분석하여 핵심 업데이트 사항을 요약하십시오.
+        본문은 마크다운 형식을 사용하고, 가독성 있게 리스트와 표를 활용하십시오.
+      `;
+      
+      const result = await geminiService.summarizeGameUpdate(aiSource, masterPrompt, false);
+      
+      setNewTitle(result.title);
+      setNewContent(result.content);
+      setShowAiInput(false);
+      setAiSource('');
+    } catch (err: any) {
+      alert("AI 분석 실패: " + err.message);
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 512 * 1024) {
-        alert("파일 용량이 너무 큽니다. (최대 512KB)");
+        alert("최대 512KB까지 업로드 가능합니다.");
         e.target.value = '';
         setSelectedFile(null);
         return;
       }
-      
-      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-      if (!allowedTypes.includes(file.type)) {
-        alert("허용되지 않는 형식입니다. (JPG, PNG, WEBP, GIF 가능)");
-        e.target.value = '';
-        setSelectedFile(null);
-        return;
-      }
-
       setSelectedFile(file);
     }
   };
 
   const handleWriteSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTitle.trim() || !newContent.trim()) return;
+    if (!newTitle.trim() || !newContent.trim()) {
+      alert("제목과 내용을 모두 입력해주세요.");
+      return;
+    }
 
     setIsLoading(true);
     try {
       let imageUrl = '';
       if (selectedFile) {
-        // activeBoard 값을 그대로 사용하여 버킷 결정
         const uploadedUrl = await communityService.uploadImage(selectedFile, activeBoard);
         if (uploadedUrl) imageUrl = uploadedUrl;
       }
@@ -95,12 +122,11 @@ export const CommunityPanel: React.FC = () => {
         setNewContent('');
         setSelectedFile(null);
         setIsWriteMode(false);
-        
         await refreshAuthUser();
         await loadEssentialData();
       }
     } catch (err: any) {
-      alert("데이터 동기화 실패: " + err.message);
+      alert("포스팅 저장 실패: " + err.message);
     } finally {
       setIsLoading(false);
     }
@@ -139,7 +165,7 @@ export const CommunityPanel: React.FC = () => {
         </div>
 
         <div className="flex-1 overflow-y-auto overscroll-contain bg-slate-50 scrollbar-hide">
-          {/* 1. CENTRAL UPDATE STREAM (Selected Update Post) */}
+          {/* 1. CENTRAL UPDATE STREAM - Always show the latest for the preview */}
           <section className="p-6">
             <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
               <span className="text-cyan-500">▶</span> Critical_Update_Preview
@@ -149,7 +175,7 @@ export const CommunityPanel: React.FC = () => {
                 <img src={updatePost.imageUrl} className="w-full h-full object-cover opacity-80" alt="update" />
               ) : (
                 <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 to-slate-950">
-                   <span className="text-cyan-500/20 text-[32px] font-black italic select-none uppercase tracking-tighter">No_Data_Link</span>
+                   <span className="text-cyan-500/20 text-[32px] font-black italic select-none uppercase tracking-tighter">Lab_Access_Ready</span>
                 </div>
               )}
               <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/20 p-8 flex flex-col justify-end">
@@ -157,7 +183,7 @@ export const CommunityPanel: React.FC = () => {
                   {updatePost ? `SYNC_${updatePost.createdAt.split('T')[0]}` : 'SEARCHING...'}
                 </span>
                 <h4 className="text-white text-lg font-black uppercase italic truncate">
-                  {updatePost?.title || '수신된 최신 업데이트 로그가 없습니다.'}
+                  {updatePost?.title || '수신된 최신 데이터가 없습니다.'}
                 </h4>
               </div>
             </div>
@@ -180,17 +206,53 @@ export const CommunityPanel: React.FC = () => {
             </div>
           </section>
 
-          {/* 3. FEED */}
+          {/* 3. FEED / WRITE MODE */}
           <div className="px-6 pb-32 min-h-[300px]">
             {isWriteMode ? (
               <form onSubmit={handleWriteSubmit} className="bg-white p-6 rounded-[2.5rem] border border-cyan-500/20 shadow-2xl animate-in zoom-in-95 duration-300 space-y-4">
+                
+                {/* AI Summary Tool Integration */}
+                <div className="bg-slate-950 rounded-2xl p-4 border border-cyan-500/20 shadow-inner overflow-hidden">
+                    <button 
+                        type="button"
+                        onClick={() => setShowAiInput(!showAiInput)}
+                        className="w-full flex items-center justify-between text-[10px] font-black text-cyan-400 uppercase tracking-widest"
+                    >
+                        <span>[ ✨ AI_Summarize_Assistant_Cube ]</span>
+                        <span>{showAiInput ? 'CLOSE' : 'OPEN'}</span>
+                    </button>
+                    {showAiInput && (
+                        <div className="mt-4 space-y-3 animate-in slide-in-from-top-2 duration-300">
+                            <textarea 
+                                value={aiSource}
+                                onChange={(e) => setAiSource(e.target.value)}
+                                placeholder="공식 공지사항 전문을 붙여넣으세요..."
+                                className="w-full p-4 bg-black/40 border border-white/5 rounded-xl text-[10px] font-bold text-slate-300 outline-none resize-none h-32 scrollbar-hide"
+                            />
+                            <button 
+                                type="button"
+                                onClick={handleAISummarize}
+                                disabled={isAiLoading}
+                                className="w-full py-3 bg-cyan-500 text-slate-950 font-black text-[9px] rounded-lg uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-cyan-400 transition-colors disabled:opacity-50"
+                            >
+                                {isAiLoading ? (
+                                    <>
+                                        <div className="w-3 h-3 border-2 border-slate-950/20 border-t-slate-950 rounded-full animate-spin"></div>
+                                        Processing_Data...
+                                    </>
+                                ) : "Run_Gemini_Analysis"}
+                            </button>
+                        </div>
+                    )}
+                </div>
+
                 <input 
                   type="text" value={newTitle} onChange={(e) => setNewTitle(e.target.value)}
-                  placeholder="Subject_Title" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-cyan-500/20" required
+                  placeholder="제목을 입력하세요 (Subject_Title)" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-cyan-500/20" required
                 />
                 <textarea 
                   value={newContent} onChange={(e) => setNewContent(e.target.value)}
-                  placeholder="Data_Logs_Content..." rows={5} className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold outline-none resize-none focus:ring-2 focus:ring-cyan-500/20" required
+                  placeholder="내용을 입력하세요 (Data_Logs_Content...)" rows={5} className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold outline-none resize-none focus:ring-2 focus:ring-cyan-500/20" required
                 />
                 
                 <div className="space-y-2">
@@ -214,14 +276,14 @@ export const CommunityPanel: React.FC = () => {
                     ) : (
                       <div className="flex flex-col items-center gap-1">
                          <svg className="w-6 h-6 text-slate-300 group-hover:text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                         <span className="text-[9px] font-bold text-slate-400">Click_to_Select_Visual_Evidence</span>
+                         <span className="text-[9px] font-bold text-slate-400">Attach_Visual_Evidence</span>
                       </div>
                     )}
                   </div>
                 </div>
 
                 <div className="flex gap-2 pt-2">
-                  <button type="submit" disabled={isLoading} className="flex-1 py-4 bg-cyan-500 text-slate-950 font-black text-[10px] rounded-xl uppercase tracking-widest shadow-lg active:scale-95 transition-all">Store_Data</button>
+                  <button type="submit" disabled={isLoading} className="flex-1 py-4 bg-cyan-500 text-slate-950 font-black text-[10px] rounded-xl uppercase tracking-widest shadow-lg active:scale-95 transition-all">Store_Archive</button>
                   <button type="button" onClick={() => { setIsWriteMode(false); setSelectedFile(null); }} className="flex-1 py-4 bg-slate-100 text-slate-500 font-black text-[10px] rounded-xl uppercase tracking-widest">Abort</button>
                 </div>
               </form>
@@ -260,7 +322,7 @@ export const CommunityPanel: React.FC = () => {
           </div>
         </div>
 
-        {/* FAB */}
+        {/* FAB - Only shown when logged in */}
         {!isWriteMode && isLoggedIn && (
           <div className="absolute bottom-8 left-8 right-8">
             <button 
