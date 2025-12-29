@@ -45,47 +45,38 @@ export const Home: React.FC = () => {
       <div className="flex-grow space-y-6">
         <section className="space-y-8 pt-12 animate-in fade-in slide-in-from-bottom-8 duration-700">
           
-          {/* Main Logo Image Section */}
-          <div className="flex flex-col items-center justify-center px-4">
-             <div className="relative group w-full flex justify-center">
-                {/* Visual Glow Effect behind logo */}
-                <div className="absolute inset-0 bg-cyan-500/5 rounded-[2rem] blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
+          {/* Main Logo Section */}
+          <div className="flex flex-col items-center justify-center px-4 group">
+             {/* Text Logo Container */}
+             <div className="relative w-full flex justify-center py-10 bg-white/40 backdrop-blur-xl border border-white/60 rounded-[3rem] shadow-[0_20px_50px_rgba(0,0,0,0.05)] overflow-hidden transition-all duration-500 group-hover:shadow-cyan-500/10 group-hover:border-cyan-500/30">
+                {/* Visual Glow Effect */}
+                <div className="absolute inset-0 bg-cyan-500/5 blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
                 
-                <img 
-                  src="logo/logo.png" 
-                  alt="Su-Lab Main Logo" 
-                  className="w-full max-w-[300px] h-auto rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.15)] border border-white/30 relative z-10 transition-all duration-500 group-hover:scale-105 group-hover:shadow-cyan-500/10"
-                  onError={(e) => {
-                      // 이미지가 404등으로 로드되지 않을 경우에만 대체 텍스트 로고 표시
-                      e.currentTarget.style.display = 'none';
-                      const fallback = e.currentTarget.nextElementSibling as HTMLElement;
-                      if (fallback) fallback.classList.remove('hidden');
-                  }}
-                />
-
-                {/* Fallback Text-Logo (Hidden by default, shown only if image fails) */}
-                <div className="hidden group relative flex-col items-center justify-center select-none cursor-default z-20 w-full font-mono">
-                    <div className="flex justify-between items-center w-full px-4 sm:px-12 flex-nowrap">
-                        <div className="text-6xl font-black text-slate-900">S</div>
-                        <div className="text-6xl font-black text-slate-400">U</div>
-                        <div className="w-1.5 h-12 bg-slate-200 rotate-12 mx-2 opacity-50"></div>
-                        <div className="text-6xl font-black text-cyan-600">L</div>
-                        <div className="text-6xl font-black text-slate-900">A</div>
-                        <div className="text-6xl font-black text-slate-400">B</div>
+                {/* Text Logo Core */}
+                <div className="relative flex-col items-center justify-center select-none cursor-default z-20 w-full font-mono">
+                    <div className="flex justify-between items-center w-full px-10 sm:px-14 flex-nowrap">
+                        <div className="text-6xl font-black text-slate-900 transition-all duration-500 group-hover:text-cyan-600 group-hover:scale-110">S</div>
+                        <div className="text-6xl font-black text-slate-400 group-hover:text-slate-600 transition-all duration-500">U</div>
+                        <div className="w-1.5 h-12 bg-slate-200 rotate-12 mx-2 opacity-50 group-hover:bg-cyan-200 transition-all duration-500"></div>
+                        <div className="text-6xl font-black text-cyan-600 transition-all duration-500 group-hover:scale-110 group-hover:drop-shadow-[0_0_15px_rgba(34,211,238,0.4)]">L</div>
+                        <div className="text-6xl font-black text-slate-900 transition-all duration-500 group-hover:text-cyan-600 group-hover:scale-110">A</div>
+                        <div className="text-6xl font-black text-slate-400 group-hover:text-slate-600 transition-all duration-500">B</div>
+                    </div>
+                    <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 text-[10px] font-black text-cyan-500/40 tracking-[0.8em] uppercase whitespace-nowrap">
+                      Research_System
                     </div>
                 </div>
              </div>
 
-             <div className="mt-8 w-full">
-                  <div className="flex flex-col items-center bg-white/40 backdrop-blur-md border border-slate-200 p-5 rounded-3xl group-hover:border-cyan-500/30 transition-all duration-500 shadow-sm">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-2 font-mono">Terminal Access Point</p>
-                      <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-slate-300 to-transparent"></div>
-                      <div className="mt-3 text-[9px] font-bold text-slate-500 flex flex-wrap justify-center gap-x-4 gap-y-1 text-center opacity-70 font-mono">
-                          <span className="whitespace-nowrap"><span className="text-cyan-600 mr-0.5">S</span>udden Attack</span>
-                          <span className="whitespace-nowrap"><span className="text-cyan-600 mr-0.5">U</span>ser</span>
-                          <span className="whitespace-nowrap"><span className="text-cyan-600 mr-0.5">L</span>aboratory</span>
-                          <span className="whitespace-nowrap"><span className="text-cyan-600 mr-0.5">A</span>dvanced</span>
-                          <span className="whitespace-nowrap"><span className="text-cyan-600 mr-0.5">B</span>ehavioral Analysis</span>
+             {/* Description Section (Reveals on Hover) */}
+             <div className="mt-4 w-full overflow-hidden transition-all duration-700 max-h-0 opacity-0 translate-y-4 group-hover:max-h-40 group-hover:opacity-100 group-hover:translate-y-0">
+                  <div className="flex flex-col items-center bg-white/60 backdrop-blur-md border border-slate-200 p-5 rounded-[2.5rem] shadow-sm">
+                      <div className="text-[9px] font-bold text-slate-500 flex flex-wrap justify-center gap-x-4 gap-y-1 text-center font-mono italic">
+                          <span className="whitespace-nowrap"><span className="text-cyan-600 font-black not-italic mr-0.5">S</span>udden Attack</span>
+                          <span className="whitespace-nowrap"><span className="text-cyan-600 font-black not-italic mr-0.5">U</span>ser</span>
+                          <span className="whitespace-nowrap"><span className="text-cyan-600 font-black not-italic mr-0.5">L</span>aboratory</span>
+                          <span className="whitespace-nowrap"><span className="text-cyan-600 font-black not-italic mr-0.5">A</span>dvanced</span>
+                          <span className="whitespace-nowrap"><span className="text-cyan-600 font-black not-italic mr-0.5">B</span>ehavioral Analysis</span>
                       </div>
                   </div>
               </div>
@@ -96,13 +87,13 @@ export const Home: React.FC = () => {
           <form onSubmit={handleSearch} className="space-y-4 px-2 relative z-10 font-mono">
             <div className="flex gap-3">
               <div className="relative flex-1 group">
-                <div className="absolute -inset-0.5 bg-cyan-400/20 rounded-xl blur-sm opacity-25 group-hover:opacity-100 transition duration-500"></div>
+                <div className="absolute -inset-0.5 bg-cyan-400/20 rounded-[1.5rem] blur-sm opacity-25 group-hover:opacity-100 transition duration-500"></div>
                 <input
                   type="text"
                   value={nickname}
                   onChange={(e) => setNickname(e.target.value)}
                   placeholder="대상_닉네임_조회"
-                  className="relative w-full h-14 px-5 rounded-xl border-2 border-slate-200 bg-white/80 backdrop-blur-md text-slate-900 placeholder:text-slate-300 focus:outline-none focus:border-cyan-500 font-bold transition-all shadow-inner text-center tracking-wide"
+                  className="relative w-full h-14 px-5 rounded-[1.5rem] border-2 border-slate-200 bg-white/80 backdrop-blur-md text-slate-900 placeholder:text-slate-300 focus:outline-none focus:border-cyan-500 font-bold transition-all shadow-inner text-center tracking-wide"
                 />
               </div>
               
@@ -110,7 +101,7 @@ export const Home: React.FC = () => {
                   type="button"
                   onClick={handleAnomalyClick}
                   disabled={!userProfile}
-                  className="relative h-14 w-14 bg-slate-950 text-cyan-400 border border-cyan-500/30 font-bold rounded-xl active:scale-95 transition-all shadow-lg flex items-center justify-center disabled:opacity-20 disabled:grayscale"
+                  className="relative h-14 w-14 bg-slate-950 text-cyan-400 border border-cyan-500/30 font-bold rounded-[1.5rem] active:scale-95 transition-all shadow-lg flex items-center justify-center disabled:opacity-20 disabled:grayscale"
                   title="정밀 분석"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -122,7 +113,7 @@ export const Home: React.FC = () => {
             <button 
               type="submit"
               disabled={searchStatus === SearchStatus.LOADING}
-              className="w-full h-14 bg-cyan-500 text-slate-950 font-black rounded-xl active:scale-[0.98] transition-all hover:bg-cyan-400 hover:shadow-[0_0_30px_rgba(34,211,238,0.4)] disabled:opacity-50 flex items-center justify-center border-b-4 border-cyan-700 tracking-widest text-xs"
+              className="w-full h-14 bg-cyan-500 text-slate-950 font-black rounded-[1.5rem] active:scale-[0.98] transition-all hover:bg-cyan-400 hover:shadow-[0_0_30px_rgba(34,211,238,0.4)] disabled:opacity-50 flex items-center justify-center border-b-4 border-cyan-700 tracking-widest text-xs"
             >
               {searchStatus === SearchStatus.LOADING ? (
                 <div className="flex items-center gap-3">
@@ -135,7 +126,7 @@ export const Home: React.FC = () => {
         </section>
 
         {searchStatus === SearchStatus.SUCCESS && userProfile && (
-          <div className="space-y-5">
+          <div className="space-y-5 px-1">
             <div className="animate-in fade-in slide-in-from-bottom-8 duration-700 fill-mode-backwards" style={{ animationDelay: '100ms' }}>
               <ProfileCard profile={userProfile} />
             </div>
@@ -153,7 +144,7 @@ export const Home: React.FC = () => {
         )}
 
         {searchStatus === SearchStatus.ERROR && (
-          <div className="animate-in fade-in zoom-in-95 duration-500 p-6 bg-slate-950 text-red-500 rounded-xl text-center text-[10px] font-black border border-red-500/50 shadow-2xl font-mono">
+          <div className="animate-in fade-in zoom-in-95 duration-500 p-6 bg-slate-950 text-red-500 rounded-[2.5rem] text-center text-[10px] font-black border border-red-500/50 shadow-2xl font-mono">
             [CRITICAL_ERROR]: {pageContent.errorText.toUpperCase()}
           </div>
         )}
