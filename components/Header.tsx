@@ -57,14 +57,26 @@ export const Header: React.FC = () => {
     <header className="sticky top-0 z-[140] w-full bg-slate-950 border-b border-cyan-500/20 shadow-[0_4px_30px_rgba(0,0,0,0.5)]">
       <div className="container max-w-md mx-auto h-16 flex items-center justify-between px-5">
         
+        {/* Logo Image + Text Side by Side */}
         <button 
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-          className="flex items-center gap-1.5 group active:scale-95 transition-transform font-mono"
+          className="flex items-center gap-2.5 active:scale-95 transition-transform group"
         >
-          <div className="w-8 h-8 bg-cyan-500 rounded flex items-center justify-center text-slate-950 font-black text-sm group-hover:bg-white transition-colors">S</div>
-          <div className="flex flex-col items-start -space-y-1">
-            <span className="text-white font-black tracking-tighter text-sm uppercase">Su-Lab</span>
-            <span className="text-cyan-500 text-[8px] font-bold tracking-widest uppercase">Research</span>
+          <div className="flex items-center">
+            <img 
+              src="/logo.png" 
+              alt="Logo" 
+              className="h-9 w-auto rounded-lg object-contain border border-white/10 bg-white/5 group-hover:border-cyan-500/50 transition-all duration-300 shadow-sm shadow-cyan-500/10"
+              onError={(e) => {
+                // 이미지가 없을 경우 해당 태그를 숨깁니다.
+                e.currentTarget.style.display = 'none';
+              }}
+            />
+          </div>
+          
+          <div className="flex flex-col items-start -space-y-1 font-mono">
+            <span className="text-white font-black tracking-tighter text-sm uppercase group-hover:text-cyan-400 transition-colors">Su-Lab</span>
+            <span className="text-cyan-500 text-[8px] font-bold tracking-widest uppercase opacity-80">Research</span>
           </div>
         </button>
 

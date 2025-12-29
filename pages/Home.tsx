@@ -44,23 +44,43 @@ export const Home: React.FC = () => {
       
       <div className="flex-grow space-y-6">
         <section className="space-y-8 pt-12 animate-in fade-in slide-in-from-bottom-8 duration-700">
-          <div className="group relative flex flex-col items-center justify-center select-none cursor-default z-20 w-full font-mono">
-              <div className="flex justify-between items-center w-full px-4 sm:px-12 flex-nowrap transition-transform duration-500 group-hover:scale-105">
-                  <div className="text-6xl sm:text-7xl font-black text-slate-900 flex flex-col items-center">
-                    <span className="group-hover:-translate-y-2 transition-transform duration-300">S</span>
-                    <div className="h-1 w-full bg-cyan-500 rounded-full mt-2 scale-x-0 group-hover:scale-x-100 transition-transform origin-left duration-500"></div>
-                  </div>
-                  <div className="text-6xl sm:text-7xl font-black text-slate-400 group-hover:text-cyan-500 transition-colors duration-300 delay-75">U</div>
-                  <div className="w-1.5 h-12 bg-slate-200 rotate-12 mx-2 opacity-50"></div>
-                  <div className="text-6xl sm:text-7xl font-black text-cyan-600 drop-shadow-[0_0_15px_rgba(8,145,178,0.2)] group-hover:text-slate-900 transition-colors duration-300 delay-150">L</div>
-                  <div className="text-6xl sm:text-7xl font-black text-slate-900 delay-200">A</div>
-                  <div className="text-6xl sm:text-7xl font-black text-slate-400 group-hover:text-cyan-500 transition-colors duration-300 delay-300">B</div>
-              </div>
-              <div className="mt-8 w-full px-2">
-                  <div className="flex flex-col items-center bg-slate-100/50 backdrop-blur-md border border-slate-200 p-4 rounded-2xl group-hover:border-cyan-500/50 group-hover:bg-cyan-50/30 transition-all duration-500">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-2">Terminal Access Point</p>
-                      <div className="h-[1px] w-8 bg-slate-300 group-hover:w-full transition-all duration-700"></div>
-                      <div className="mt-3 text-[9px] font-bold text-slate-500 flex flex-wrap justify-center gap-x-4 gap-y-1 text-center opacity-60 group-hover:opacity-100 transition-opacity">
+          
+          {/* Main Logo Image Section */}
+          <div className="flex flex-col items-center justify-center px-4">
+             <div className="relative group w-full flex justify-center">
+                {/* Visual Glow Effect behind logo */}
+                <div className="absolute inset-0 bg-cyan-500/5 rounded-[2rem] blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
+                
+                <img 
+                  src="/logo.png" 
+                  alt="Su-Lab Main Logo" 
+                  className="w-full max-w-[300px] h-auto rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.15)] border border-white/30 relative z-10 transition-all duration-500 group-hover:scale-105 group-hover:shadow-cyan-500/10"
+                  onError={(e) => {
+                      // If image fails, show fallback text UI
+                      e.currentTarget.style.display = 'none';
+                      const fallback = e.currentTarget.nextElementSibling as HTMLElement;
+                      if (fallback) fallback.classList.remove('hidden');
+                  }}
+                />
+
+                {/* Fallback Text-Logo (Hidden by default, shown only if image fails) */}
+                <div className="hidden group relative flex-col items-center justify-center select-none cursor-default z-20 w-full font-mono">
+                    <div className="flex justify-between items-center w-full px-4 sm:px-12 flex-nowrap">
+                        <div className="text-6xl font-black text-slate-900">S</div>
+                        <div className="text-6xl font-black text-slate-400">U</div>
+                        <div className="w-1.5 h-12 bg-slate-200 rotate-12 mx-2 opacity-50"></div>
+                        <div className="text-6xl font-black text-cyan-600">L</div>
+                        <div className="text-6xl font-black text-slate-900">A</div>
+                        <div className="text-6xl font-black text-slate-400">B</div>
+                    </div>
+                </div>
+             </div>
+
+             <div className="mt-8 w-full">
+                  <div className="flex flex-col items-center bg-white/40 backdrop-blur-md border border-slate-200 p-5 rounded-3xl group-hover:border-cyan-500/30 transition-all duration-500 shadow-sm">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-2 font-mono">Terminal Access Point</p>
+                      <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-slate-300 to-transparent"></div>
+                      <div className="mt-3 text-[9px] font-bold text-slate-500 flex flex-wrap justify-center gap-x-4 gap-y-1 text-center opacity-70 font-mono">
                           <span className="whitespace-nowrap"><span className="text-cyan-600 mr-0.5">S</span>udden Attack</span>
                           <span className="whitespace-nowrap"><span className="text-cyan-600 mr-0.5">U</span>ser</span>
                           <span className="whitespace-nowrap"><span className="text-cyan-600 mr-0.5">L</span>aboratory</span>
@@ -140,7 +160,7 @@ export const Home: React.FC = () => {
       </div>
 
       <div className="mt-auto pt-10 pb-4 text-center animate-in fade-in duration-1000 fill-mode-backwards" style={{ animationDelay: '800ms' }}>
-        <p className="text-[7px] sm:text-[9px] font-black text-cyan-400/60 uppercase tracking-[0.3em] font-mono select-none drop-shadow-[0_0_8px_rgba(34,211,238,0.2)]">
+        <p className="text-[10px] font-black text-cyan-400/60 uppercase tracking-[0.3em] font-mono select-none drop-shadow-[0_0_8px_rgba(34,211,238,0.2)]">
           Data based on NEXON Open API
         </p>
       </div>
