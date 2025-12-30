@@ -156,11 +156,29 @@ export const CommunityPanel: React.FC = () => {
       
       const result = await communityService.castVote(selectedPost.id, side);
       if (result) {
+          // Update Selected Post State
           setSelectedPost(prev => prev ? ({
               ...prev,
               blueVotes: result.blue,
               redVotes: result.red
           }) : null);
+          
+          // Sync with Posts List
+          setPosts(prev => prev.map(p => p.id === selectedPost.id ? {
+              ...p,
+              blueVotes: result.blue,
+              redVotes: result.red
+          } : p));
+
+          // Sync with Update Post (if applicable)
+          if (updatePost && updatePost.id === selectedPost.id) {
+              setUpdatePost(prev => prev ? ({
+                  ...prev,
+                  blueVotes: result.blue,
+                  redVotes: result.red
+              }) : null);
+          }
+
           setHasVoted(prev => ({ ...prev, [selectedPost.id]: true }));
       }
   };
@@ -183,12 +201,28 @@ export const CommunityPanel: React.FC = () => {
     const result = await communityService.registerInteraction(selectedPost.id, type);
     
     if (result) {
-      // Update local state for immediate feedback
+      // Update Selected Post State
       setSelectedPost(prev => prev ? ({
         ...prev,
         heads: result.heads,
         halfshots: result.halfshots
       }) : null);
+      
+      // Sync with Posts List
+      setPosts(prev => prev.map(p => p.id === selectedPost.id ? {
+          ...p,
+          heads: result.heads,
+          halfshots: result.halfshots
+      } : p));
+
+      // Sync with Update Post (if applicable)
+      if (updatePost && updatePost.id === selectedPost.id) {
+          setUpdatePost(prev => prev ? ({
+              ...prev,
+              heads: result.heads,
+              halfshots: result.halfshots
+          }) : null);
+      }
       
       setHasInteracted(prev => ({ ...prev, [selectedPost.id]: true }));
       
@@ -213,8 +247,15 @@ export const CommunityPanel: React.FC = () => {
         // Reload comments
         const updated = await communityService.getComments(selectedPost.id);
         setComments(updated);
-        // Update post comment count visually
+        // Update post comment count visually in selected view
         setSelectedPost(prev => prev ? ({ ...prev, commentCount: prev.commentCount + 1 }) : null);
+        
+        // Update comment count in list view
+        setPosts(prev => prev.map(p => p.id === selectedPost.id ? {
+            ...p,
+            commentCount: p.commentCount + 1
+        } : p));
+
     } catch (err: any) {
         alert(err.message);
     } finally {
@@ -598,6 +639,10 @@ export const CommunityPanel: React.FC = () => {
                           <h4 className="text-xs font-black text-slate-900 group-hover:text-cyan-600 truncate uppercase italic">{post.title}</h4>
                         </div>
                         <div className="flex items-center gap-4 flex-shrink-0">
+                           <div className="text-right">
+                             <div className="text-[8px] font-black text-cyan-400 uppercase leading-none">HEADS</div>
+                             <div className="text-[12px] font-black text-cyan-600 italic">+{post.heads}</div>
+                           </div>
                            <div className="text-right">
                              <div className="text-[8px] font-black text-slate-300 uppercase leading-none">Buffers</div>
                              <div className="text-[12px] font-black text-slate-900 italic">#{post.commentCount}</div>
