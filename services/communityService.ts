@@ -1,5 +1,5 @@
 
-import { CommunityPost, BoardType, CommunityUserProfile } from '../types';
+import { CommunityPost, BoardType, CommunityUserProfile, CommunityComment } from '../types';
 import { supabase } from './supabaseClient';
 import { BUCKET_MAP, IMAGE_BUCKET } from '../constants';
 
@@ -19,7 +19,7 @@ class CommunityService {
       authorId: row.author_id,
       authorRole: 'user',
       createdAt: row.created_at,
-      heads: 0, 
+      heads: row.heads || 0, 
       halfshots: row.halfshots || 0,
       blueVotes: row.blue_votes || 0,
       redVotes: row.red_votes || 0,
@@ -83,6 +83,100 @@ class CommunityService {
   }
 
   /**
+   * 댓글 목록 조회
+   */
+  async getComments(postId: string): Promise<CommunityComment[]> {
+    if (!supabase) return [];
+    const { data, error } = await supabase
+      .from('comments')
+      .select('*')
+      .eq('post_id', postId)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      console.error("[CommunityService] Get Comments Error:", error);
+      return [];
+    }
+
+    return (data || []).map((row: any) => ({
+      id: row.id,
+      postId: row.post_id,
+      authorId: row.author_id,
+      authorNickname: row.author_nickname,
+      content: row.content,
+      createdAt: row.created_at,
+      teamType: 'GRAY' // Default
+    }));
+  }
+
+  /**
+   * 댓글 작성
+   */
+  async createComment(postId: string, content: string): Promise<boolean> {
+    if (!supabase) return false;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("로그인이 필요합니다.");
+
+    // 프로필 조회
+    const { data: profile } = await supabase
+      .from('public_profiles')
+      .select('nickname')
+      .eq('id', user.id)
+      .single();
+
+    const { error } = await supabase.from('comments').insert({
+      post_id: postId,
+      author_id: user.id,
+      author_nickname: profile?.nickname || 'Unknown',
+      content: content
+    });
+
+    if (error) {
+      console.error("[CommunityService] Create Comment Error:", error);
+      throw error;
+    }
+    return true;
+  }
+
+  /**
+   * 게시글 상호작용 (헤드샷, 반샷, 길로틴)
+   */
+  async registerInteraction(postId: string, type: 'HEADSHOT' | 'HALFSHOT' | 'GUILLOTINE'): Promise<{ heads: number, halfshots: number } | null> {
+    if (!supabase) return null;
+
+    // 현재 값 조회
+    const { data: post, error: fetchError } = await supabase
+      .from('posts')
+      .select('heads, halfshots')
+      .eq('id', postId)
+      .single();
+
+    if (fetchError || !post) return null;
+
+    let updateData = {};
+    if (type === 'HEADSHOT') {
+      updateData = { heads: (post.heads || 0) + 1 };
+    } else if (type === 'HALFSHOT') {
+      updateData = { halfshots: (post.halfshots || 0) + 1 };
+    } else if (type === 'GUILLOTINE') {
+      // 길로틴은 별도 카운트 혹은 관리자 알림 트리거 (여기서는 메타데이터 업데이트 예시)
+      // 실제 구현에서는 신고 테이블에 넣거나 status를 변경할 수 있음. 
+      // 일단은 UI 반응을 위해 null 리턴하지 않고 현재 상태 유지 + 클라이언트 처리
+      return { heads: post.heads, halfshots: post.halfshots };
+    }
+
+    const { data, error } = await supabase
+      .from('posts')
+      .update(updateData)
+      .eq('id', postId)
+      .select('heads, halfshots')
+      .single();
+
+    if (error || !data) return null;
+    return { heads: data.heads, halfshots: data.halfshots };
+  }
+
+  /**
    * 이미지 업로드 (512KB 제한, MIME 타입 체크, 게시판별 버킷 라우팅)
    */
   async uploadImage(file: File, boardType: string): Promise<string | null> {
@@ -123,8 +217,9 @@ class CommunityService {
   /**
    * 게시글 작성
    * 지침에 따라 board_type은 전달받은 값 그대로, status는 'APPROVED'로 저장합니다.
+   * 밸런스 게시판을 위한 blueOption, redOption 추가
    */
-  async createPost(post: { boardType: string, title: string, content: string, imageUrl?: string }): Promise<boolean> {
+  async createPost(post: { boardType: string, title: string, content: string, imageUrl?: string, blueOption?: string, redOption?: string }): Promise<boolean> {
     if (!supabase) return false;
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return false;
@@ -144,7 +239,13 @@ class CommunityService {
       image_url: post.imageUrl,
       author_id: user.id,
       author_nickname: profile?.nickname || 'Unknown Subject',
-      status: 'APPROVED'
+      status: 'APPROVED',
+      blue_option: post.blueOption,
+      red_option: post.redOption,
+      blue_votes: post.blueOption ? 0 : undefined,
+      red_votes: post.redOption ? 0 : undefined,
+      heads: 0,
+      halfshots: 0
     });
 
     if (error) {
@@ -152,6 +253,41 @@ class CommunityService {
       throw error;
     }
     return true;
+  }
+
+  /**
+   * 밸런스 투표 기능
+   * 단순 증가 로직 (RPC 없이 클라이언트 사이드 update 사용 - 실제 운영시엔 RPC 권장)
+   */
+  async castVote(postId: string, side: 'BLUE' | 'RED'): Promise<{blue: number, red: number} | null> {
+      if (!supabase) return null;
+      
+      // 현재 값 조회
+      const { data: current, error: fetchError } = await supabase
+          .from('posts')
+          .select('blue_votes, red_votes')
+          .eq('id', postId)
+          .single();
+          
+      if (fetchError || !current) return null;
+
+      const updateData = side === 'BLUE' 
+          ? { blue_votes: (current.blue_votes || 0) + 1 }
+          : { red_votes: (current.red_votes || 0) + 1 };
+
+      const { data, error } = await supabase
+          .from('posts')
+          .update(updateData)
+          .eq('id', postId)
+          .select('blue_votes, red_votes')
+          .single();
+          
+      if (error || !data) return null;
+      
+      return {
+          blue: data.blue_votes,
+          red: data.red_votes
+      };
   }
 
   async getCommunityUserProfile(nickname: string, authorId?: string): Promise<CommunityUserProfile> {

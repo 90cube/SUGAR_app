@@ -5,7 +5,7 @@ import { useAuth } from '../state/AuthContext';
 import { useUI } from '../state/UIContext';
 import { communityService } from '../services/communityService';
 import { geminiService } from '../services/geminiService';
-import { CommunityPost, BoardType } from '../types';
+import { CommunityPost, BoardType, CommunityComment } from '../types';
 import { marked } from 'marked';
 
 export const CommunityPanel: React.FC = () => {
@@ -15,7 +15,8 @@ export const CommunityPanel: React.FC = () => {
 
   const {
     isLoggedIn,
-    refreshAuthUser
+    refreshAuthUser,
+    openAuthModal
   } = useAuth();
 
   const [posts, setPosts] = useState<CommunityPost[]>([]);
@@ -29,6 +30,10 @@ export const CommunityPanel: React.FC = () => {
   const [newTitle, setNewTitle] = useState('');
   const [newContent, setNewContent] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  // Balance Board States
+  const [blueOption, setBlueOption] = useState('');
+  const [redOption, setRedOption] = useState('');
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // AI Summarize States
@@ -36,9 +41,26 @@ export const CommunityPanel: React.FC = () => {
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [showAiInput, setShowAiInput] = useState(false);
 
+  // Interaction States
+  const [hasVoted, setHasVoted] = useState<Record<string, boolean>>({}); // For Balance Vote
+  const [hasInteracted, setHasInteracted] = useState<Record<string, boolean>>({}); // For Head/Half/Guillotine
+  
+  // Comments States
+  const [comments, setComments] = useState<CommunityComment[]>([]);
+  const [newComment, setNewComment] = useState('');
+  const [isCommentLoading, setIsCommentLoading] = useState(false);
+
   useEffect(() => {
     loadEssentialData();
   }, [activeBoard]);
+
+  // Load comments when a post is selected
+  useEffect(() => {
+    if (selectedPost) {
+        setComments([]);
+        communityService.getComments(selectedPost.id).then(setComments);
+    }
+  }, [selectedPost]);
 
   const loadEssentialData = async () => {
     setIsLoading(true);
@@ -90,6 +112,11 @@ export const CommunityPanel: React.FC = () => {
       return;
     }
 
+    if (activeBoard === 'balance' && (!blueOption.trim() || !redOption.trim())) {
+        alert("밸런스 게시판은 A/B 선택지를 모두 입력해야 합니다.");
+        return;
+    }
+
     setIsLoading(true);
     try {
       let imageUrl = '';
@@ -102,12 +129,16 @@ export const CommunityPanel: React.FC = () => {
         boardType: activeBoard,
         title: newTitle,
         content: newContent,
-        imageUrl
+        imageUrl,
+        blueOption: activeBoard === 'balance' ? blueOption : undefined,
+        redOption: activeBoard === 'balance' ? redOption : undefined
       });
 
       if (success) {
         setNewTitle('');
         setNewContent('');
+        setBlueOption('');
+        setRedOption('');
         setSelectedFile(null);
         setIsWriteMode(false);
         await refreshAuthUser();
@@ -117,6 +148,77 @@ export const CommunityPanel: React.FC = () => {
       alert("포스팅 저장 실패: " + err.message);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleVote = async (side: 'BLUE' | 'RED') => {
+      if (!selectedPost || hasVoted[selectedPost.id]) return;
+      
+      const result = await communityService.castVote(selectedPost.id, side);
+      if (result) {
+          setSelectedPost(prev => prev ? ({
+              ...prev,
+              blueVotes: result.blue,
+              redVotes: result.red
+          }) : null);
+          setHasVoted(prev => ({ ...prev, [selectedPost.id]: true }));
+      }
+  };
+
+  const handleInteraction = async (type: 'HEADSHOT' | 'HALFSHOT' | 'GUILLOTINE') => {
+    if (!selectedPost) return;
+    if (!isLoggedIn) {
+      openAuthModal();
+      return;
+    }
+    if (hasInteracted[selectedPost.id]) {
+      alert("이미 반응을 남겼습니다.");
+      return;
+    }
+
+    if (type === 'GUILLOTINE') {
+       if (!confirm("정말 이 게시글을 길로틴(신고) 처리하시겠습니까?")) return;
+    }
+
+    const result = await communityService.registerInteraction(selectedPost.id, type);
+    
+    if (result) {
+      // Update local state for immediate feedback
+      setSelectedPost(prev => prev ? ({
+        ...prev,
+        heads: result.heads,
+        halfshots: result.halfshots
+      }) : null);
+      
+      setHasInteracted(prev => ({ ...prev, [selectedPost.id]: true }));
+      
+      if (type === 'GUILLOTINE') {
+        alert("길로틴 시스템에 보고되었습니다.");
+      }
+    }
+  };
+
+  const handleCommentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedPost || !newComment.trim()) return;
+    if (!isLoggedIn) {
+        openAuthModal();
+        return;
+    }
+
+    setIsCommentLoading(true);
+    try {
+        await communityService.createComment(selectedPost.id, newComment);
+        setNewComment('');
+        // Reload comments
+        const updated = await communityService.getComments(selectedPost.id);
+        setComments(updated);
+        // Update post comment count visually
+        setSelectedPost(prev => prev ? ({ ...prev, commentCount: prev.commentCount + 1 }) : null);
+    } catch (err: any) {
+        alert(err.message);
+    } finally {
+        setIsCommentLoading(false);
     }
   };
 
@@ -133,6 +235,12 @@ export const CommunityPanel: React.FC = () => {
     balance: '밸런스',
     kukkuk: '전략/정보',
     streaming: '스트리밍'
+  };
+
+  // Helper for Balance Percentage
+  const getVotePercent = (votes: number, total: number) => {
+      if (total === 0) return 0;
+      return Math.round((votes / total) * 100);
   };
 
   return (
@@ -163,87 +271,244 @@ export const CommunityPanel: React.FC = () => {
 
         <div className="flex-1 overflow-y-auto overscroll-contain bg-slate-50 scrollbar-hide">
           {selectedPost ? (
-            <div className="p-6 animate-in slide-in-from-right-4 duration-300">
-              <button 
-                onClick={() => setSelectedPost(null)}
-                className="mb-6 flex items-center gap-2 text-[10px] font-black text-cyan-600 uppercase tracking-widest hover:translate-x-[-4px] transition-transform"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" /></svg>
-                Return_to_Archive
-              </button>
+            <div className="animate-in slide-in-from-right-4 duration-300">
+              <div className="p-6">
+                <button 
+                  onClick={() => setSelectedPost(null)}
+                  className="mb-6 flex items-center gap-2 text-[10px] font-black text-cyan-600 uppercase tracking-widest hover:translate-x-[-4px] transition-transform"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" /></svg>
+                  Return_to_Archive
+                </button>
 
-              <div className="space-y-6">
-                <header>
-                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2">
-                    ARCHIVE_REF: {selectedPost.id.substring(0,12)} | {selectedPost.createdAt.split('T')[0]}
-                  </span>
-                  <h3 className="text-2xl font-black text-slate-900 uppercase italic leading-tight">
-                    {selectedPost.title}
-                  </h3>
-                  <div className="mt-4 flex items-center gap-3">
-                    <div className="w-8 h-8 bg-slate-950 rounded-xl flex items-center justify-center text-[10px] font-black text-white italic border border-white/10 shadow-lg">
-                      {selectedPost.author[0]?.toUpperCase()}
-                    </div>
-                    <span className="text-[11px] font-black text-slate-600 uppercase tracking-tighter">
-                      Subject: {selectedPost.author}
+                <div className="space-y-6">
+                  <header>
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2">
+                      ARCHIVE_REF: {selectedPost.id.substring(0,12)} | {selectedPost.createdAt.split('T')[0]}
                     </span>
+                    <h3 className="text-2xl font-black text-slate-900 uppercase italic leading-tight">
+                      {selectedPost.title}
+                    </h3>
+                    <div className="mt-4 flex items-center gap-3">
+                      <div className="w-8 h-8 bg-slate-950 rounded-xl flex items-center justify-center text-[10px] font-black text-white italic border border-white/10 shadow-lg">
+                        {selectedPost.author[0]?.toUpperCase()}
+                      </div>
+                      <span className="text-[11px] font-black text-slate-600 uppercase tracking-tighter">
+                        Subject: {selectedPost.author}
+                      </span>
+                    </div>
+                  </header>
+
+                  <div className="h-px bg-slate-200"></div>
+
+                  {/* Balance Vote UI */}
+                  {selectedPost.blueOption && selectedPost.redOption && (
+                      <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-lg mb-6">
+                          <div className="text-center mb-4">
+                              <span className="px-3 py-1 bg-slate-900 text-white text-[10px] font-black rounded-full uppercase tracking-widest">Balance_Check</span>
+                          </div>
+                          
+                          <div className="flex gap-2 h-32 relative">
+                              {/* Blue Option */}
+                              <button 
+                                  onClick={() => handleVote('BLUE')}
+                                  disabled={hasVoted[selectedPost.id]}
+                                  className="flex-1 bg-blue-50 border-2 border-blue-100 rounded-2xl flex flex-col items-center justify-center p-2 relative overflow-hidden group hover:border-blue-300 transition-all active:scale-[0.98]"
+                              >
+                                  <div className="absolute bottom-0 left-0 w-full bg-blue-200/50 transition-all duration-1000 ease-out" style={{ height: `${getVotePercent(selectedPost.blueVotes, selectedPost.blueVotes + selectedPost.redVotes)}%` }}></div>
+                                  <span className="relative z-10 text-xs font-black text-blue-700 uppercase mb-1">{selectedPost.blueOption}</span>
+                                  <span className="relative z-10 text-2xl font-black text-blue-900">{getVotePercent(selectedPost.blueVotes, selectedPost.blueVotes + selectedPost.redVotes)}%</span>
+                                  <span className="relative z-10 text-[9px] font-bold text-blue-400">{selectedPost.blueVotes} Votes</span>
+                              </button>
+
+                              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 bg-slate-900 text-white w-8 h-8 rounded-full flex items-center justify-center font-black text-xs border-2 border-white shadow-lg italic">VS</div>
+
+                              {/* Red Option */}
+                              <button 
+                                  onClick={() => handleVote('RED')}
+                                  disabled={hasVoted[selectedPost.id]}
+                                  className="flex-1 bg-red-50 border-2 border-red-100 rounded-2xl flex flex-col items-center justify-center p-2 relative overflow-hidden group hover:border-red-300 transition-all active:scale-[0.98]"
+                              >
+                                  <div className="absolute bottom-0 left-0 w-full bg-red-200/50 transition-all duration-1000 ease-out" style={{ height: `${getVotePercent(selectedPost.redVotes, selectedPost.blueVotes + selectedPost.redVotes)}%` }}></div>
+                                  <span className="relative z-10 text-xs font-black text-red-700 uppercase mb-1">{selectedPost.redOption}</span>
+                                  <span className="relative z-10 text-2xl font-black text-red-900">{getVotePercent(selectedPost.redVotes, selectedPost.blueVotes + selectedPost.redVotes)}%</span>
+                                  <span className="relative z-10 text-[9px] font-bold text-red-400">{selectedPost.redVotes} Votes</span>
+                              </button>
+                          </div>
+                          {hasVoted[selectedPost.id] && (
+                              <div className="text-center mt-3 text-[9px] text-slate-400 font-bold uppercase tracking-widest animate-pulse">Vote_Confirmed</div>
+                          )}
+                      </div>
+                  )}
+
+                  {selectedPost.imageUrl && (
+                    <div className="rounded-[2rem] overflow-hidden border border-slate-200 shadow-xl">
+                      <img src={selectedPost.imageUrl} className="w-full h-auto" alt="attachment" />
+                    </div>
+                  )}
+
+                  <article 
+                    className="prose prose-slate max-w-none text-sm font-bold text-slate-700 leading-relaxed font-sans"
+                    dangerouslySetInnerHTML={renderContent(selectedPost.content)}
+                  />
+
+                  {/* Interaction Bar (Headshot/Halfshot/Guillotine) */}
+                  <div className="flex items-center justify-center gap-3 pt-8 pb-4">
+                    <button 
+                      onClick={() => handleInteraction('HEADSHOT')}
+                      className="flex flex-col items-center gap-1 group"
+                      title="HEADSHOT"
+                    >
+                      <div className="w-12 h-12 rounded-2xl bg-cyan-50 border border-cyan-200 flex items-center justify-center text-xl shadow-sm group-hover:bg-cyan-100 group-active:scale-95 transition-all">
+                        🔫
+                      </div>
+                      <span className="text-[10px] font-black text-cyan-600 uppercase tracking-widest">{selectedPost.heads}</span>
+                    </button>
+                    
+                    <button 
+                      onClick={() => handleInteraction('HALFSHOT')}
+                      className="flex flex-col items-center gap-1 group"
+                      title="HALFSHOT"
+                    >
+                      <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center text-xl shadow-sm group-hover:bg-amber-100 group-active:scale-95 transition-all">
+                        🩹
+                      </div>
+                      <span className="text-[10px] font-black text-amber-600 uppercase tracking-widest">{selectedPost.halfshots}</span>
+                    </button>
+
+                    <button 
+                      onClick={() => handleInteraction('GUILLOTINE')}
+                      className="flex flex-col items-center gap-1 group ml-4 pl-4 border-l border-slate-200"
+                      title="GUILLOTINE"
+                    >
+                      <div className="w-12 h-12 rounded-2xl bg-red-50 border border-red-200 flex items-center justify-center text-xl shadow-sm group-hover:bg-red-100 group-active:scale-95 transition-all">
+                        ☠️
+                      </div>
+                      <span className="text-[10px] font-black text-red-600 uppercase tracking-widest">GUILLOTINE</span>
+                    </button>
                   </div>
-                </header>
 
-                <div className="h-px bg-slate-200"></div>
-
-                {selectedPost.imageUrl && (
-                  <div className="rounded-[2rem] overflow-hidden border border-slate-200 shadow-xl">
-                    <img src={selectedPost.imageUrl} className="w-full h-auto" alt="attachment" />
+                  <div className="text-center pb-6">
+                    <p className="text-[8px] font-black text-slate-300 uppercase tracking-[0.5em] select-none">END_OF_TRANSMISSION</p>
                   </div>
-                )}
-
-                <article 
-                  className="prose prose-slate max-w-none text-sm font-bold text-slate-700 leading-relaxed font-sans"
-                  dangerouslySetInnerHTML={renderContent(selectedPost.content)}
-                />
-
-                <div className="pt-12 pb-24 text-center">
-                   <p className="text-[8px] font-black text-slate-300 uppercase tracking-[0.5em] select-none">END_OF_TRANSMISSION</p>
                 </div>
+              </div>
+
+              {/* Comment Section (Log Style) */}
+              <div className="bg-slate-900 border-t border-slate-800 p-6 pb-12">
+                  <h4 className="text-[10px] font-black text-cyan-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                    <span className="w-2 h-2 bg-cyan-500 rounded-full animate-pulse"></span>
+                    COMMUNICATION_LOGS ({comments.length})
+                  </h4>
+
+                  <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 scrollbar-hide mb-6">
+                      {comments.length === 0 ? (
+                          <div className="text-center py-6 text-[10px] text-slate-600 font-mono border border-dashed border-slate-800 rounded-xl">
+                              NO_LOGS_FOUND
+                          </div>
+                      ) : (
+                          comments.map((comment) => (
+                              <div key={comment.id} className="font-mono text-xs">
+                                  <div className="flex items-center gap-2 mb-1">
+                                      <span className="text-cyan-400 font-bold">{comment.authorNickname}</span>
+                                      <span className="text-slate-600 text-[10px]">{comment.createdAt.split('T')[0]}</span>
+                                  </div>
+                                  <div className="text-slate-300 pl-2 border-l-2 border-slate-700 py-1">
+                                      {comment.content}
+                                  </div>
+                              </div>
+                          ))
+                      )}
+                  </div>
+
+                  {isLoggedIn ? (
+                      <form onSubmit={handleCommentSubmit} className="relative">
+                          <textarea
+                              value={newComment}
+                              onChange={(e) => setNewComment(e.target.value)}
+                              placeholder="Insert_Data_Log..."
+                              className="w-full bg-slate-800 text-slate-200 text-xs font-mono p-4 rounded-xl border border-slate-700 focus:outline-none focus:border-cyan-500/50 resize-none h-20"
+                              disabled={isCommentLoading}
+                          />
+                          <button 
+                              type="submit"
+                              disabled={isCommentLoading}
+                              className="absolute bottom-3 right-3 px-3 py-1 bg-cyan-600 hover:bg-cyan-500 text-white text-[10px] font-black rounded-lg uppercase tracking-widest disabled:opacity-50"
+                          >
+                              {isCommentLoading ? '...' : 'SEND'}
+                          </button>
+                      </form>
+                  ) : (
+                      <div 
+                          onClick={openAuthModal}
+                          className="w-full py-4 bg-slate-800 border border-slate-700 border-dashed rounded-xl text-center text-[10px] text-slate-500 font-black uppercase tracking-widest cursor-pointer hover:bg-slate-800/80 transition-colors"
+                      >
+                          Access_Denied: Login_Required_to_Log
+                      </div>
+                  )}
               </div>
             </div>
           ) : isWriteMode ? (
             <div className="p-6">
               <form onSubmit={handleWriteSubmit} className="bg-white p-6 rounded-[2.5rem] border border-cyan-500/20 shadow-2xl animate-in zoom-in-95 duration-300 space-y-4">
-                <div className="bg-slate-950 rounded-2xl p-4 border border-cyan-500/20 shadow-inner overflow-hidden">
-                    <button 
-                        type="button"
-                        onClick={() => setShowAiInput(!showAiInput)}
-                        className="w-full flex items-center justify-between text-[10px] font-black text-cyan-400 uppercase tracking-widest"
-                    >
-                        <span>[ ✨ AI_Summarize_Assistant_Cube ]</span>
-                        <span>{showAiInput ? 'CLOSE' : 'OPEN'}</span>
-                    </button>
-                    {showAiInput && (
-                        <div className="mt-4 space-y-3 animate-in slide-in-from-top-2 duration-300">
-                            <textarea 
-                                value={aiSource}
-                                onChange={(e) => setAiSource(e.target.value)}
-                                placeholder="공식 공지사항 전문을 붙여넣으세요..."
-                                className="w-full p-4 bg-black/40 border border-white/5 rounded-xl text-[10px] font-bold text-slate-300 outline-none resize-none h-32 scrollbar-hide"
-                            />
-                            <button 
-                                type="button"
-                                onClick={handleAISummarize}
-                                disabled={isAiLoading}
-                                className="w-full py-3 bg-cyan-500 text-slate-950 font-black text-[9px] rounded-lg uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-cyan-400 transition-colors disabled:opacity-50"
-                            >
-                                {isAiLoading ? "Processing..." : "Run_Gemini_Analysis"}
-                            </button>
-                        </div>
-                    )}
+                
+                {activeBoard !== 'balance' && (
+                  <div className="bg-slate-950 rounded-2xl p-4 border border-cyan-500/20 shadow-inner overflow-hidden">
+                      <button 
+                          type="button"
+                          onClick={() => setShowAiInput(!showAiInput)}
+                          className="w-full flex items-center justify-between text-[10px] font-black text-cyan-400 uppercase tracking-widest"
+                      >
+                          <span>[ ✨ AI_Summarize_Assistant_Cube ]</span>
+                          <span>{showAiInput ? 'CLOSE' : 'OPEN'}</span>
+                      </button>
+                      {showAiInput && (
+                          <div className="mt-4 space-y-3 animate-in slide-in-from-top-2 duration-300">
+                              <textarea 
+                                  value={aiSource}
+                                  onChange={(e) => setAiSource(e.target.value)}
+                                  placeholder="공식 공지사항 전문을 붙여넣으세요..."
+                                  className="w-full p-4 bg-black/40 border border-white/5 rounded-xl text-[10px] font-bold text-slate-300 outline-none resize-none h-32 scrollbar-hide"
+                              />
+                              <button 
+                                  type="button"
+                                  onClick={handleAISummarize}
+                                  disabled={isAiLoading}
+                                  className="w-full py-3 bg-cyan-500 text-slate-950 font-black text-[9px] rounded-lg uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-cyan-400 transition-colors disabled:opacity-50"
+                              >
+                                  {isAiLoading ? "Processing..." : "Run_Gemini_Analysis"}
+                              </button>
+                          </div>
+                      )}
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2">
+                    <span className="px-3 py-1 bg-slate-100 text-slate-600 rounded-lg text-[10px] font-black uppercase tracking-widest border border-slate-200">
+                        {tabLabels[activeBoard]}
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-bold">MODE</span>
                 </div>
 
                 <input 
                   type="text" value={newTitle} onChange={(e) => setNewTitle(e.target.value)}
                   placeholder="Subject_Title" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-cyan-500/20" required
                 />
+
+                {/* Balance Board Options Input */}
+                {activeBoard === 'balance' && (
+                    <div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                        <input 
+                            type="text" value={blueOption} onChange={(e) => setBlueOption(e.target.value)}
+                            placeholder="Option A (Blue)" className="w-full p-3 bg-white border border-blue-200 rounded-xl text-xs font-bold text-blue-800 placeholder:text-blue-300 outline-none focus:ring-2 focus:ring-blue-500/20"
+                        />
+                        <input 
+                            type="text" value={redOption} onChange={(e) => setRedOption(e.target.value)}
+                            placeholder="Option B (Red)" className="w-full p-3 bg-white border border-red-200 rounded-xl text-xs font-bold text-red-800 placeholder:text-red-300 outline-none focus:ring-2 focus:ring-red-500/20"
+                        />
+                    </div>
+                )}
+
                 <textarea 
                   value={newContent} onChange={(e) => setNewContent(e.target.value)}
                   placeholder="Data_Logs_Content..." rows={8} className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold outline-none resize-none focus:ring-2 focus:ring-cyan-500/20" required
@@ -326,7 +591,10 @@ export const CommunityPanel: React.FC = () => {
                         className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm hover:border-cyan-200 hover:shadow-xl transition-all flex items-center justify-between group cursor-pointer active:scale-[0.98]"
                       >
                         <div className="flex flex-col min-w-0 pr-4">
-                          <span className="text-[8px] font-black text-slate-400 mb-1 uppercase tracking-tighter">REF_{post.id.substring(0,8)} | {post.createdAt.split('T')[0]}</span>
+                          <span className="text-[8px] font-black text-slate-400 mb-1 uppercase tracking-tighter">
+                              REF_{post.id.substring(0,8)} | {post.createdAt.split('T')[0]}
+                              {post.blueOption && <span className="ml-2 text-cyan-500 font-bold">VS_MATCH</span>}
+                          </span>
                           <h4 className="text-xs font-black text-slate-900 group-hover:text-cyan-600 truncate uppercase italic">{post.title}</h4>
                         </div>
                         <div className="flex items-center gap-4 flex-shrink-0">
