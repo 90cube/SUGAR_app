@@ -46,9 +46,9 @@ export const Home: React.FC = () => {
         <section className="space-y-8 pt-12 animate-in fade-in slide-in-from-bottom-8 duration-700">
           
           {/* Main Logo Section with Hover Reveal */}
-          <div className="flex flex-col items-center justify-center px-4 group">
+          <div className="relative flex flex-col items-center justify-center px-4 group z-30">
              {/* Text Logo Container */}
-             <div className="relative w-full flex justify-center py-12 bg-white/40 backdrop-blur-xl border border-white/60 rounded-[3rem] shadow-[0_20px_60px_rgba(0,0,0,0.05)] overflow-hidden transition-all duration-500 group-hover:shadow-cyan-500/10 group-hover:border-cyan-500/30">
+             <div className="relative w-full flex justify-center py-12 bg-white/40 backdrop-blur-xl border border-white/60 rounded-[3rem] shadow-[0_20px_60px_rgba(0,0,0,0.05)] overflow-hidden transition-all duration-500 group-hover:shadow-cyan-500/10 group-hover:border-cyan-500/30 z-20">
                 {/* Visual Glow Effect */}
                 <div className="absolute inset-0 bg-cyan-500/5 blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
                 
@@ -68,10 +68,10 @@ export const Home: React.FC = () => {
                 </div>
              </div>
 
-             {/* Description Section (Reveals smoothly on Hover) */}
-             <div className="mt-4 w-full overflow-hidden transition-all duration-700 max-h-0 opacity-0 translate-y-6 group-hover:max-h-40 group-hover:opacity-100 group-hover:translate-y-0">
-                  <div className="flex flex-col items-center bg-white/60 backdrop-blur-md border border-slate-200 p-6 rounded-[3rem] shadow-sm">
-                      <div className="text-[10px] font-bold text-slate-500 flex flex-wrap justify-center gap-x-6 gap-y-2 text-center font-mono italic">
+             {/* Description Section (Overlay) - Changed to FIXED to prevent scroll expansion and center on screen */}
+             <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-sm px-6 transition-all duration-500 opacity-0 scale-90 pointer-events-none group-hover:opacity-100 group-hover:scale-100 z-[100]">
+                  <div className="flex flex-col items-center bg-white/95 backdrop-blur-2xl border-2 border-slate-100/50 p-8 rounded-[2.5rem] shadow-[0_20px_80px_rgba(34,211,238,0.2)]">
+                      <div className="text-[11px] font-bold text-slate-500 flex flex-wrap justify-center gap-x-6 gap-y-3 text-center font-mono italic">
                           <span className="whitespace-nowrap"><span className="text-cyan-600 font-black not-italic mr-0.5">S</span>udden Attack</span>
                           <span className="whitespace-nowrap"><span className="text-cyan-600 font-black not-italic mr-0.5">U</span>ser</span>
                           <span className="whitespace-nowrap"><span className="text-cyan-600 font-black not-italic mr-0.5">L</span>aboratory</span>

@@ -43,7 +43,7 @@ export const CommunityPanel: React.FC = () => {
   const [showAiInput, setShowAiInput] = useState(false);
 
   // Interaction States
-  const [hasVoted, setHasVoted] = useState<Record<string, boolean>>({}); // For Balance Vote
+  const [hasVoted, setHasVoted] = useState<Record<string, boolean>>({}); // For Balance Vote (Blue/Red)
   const [hasInteracted, setHasInteracted] = useState<Record<string, boolean>>({}); // For Head/Half/Guillotine
   
   // Comments States
@@ -152,6 +152,7 @@ export const CommunityPanel: React.FC = () => {
     }
   };
 
+  // 투표 핸들러 (Blue/Red Votes)
   const handleVote = async (side: 'BLUE' | 'RED') => {
       if (!selectedPost) return;
 
@@ -178,26 +179,26 @@ export const CommunityPanel: React.FC = () => {
       try {
           const result = await communityService.castVote(selectedPost.id, side);
           if (result) {
-              // Update Selected Post State
+              // Update Selected Post State (Blue/Red)
               setSelectedPost(prev => prev ? ({
                   ...prev,
-                  heads: result.heads,
-                  halfshots: result.halfshots
+                  blueVotes: result.blue,
+                  redVotes: result.red
               }) : null);
               
               // Sync with Posts List
               setPosts(prev => prev.map(p => p.id === selectedPost.id ? {
                   ...p,
-                  heads: result.heads,
-                  halfshots: result.halfshots
+                  blueVotes: result.blue,
+                  redVotes: result.red
               } : p));
 
               // Sync with Update Post
               if (updatePost && updatePost.id === selectedPost.id) {
                   setUpdatePost(prev => prev ? ({
                       ...prev,
-                      heads: result.heads,
-                      halfshots: result.halfshots
+                      blueVotes: result.blue,
+                      redVotes: result.red
                   }) : null);
               }
 
@@ -211,6 +212,7 @@ export const CommunityPanel: React.FC = () => {
       }
   };
 
+  // 반응 핸들러 (Headshot/Halfshot/Guillotine)
   const handleInteraction = async (type: 'HEADSHOT' | 'HALFSHOT' | 'GUILLOTINE') => {
     if (!selectedPost) return;
     if (!isLoggedIn) {
@@ -229,7 +231,7 @@ export const CommunityPanel: React.FC = () => {
     const result = await communityService.registerInteraction(selectedPost.id, type);
     
     if (result) {
-      // Update Selected Post State
+      // Update Selected Post State (Heads/Halfshots)
       setSelectedPost(prev => prev ? ({
         ...prev,
         heads: result.heads,
@@ -243,7 +245,7 @@ export const CommunityPanel: React.FC = () => {
           halfshots: result.halfshots
       } : p));
 
-      // Sync with Update Post (if applicable)
+      // Sync with Update Post
       if (updatePost && updatePost.id === selectedPost.id) {
           setUpdatePost(prev => prev ? ({
               ...prev,
@@ -370,7 +372,7 @@ export const CommunityPanel: React.FC = () => {
 
                   <div className="h-px bg-slate-200"></div>
 
-                  {/* Balance Vote UI */}
+                  {/* Balance Vote UI (Using blueVotes/redVotes) */}
                   {selectedPost.blueOption && selectedPost.redOption && (
                       <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-lg mb-6">
                           <div className="text-center mb-4">
@@ -387,7 +389,7 @@ export const CommunityPanel: React.FC = () => {
                           )}
                           
                           <div className="flex gap-2 h-32 relative">
-                              {/* Blue Option (Heads) */}
+                              {/* Blue Option */}
                               <button 
                                   onClick={() => handleVote('BLUE')}
                                   disabled={hasVoted[selectedPost.id] || authUser?.id === selectedPost.authorId}
@@ -395,15 +397,15 @@ export const CommunityPanel: React.FC = () => {
                                     ${(hasVoted[selectedPost.id] || authUser?.id === selectedPost.authorId) ? 'opacity-80 cursor-not-allowed' : 'hover:border-blue-300'}
                                   `}
                               >
-                                  <div className="absolute bottom-0 left-0 w-full bg-blue-200/50 transition-all duration-1000 ease-out" style={{ height: `${getVotePercent(selectedPost.heads, selectedPost.heads + selectedPost.halfshots)}%` }}></div>
+                                  <div className="absolute bottom-0 left-0 w-full bg-blue-200/50 transition-all duration-1000 ease-out" style={{ height: `${getVotePercent(selectedPost.blueVotes, selectedPost.blueVotes + selectedPost.redVotes)}%` }}></div>
                                   <span className="relative z-10 text-xs font-black text-blue-700 uppercase mb-1">{selectedPost.blueOption}</span>
-                                  <span className="relative z-10 text-2xl font-black text-blue-900">{getVotePercent(selectedPost.heads, selectedPost.heads + selectedPost.halfshots)}%</span>
-                                  <span className="relative z-10 text-[9px] font-bold text-blue-400">{selectedPost.heads} Votes</span>
+                                  <span className="relative z-10 text-2xl font-black text-blue-900">{getVotePercent(selectedPost.blueVotes, selectedPost.blueVotes + selectedPost.redVotes)}%</span>
+                                  <span className="relative z-10 text-[9px] font-bold text-blue-400">{selectedPost.blueVotes} Votes</span>
                               </button>
 
                               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 bg-slate-900 text-white w-8 h-8 rounded-full flex items-center justify-center font-black text-xs border-2 border-white shadow-lg italic">VS</div>
 
-                              {/* Red Option (Halfshots) */}
+                              {/* Red Option */}
                               <button 
                                   onClick={() => handleVote('RED')}
                                   disabled={hasVoted[selectedPost.id] || authUser?.id === selectedPost.authorId}
@@ -411,10 +413,10 @@ export const CommunityPanel: React.FC = () => {
                                     ${(hasVoted[selectedPost.id] || authUser?.id === selectedPost.authorId) ? 'opacity-80 cursor-not-allowed' : 'hover:border-red-300'}
                                   `}
                               >
-                                  <div className="absolute bottom-0 left-0 w-full bg-red-200/50 transition-all duration-1000 ease-out" style={{ height: `${getVotePercent(selectedPost.halfshots, selectedPost.heads + selectedPost.halfshots)}%` }}></div>
+                                  <div className="absolute bottom-0 left-0 w-full bg-red-200/50 transition-all duration-1000 ease-out" style={{ height: `${getVotePercent(selectedPost.redVotes, selectedPost.blueVotes + selectedPost.redVotes)}%` }}></div>
                                   <span className="relative z-10 text-xs font-black text-red-700 uppercase mb-1">{selectedPost.redOption}</span>
-                                  <span className="relative z-10 text-2xl font-black text-red-900">{getVotePercent(selectedPost.halfshots, selectedPost.heads + selectedPost.halfshots)}%</span>
-                                  <span className="relative z-10 text-[9px] font-bold text-red-400">{selectedPost.halfshots} Votes</span>
+                                  <span className="relative z-10 text-2xl font-black text-red-900">{getVotePercent(selectedPost.redVotes, selectedPost.blueVotes + selectedPost.redVotes)}%</span>
+                                  <span className="relative z-10 text-[9px] font-bold text-red-400">{selectedPost.redVotes} Votes</span>
                               </button>
                           </div>
                           {hasVoted[selectedPost.id] && (
@@ -434,12 +436,12 @@ export const CommunityPanel: React.FC = () => {
                     dangerouslySetInnerHTML={renderContent(selectedPost.content)}
                   />
 
-                  {/* Interaction Bar (Headshot/Halfshot/Guillotine) */}
+                  {/* Interaction Bar (Headshot/Halfshot/Guillotine) - Using heads/halfshots */}
                   <div className="flex items-center justify-center gap-3 pt-8 pb-4">
                     <button 
                       onClick={() => handleInteraction('HEADSHOT')}
                       className="flex flex-col items-center gap-1 group"
-                      title="HEADSHOT"
+                      title="HEADSHOT (추천)"
                     >
                       <div className="w-12 h-12 rounded-2xl bg-cyan-50 border border-cyan-200 flex items-center justify-center text-xl shadow-sm group-hover:bg-cyan-100 group-active:scale-95 transition-all">
                         🔫
@@ -450,7 +452,7 @@ export const CommunityPanel: React.FC = () => {
                     <button 
                       onClick={() => handleInteraction('HALFSHOT')}
                       className="flex flex-col items-center gap-1 group"
-                      title="HALFSHOT"
+                      title="HALFSHOT (비추천)"
                     >
                       <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center text-xl shadow-sm group-hover:bg-amber-100 group-active:scale-95 transition-all">
                         🩹
@@ -461,7 +463,7 @@ export const CommunityPanel: React.FC = () => {
                     <button 
                       onClick={() => handleInteraction('GUILLOTINE')}
                       className="flex flex-col items-center gap-1 group ml-4 pl-4 border-l border-slate-200"
-                      title="GUILLOTINE"
+                      title="GUILLOTINE (신고)"
                     >
                       <div className="w-12 h-12 rounded-2xl bg-red-50 border border-red-200 flex items-center justify-center text-xl shadow-sm group-hover:bg-red-100 group-active:scale-95 transition-all">
                         ☠️
@@ -680,6 +682,7 @@ export const CommunityPanel: React.FC = () => {
                           <h4 className="text-xs font-black text-slate-900 group-hover:text-cyan-600 truncate uppercase italic">{post.title}</h4>
                         </div>
                         <div className="flex items-center gap-4 flex-shrink-0">
+                           {/* HEADS (Like) Counter */}
                            <div className="text-right">
                              <div className="text-[8px] font-black text-cyan-400 uppercase leading-none">HEADS</div>
                              <div className="text-[12px] font-black text-cyan-600 italic">+{post.heads}</div>

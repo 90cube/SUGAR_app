@@ -56,20 +56,24 @@ export const RecapModal: React.FC = () => {
         </div>
 
         <div className="p-6 overflow-y-auto space-y-6 overscroll-contain">
-            <div className="flex gap-2">
-                <input 
-                    type="date" 
-                    value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
-                    className="flex-1 px-4 py-3 bg-white/50 border border-slate-200/50 rounded-xl font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/20"
-                />
-                <button 
-                    onClick={handleAnalyze}
-                    disabled={isRecapLoading}
-                    className="px-6 py-3 bg-yellow-400 hover:bg-yellow-300 text-slate-900 font-bold rounded-xl shadow-[0_0_15px_rgba(250,204,21,0.4)] disabled:opacity-50 transition-all active:scale-95"
-                >
-                    {isRecapLoading ? '...' : '분석하기'}
-                </button>
+            {/* 날짜 선택 섹션 복구 및 스타일 강화 */}
+            <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Analysis Date</label>
+                <div className="flex gap-2">
+                    <input 
+                        type="date" 
+                        value={selectedDate}
+                        onChange={(e) => setSelectedDate(e.target.value)}
+                        className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/20 shadow-sm transition-all"
+                    />
+                    <button 
+                        onClick={handleAnalyze}
+                        disabled={isRecapLoading}
+                        className="px-6 py-3 bg-yellow-400 hover:bg-yellow-300 text-slate-900 font-bold rounded-xl shadow-[0_0_15px_rgba(250,204,21,0.4)] disabled:opacity-50 transition-all active:scale-95 whitespace-nowrap"
+                    >
+                        {isRecapLoading ? '...' : '분석하기'}
+                    </button>
+                </div>
             </div>
 
             {recapStats ? (

@@ -145,9 +145,10 @@ export interface CommunityPost {
   authorId: string; 
   authorRole: 'admin' | 'user';
   createdAt: string;
-  heads: number; 
-  halfshots: number; 
-  // blueVotes, redVotes removed - reusing heads/halfshots
+  heads: number;      // 추천 (Headshot)
+  halfshots: number;  // 비추천 (Halfshot)
+  blueVotes: number;  // 투표 A (Blue)
+  redVotes: number;   // 투표 B (Red)
   views: number;
   thumbnail?: string;
   imageUrl?: string;
