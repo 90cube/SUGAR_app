@@ -21,8 +21,7 @@ class CommunityService {
       createdAt: row.created_at,
       heads: row.heads || 0, 
       halfshots: row.halfshots || 0,
-      blueVotes: row.blue_votes || 0,
-      redVotes: row.red_votes || 0,
+      // blueVotes, redVotes 제거 -> heads, halfshots으로 대체
       views: row.views || 0,
       commentCount: 0, 
       status: (row.status || 'APPROVED') as any,
@@ -242,8 +241,7 @@ class CommunityService {
       status: 'APPROVED',
       blue_option: post.blueOption,
       red_option: post.redOption,
-      blue_votes: post.blueOption ? 0 : undefined,
-      red_votes: post.redOption ? 0 : undefined,
+      // blue_votes, red_votes 컬럼 제거
       heads: 0,
       halfshots: 0
     });
@@ -257,37 +255,13 @@ class CommunityService {
 
   /**
    * 밸런스 투표 기능
-   * 단순 증가 로직 (RPC 없이 클라이언트 사이드 update 사용 - 실제 운영시엔 RPC 권장)
+   * 기존 heads(추천)을 Blue(A)로, halfshots(비추천)을 Red(B)로 재사용하여 투표 처리
    */
-  async castVote(postId: string, side: 'BLUE' | 'RED'): Promise<{blue: number, red: number} | null> {
-      if (!supabase) return null;
-      
-      // 현재 값 조회
-      const { data: current, error: fetchError } = await supabase
-          .from('posts')
-          .select('blue_votes, red_votes')
-          .eq('id', postId)
-          .single();
-          
-      if (fetchError || !current) return null;
-
-      const updateData = side === 'BLUE' 
-          ? { blue_votes: (current.blue_votes || 0) + 1 }
-          : { red_votes: (current.red_votes || 0) + 1 };
-
-      const { data, error } = await supabase
-          .from('posts')
-          .update(updateData)
-          .eq('id', postId)
-          .select('blue_votes, red_votes')
-          .single();
-          
-      if (error || !data) return null;
-      
-      return {
-          blue: data.blue_votes,
-          red: data.red_votes
-      };
+  async castVote(postId: string, side: 'BLUE' | 'RED'): Promise<{heads: number, halfshots: number} | null> {
+      // Mapping: BLUE -> HEADSHOT (heads), RED -> HALFSHOT (halfshots)
+      // 기존에 만들어진 registerInteraction 로직을 재사용합니다.
+      const type = side === 'BLUE' ? 'HEADSHOT' : 'HALFSHOT';
+      return this.registerInteraction(postId, type);
   }
 
   async getCommunityUserProfile(nickname: string, authorId?: string): Promise<CommunityUserProfile> {

@@ -147,8 +147,7 @@ export interface CommunityPost {
   createdAt: string;
   heads: number; 
   halfshots: number; 
-  blueVotes: number; 
-  redVotes: number; 
+  // blueVotes, redVotes removed - reusing heads/halfshots
   views: number;
   thumbnail?: string;
   imageUrl?: string;

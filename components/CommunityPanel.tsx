@@ -16,7 +16,8 @@ export const CommunityPanel: React.FC = () => {
   const {
     isLoggedIn,
     refreshAuthUser,
-    openAuthModal
+    openAuthModal,
+    authUser
   } = useAuth();
 
   const [posts, setPosts] = useState<CommunityPost[]>([]);
@@ -152,34 +153,61 @@ export const CommunityPanel: React.FC = () => {
   };
 
   const handleVote = async (side: 'BLUE' | 'RED') => {
-      if (!selectedPost || hasVoted[selectedPost.id]) return;
-      
-      const result = await communityService.castVote(selectedPost.id, side);
-      if (result) {
-          // Update Selected Post State
-          setSelectedPost(prev => prev ? ({
-              ...prev,
-              blueVotes: result.blue,
-              redVotes: result.red
-          }) : null);
-          
-          // Sync with Posts List
-          setPosts(prev => prev.map(p => p.id === selectedPost.id ? {
-              ...p,
-              blueVotes: result.blue,
-              redVotes: result.red
-          } : p));
+      if (!selectedPost) return;
 
-          // Sync with Update Post (if applicable)
-          if (updatePost && updatePost.id === selectedPost.id) {
-              setUpdatePost(prev => prev ? ({
-                  ...prev,
-                  blueVotes: result.blue,
-                  redVotes: result.red
-              }) : null);
+      // 1. 로그인 체크
+      if (!isLoggedIn) {
+          if (confirm("투표 기능은 로그인이 필요합니다. 로그인 하시겠습니까?")) {
+              openAuthModal();
           }
+          return;
+      }
 
-          setHasVoted(prev => ({ ...prev, [selectedPost.id]: true }));
+      // 2. 본인 게시글 체크
+      if (authUser?.id === selectedPost.authorId) {
+          alert("본인의 게시글에는 투표할 수 없습니다.");
+          return;
+      }
+
+      // 3. 중복 투표 체크 (로컬 세션)
+      if (hasVoted[selectedPost.id]) {
+          alert("이미 투표에 참여하셨습니다.");
+          return;
+      }
+      
+      try {
+          const result = await communityService.castVote(selectedPost.id, side);
+          if (result) {
+              // Update Selected Post State
+              setSelectedPost(prev => prev ? ({
+                  ...prev,
+                  heads: result.heads,
+                  halfshots: result.halfshots
+              }) : null);
+              
+              // Sync with Posts List
+              setPosts(prev => prev.map(p => p.id === selectedPost.id ? {
+                  ...p,
+                  heads: result.heads,
+                  halfshots: result.halfshots
+              } : p));
+
+              // Sync with Update Post
+              if (updatePost && updatePost.id === selectedPost.id) {
+                  setUpdatePost(prev => prev ? ({
+                      ...prev,
+                      heads: result.heads,
+                      halfshots: result.halfshots
+                  }) : null);
+              }
+
+              setHasVoted(prev => ({ ...prev, [selectedPost.id]: true }));
+          } else {
+              alert("투표 처리에 실패했습니다. (서버 오류)");
+          }
+      } catch (e: any) {
+          console.error(e);
+          alert("투표 시스템 오류: " + e.message);
       }
   };
 
@@ -348,32 +376,45 @@ export const CommunityPanel: React.FC = () => {
                           <div className="text-center mb-4">
                               <span className="px-3 py-1 bg-slate-900 text-white text-[10px] font-black rounded-full uppercase tracking-widest">Balance_Check</span>
                           </div>
+
+                          {/* Self-Vote Warning */}
+                          {authUser?.id === selectedPost.authorId && (
+                              <div className="text-center mb-3 animate-in zoom-in-95">
+                                  <span className="inline-block px-3 py-1 bg-red-100 text-red-600 text-[10px] font-bold rounded-lg border border-red-200 uppercase tracking-tight">
+                                      ⚠️ 본인 게시글 투표 불가
+                                  </span>
+                              </div>
+                          )}
                           
                           <div className="flex gap-2 h-32 relative">
-                              {/* Blue Option */}
+                              {/* Blue Option (Heads) */}
                               <button 
                                   onClick={() => handleVote('BLUE')}
-                                  disabled={hasVoted[selectedPost.id]}
-                                  className="flex-1 bg-blue-50 border-2 border-blue-100 rounded-2xl flex flex-col items-center justify-center p-2 relative overflow-hidden group hover:border-blue-300 transition-all active:scale-[0.98]"
+                                  disabled={hasVoted[selectedPost.id] || authUser?.id === selectedPost.authorId}
+                                  className={`flex-1 bg-blue-50 border-2 border-blue-100 rounded-2xl flex flex-col items-center justify-center p-2 relative overflow-hidden group transition-all active:scale-[0.98]
+                                    ${(hasVoted[selectedPost.id] || authUser?.id === selectedPost.authorId) ? 'opacity-80 cursor-not-allowed' : 'hover:border-blue-300'}
+                                  `}
                               >
-                                  <div className="absolute bottom-0 left-0 w-full bg-blue-200/50 transition-all duration-1000 ease-out" style={{ height: `${getVotePercent(selectedPost.blueVotes, selectedPost.blueVotes + selectedPost.redVotes)}%` }}></div>
+                                  <div className="absolute bottom-0 left-0 w-full bg-blue-200/50 transition-all duration-1000 ease-out" style={{ height: `${getVotePercent(selectedPost.heads, selectedPost.heads + selectedPost.halfshots)}%` }}></div>
                                   <span className="relative z-10 text-xs font-black text-blue-700 uppercase mb-1">{selectedPost.blueOption}</span>
-                                  <span className="relative z-10 text-2xl font-black text-blue-900">{getVotePercent(selectedPost.blueVotes, selectedPost.blueVotes + selectedPost.redVotes)}%</span>
-                                  <span className="relative z-10 text-[9px] font-bold text-blue-400">{selectedPost.blueVotes} Votes</span>
+                                  <span className="relative z-10 text-2xl font-black text-blue-900">{getVotePercent(selectedPost.heads, selectedPost.heads + selectedPost.halfshots)}%</span>
+                                  <span className="relative z-10 text-[9px] font-bold text-blue-400">{selectedPost.heads} Votes</span>
                               </button>
 
                               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 bg-slate-900 text-white w-8 h-8 rounded-full flex items-center justify-center font-black text-xs border-2 border-white shadow-lg italic">VS</div>
 
-                              {/* Red Option */}
+                              {/* Red Option (Halfshots) */}
                               <button 
                                   onClick={() => handleVote('RED')}
-                                  disabled={hasVoted[selectedPost.id]}
-                                  className="flex-1 bg-red-50 border-2 border-red-100 rounded-2xl flex flex-col items-center justify-center p-2 relative overflow-hidden group hover:border-red-300 transition-all active:scale-[0.98]"
+                                  disabled={hasVoted[selectedPost.id] || authUser?.id === selectedPost.authorId}
+                                  className={`flex-1 bg-red-50 border-2 border-red-100 rounded-2xl flex flex-col items-center justify-center p-2 relative overflow-hidden group transition-all active:scale-[0.98]
+                                    ${(hasVoted[selectedPost.id] || authUser?.id === selectedPost.authorId) ? 'opacity-80 cursor-not-allowed' : 'hover:border-red-300'}
+                                  `}
                               >
-                                  <div className="absolute bottom-0 left-0 w-full bg-red-200/50 transition-all duration-1000 ease-out" style={{ height: `${getVotePercent(selectedPost.redVotes, selectedPost.blueVotes + selectedPost.redVotes)}%` }}></div>
+                                  <div className="absolute bottom-0 left-0 w-full bg-red-200/50 transition-all duration-1000 ease-out" style={{ height: `${getVotePercent(selectedPost.halfshots, selectedPost.heads + selectedPost.halfshots)}%` }}></div>
                                   <span className="relative z-10 text-xs font-black text-red-700 uppercase mb-1">{selectedPost.redOption}</span>
-                                  <span className="relative z-10 text-2xl font-black text-red-900">{getVotePercent(selectedPost.redVotes, selectedPost.blueVotes + selectedPost.redVotes)}%</span>
-                                  <span className="relative z-10 text-[9px] font-bold text-red-400">{selectedPost.redVotes} Votes</span>
+                                  <span className="relative z-10 text-2xl font-black text-red-900">{getVotePercent(selectedPost.halfshots, selectedPost.heads + selectedPost.halfshots)}%</span>
+                                  <span className="relative z-10 text-[9px] font-bold text-red-400">{selectedPost.halfshots} Votes</span>
                               </button>
                           </div>
                           {hasVoted[selectedPost.id] && (
