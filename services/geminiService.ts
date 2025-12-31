@@ -69,7 +69,7 @@ export class GeminiService {
       return response.text || "분석 실패";
     } catch (error) {
       console.error("Team Analysis Error:", error);
-      return "분석 엔진 연동 오류";
+      throw error;
     }
   }
 
@@ -87,7 +87,7 @@ export class GeminiService {
         });
         return response.text || "데이터 분석 중";
       } catch (e) {
-          return "AI 분석 일시 중단";
+          throw e;
       }
   }
 
@@ -151,10 +151,7 @@ export class GeminiService {
           return { title, content, sources: sources.length > 0 ? sources : undefined };
       } catch (e: any) {
           console.error("Summary Error", e);
-          return {
-              title: `${dateTag} 시스템 연결 대기 중`,
-              content: `분석 도중 API 인증 오류가 발생했습니다. (Reason: ${e.message})\n\n[해결 방법]\n도메인 관리자 페이지(Vercel/Netlify 등)의 Environment Variables 설정에 'API_KEY'가 올바르게 등록되었는지 확인하십시오.`
-          };
+          throw e;
       }
   }
 

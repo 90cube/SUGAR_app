@@ -125,6 +125,16 @@ export const VirtualMatchingModal: React.FC = () => {
   };
 
   const handleStartAnalysis = async () => {
+    // Check API Key
+    if (window.aistudio && window.aistudio.hasSelectedApiKey && !(await window.aistudio.hasSelectedApiKey())) {
+        try {
+            await window.aistudio.openSelectKey();
+        } catch (e) {
+             setErrorMsg("API 키 선택 창을 여는데 실패했습니다.");
+             return;
+        }
+    }
+
     if (teamA.length === 0 || teamB.length === 0) {
         setErrorMsg("양 팀 모두 최소 1명의 플레이어가 필요합니다.");
         return;
@@ -138,9 +148,17 @@ export const VirtualMatchingModal: React.FC = () => {
         const result = await geminiService.analyzeTeamMatchup(teamA, teamB);
         setAnalysisResult(result);
         setStep('RESULT');
-    } catch (err) {
+    } catch (err: any) {
         console.error(err);
-        setErrorMsg("AI 분석 중 오류가 발생했습니다.");
+        if (err.message?.includes("400") || err.message?.includes("API key")) {
+             setErrorMsg("API 키가 유효하지 않습니다. 다시 선택해주세요.");
+             // Trigger key selection if possible
+             if (window.aistudio && window.aistudio.openSelectKey) {
+                 await window.aistudio.openSelectKey();
+             }
+        } else {
+             setErrorMsg("AI 분석 중 오류가 발생했습니다.");
+        }
         setStep('INPUT');
     }
   };

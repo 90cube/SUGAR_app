@@ -128,6 +128,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const calculateRecap = async (date: string) => {
     if (!userProfile) return;
+
+    // API Key Check
+    if (window.aistudio && window.aistudio.hasSelectedApiKey && !(await window.aistudio.hasSelectedApiKey())) {
+       try {
+           await window.aistudio.openSelectKey();
+       } catch (e) {
+           alert("API 키 설정이 필요합니다.");
+           return;
+       }
+    }
+
     setIsRecapLoading(true);
     setRecapStats(null);
     try {
@@ -148,8 +159,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
       };
       if (stats.totalMatches > 0) {
-        const feedback = await geminiService.analyzeDailyRecap(stats);
-        stats.aiAnalysis = feedback;
+        try {
+            const feedback = await geminiService.analyzeDailyRecap(stats);
+            stats.aiAnalysis = feedback;
+        } catch (apiError: any) {
+             console.error(apiError);
+             if (apiError.message?.includes("400") || apiError.message?.includes("API key")) {
+                 stats.aiAnalysis = "⚠️ API 키 오류: 우측 상단 열쇠 아이콘을 눌러 키를 재설정하세요.";
+                 // Try to open selector automatically
+                 if (window.aistudio && window.aistudio.openSelectKey) {
+                    await window.aistudio.openSelectKey();
+                 }
+             } else {
+                 stats.aiAnalysis = "AI 분석 서버 연결 실패";
+             }
+        }
       }
       setRecapStats(stats);
     } catch (e) {
