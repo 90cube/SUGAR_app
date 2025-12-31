@@ -17,7 +17,8 @@ export const CommunityPanel: React.FC = () => {
     isLoggedIn,
     refreshAuthUser,
     openAuthModal,
-    authUser
+    authUser,
+    isAdmin
   } = useAuth();
 
   const [posts, setPosts] = useState<CommunityPost[]>([]);
@@ -293,6 +294,73 @@ export const CommunityPanel: React.FC = () => {
     }
   };
 
+  const handleDeletePost = async () => {
+    if (!selectedPost) return;
+    if (!confirm("정말 이 게시글을 삭제하시겠습니까? (복구 불가)")) return;
+    
+    setIsLoading(true);
+    try {
+        const success = await communityService.deletePost(selectedPost.id);
+        if (success) {
+            alert("게시글이 삭제되었습니다.");
+            setSelectedPost(null);
+            loadEssentialData(); // Refresh list
+        }
+    } catch (e: any) {
+        alert("삭제 실패: " + e.message);
+    } finally {
+        setIsLoading(false);
+    }
+  };
+
+  const handleDeleteComment = async (commentId: string) => {
+      if (!selectedPost) return;
+      if (!confirm("이 댓글을 삭제하시겠습니까?")) return;
+
+      try {
+          await communityService.deleteComment(commentId);
+          // Success handling
+          setComments(prev => prev.filter(c => c.id !== commentId));
+          // Update local post comment count
+           setSelectedPost(prev => prev ? ({ ...prev, commentCount: Math.max(0, prev.commentCount - 1) }) : null);
+           setPosts(prev => prev.map(p => p.id === selectedPost.id ? {
+              ...p,
+              commentCount: Math.max(0, p.commentCount - 1)
+          } : p));
+      } catch (e: any) {
+          // RLS Policy 에러 감지
+          if (e.message?.includes("policy") || e.message?.includes("row-level security")) {
+              alert("삭제 실패: 권한이 부족합니다. (RLS Policy 설정 필요)");
+          } else {
+              alert("삭제 오류: " + e.message);
+          }
+      }
+  };
+
+  const handleHidePost = async () => {
+      if (!selectedPost) return;
+      const newStatus = selectedPost.status === 'HIDDEN' ? 'APPROVED' : 'HIDDEN';
+      const actionName = newStatus === 'HIDDEN' ? '숨김' : '공개';
+      
+      if (!confirm(`이 게시글을 ${actionName} 처리하시겠습니까?`)) return;
+
+      setIsLoading(true);
+      try {
+          const success = await communityService.updatePostStatus(selectedPost.id, newStatus);
+          if (success) {
+              alert(`게시글이 ${actionName} 처리되었습니다.`);
+              // Update local state
+              setSelectedPost(prev => prev ? ({ ...prev, status: newStatus }) : null);
+              // Refresh list to reflect status change if needed, or just update local list
+               setPosts(prev => prev.map(p => p.id === selectedPost.id ? { ...p, status: newStatus } : p));
+          }
+      } catch (e: any) {
+          alert("상태 변경 실패: " + e.message);
+      } finally {
+          setIsLoading(false);
+      }
+  };
+
   const renderContent = (content: string) => {
     try {
       return { __html: marked.parse(content) };
@@ -371,6 +439,32 @@ export const CommunityPanel: React.FC = () => {
                   </header>
 
                   <div className="h-px bg-slate-200"></div>
+
+                  {/* Admin Controls */}
+                  {isAdmin && (
+                      <div className="mb-6 bg-red-950/5 border border-red-500/20 rounded-2xl p-4 animate-in slide-in-from-top-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                             <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                             <span className="text-[10px] font-black text-red-600 uppercase tracking-widest">Administrator_Override</span>
+                          </div>
+                          <div className="flex gap-2">
+                             <button 
+                               onClick={handleHidePost}
+                               className="px-3 py-1.5 bg-white border border-slate-200 text-slate-600 text-[10px] font-bold rounded-lg hover:bg-slate-50 uppercase tracking-tight shadow-sm"
+                             >
+                                {selectedPost.status === 'HIDDEN' ? 'UNHIDE_POST' : 'HIDE_POST'}
+                             </button>
+                             <button 
+                               onClick={handleDeletePost}
+                               className="px-3 py-1.5 bg-red-600 text-white text-[10px] font-bold rounded-lg hover:bg-red-700 uppercase tracking-tight shadow-sm shadow-red-500/20"
+                             >
+                                DELETE_PERMANENTLY
+                             </button>
+                          </div>
+                        </div>
+                      </div>
+                  )}
 
                   {/* Balance Vote UI (Using blueVotes/redVotes) */}
                   {selectedPost.blueOption && selectedPost.redOption && (
@@ -493,9 +587,19 @@ export const CommunityPanel: React.FC = () => {
                       ) : (
                           comments.map((comment) => (
                               <div key={comment.id} className="font-mono text-xs">
-                                  <div className="flex items-center gap-2 mb-1">
-                                      <span className="text-cyan-400 font-bold">{comment.authorNickname}</span>
-                                      <span className="text-slate-600 text-[10px]">{comment.createdAt.split('T')[0]}</span>
+                                  <div className="flex items-center gap-2 mb-1 justify-between">
+                                      <div className="flex items-center gap-2">
+                                          <span className="text-cyan-400 font-bold">{comment.authorNickname}</span>
+                                          <span className="text-slate-600 text-[10px]">{comment.createdAt.split('T')[0]}</span>
+                                      </div>
+                                      {isAdmin && (
+                                          <button 
+                                              onClick={() => handleDeleteComment(comment.id)}
+                                              className="text-[9px] text-red-500 hover:text-red-400 font-black uppercase tracking-wider"
+                                          >
+                                              [DELETE]
+                                          </button>
+                                      )}
                                   </div>
                                   <div className="text-slate-300 pl-2 border-l-2 border-slate-700 py-1">
                                       {comment.content}

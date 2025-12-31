@@ -135,6 +135,25 @@ class CommunityService {
   }
 
   /**
+   * 관리자: 댓글 삭제
+   */
+  async deleteComment(commentId: string): Promise<boolean> {
+    if (!supabase) throw new Error("데이터베이스 연결 실패");
+    
+    const { error } = await supabase
+      .from('comments')
+      .delete()
+      .eq('id', commentId);
+
+    if (error) {
+      console.error("Delete Comment Error:", error);
+      // 에러를 던져서 UI에서 잡을 수 있게 함 (특히 RLS Policy 에러)
+      throw error;
+    }
+    return true;
+  }
+
+  /**
    * 게시글 추천/비추천 (Headshot/Halfshot/Guillotine)
    * 이것은 '투표(Vote)'와 무관한 게시글 자체에 대한 반응입니다.
    */
@@ -369,6 +388,40 @@ class CommunityService {
       .neq('status', 'DELETED')
       .order('created_at', { ascending: false });
     return error ? [] : (data || []).map(row => this.mapPostRow(row));
+  }
+
+  /**
+   * 관리자: 게시글 삭제 (Soft Delete)
+   */
+  async deletePost(postId: string): Promise<boolean> {
+    if (!supabase) return false;
+    const { error } = await supabase
+      .from('posts')
+      .update({ status: 'DELETED' })
+      .eq('id', postId);
+    
+    if (error) {
+        console.error("Delete Post Error:", error);
+        return false;
+    }
+    return true;
+  }
+
+  /**
+   * 관리자: 게시글 상태 변경 (숨김/공개 등)
+   */
+  async updatePostStatus(postId: string, status: 'APPROVED' | 'HIDDEN' | 'PENDING'): Promise<boolean> {
+      if (!supabase) return false;
+      const { error } = await supabase
+          .from('posts')
+          .update({ status })
+          .eq('id', postId);
+
+      if (error) {
+          console.error("Update Status Error:", error);
+          return false;
+      }
+      return true;
   }
 }
 
