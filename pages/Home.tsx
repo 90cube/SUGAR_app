@@ -12,7 +12,7 @@ import AdminGuard from '../components/AdminGuard';
 
 export const Home: React.FC = () => {
   const { searchStatus, userProfile, searchUser, performAnomalyCheck, pageContent } = useApp();
-  const { openAdminEditor } = useUI();
+  const { openAdminEditor, openVirtualMatchingModal } = useUI();
   const { isLoggedIn, openAuthModal } = useAuth();
   const [nickname, setNickname] = useState('');
 
@@ -85,7 +85,7 @@ export const Home: React.FC = () => {
           <div className="h-4"></div>
 
           <form onSubmit={handleSearch} className="space-y-4 px-2 relative z-10 font-mono">
-            <div className="flex gap-3">
+            <div className="flex gap-2">
               <div className="relative flex-1 group">
                 <div className="absolute -inset-0.5 bg-cyan-400/20 rounded-[2rem] blur-sm opacity-25 group-hover:opacity-100 transition duration-500"></div>
                 <input
@@ -96,6 +96,18 @@ export const Home: React.FC = () => {
                   className="relative w-full h-16 px-6 rounded-[2rem] border-2 border-slate-200 bg-white/80 backdrop-blur-md text-slate-900 placeholder:text-slate-300 focus:outline-none focus:border-cyan-500 font-bold transition-all shadow-inner text-center tracking-wide"
                 />
               </div>
+
+              {/* Virtual Matching Button (Restored) */}
+              <button 
+                  type="button"
+                  onClick={openVirtualMatchingModal}
+                  className="relative h-16 w-16 bg-slate-950 text-yellow-400 border border-yellow-500/30 font-bold rounded-[2rem] active:scale-95 transition-all shadow-lg flex items-center justify-center hover:bg-yellow-500/10 hover:shadow-yellow-500/20"
+                  title="가상 매칭 (AI Matchmaking)"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+              </button>
               
               <button 
                   type="button"
