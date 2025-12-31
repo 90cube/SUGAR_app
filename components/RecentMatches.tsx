@@ -74,12 +74,13 @@ export const RecentMatches: React.FC<RecentMatchesProps> = ({ matches }) => {
         <h3 className="text-lg font-bold text-slate-900 drop-shadow-sm">최근 전적 ({matches.length})</h3>
         <button 
           onClick={handleRecapClick}
-          className="text-xs font-bold bg-slate-900/90 backdrop-blur-md text-white px-3 py-1.5 rounded-full active:scale-95 transition-all shadow-lg hover:shadow-slate-500/30 hover:bg-slate-800 flex items-center gap-1 border border-white/10"
+          className="relative text-xs font-bold bg-slate-900 text-cyan-400 px-4 py-2 rounded-full active:scale-95 transition-all shadow-[0_0_15px_rgba(34,211,238,0.3)] hover:shadow-[0_0_25px_rgba(34,211,238,0.6)] hover:bg-cyan-500 hover:text-slate-900 flex items-center gap-1.5 border border-cyan-500/50 group"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+          <div className="absolute inset-0 rounded-full bg-cyan-400/10 animate-pulse group-hover:animate-none"></div>
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 relative z-10" viewBox="0 0 20 20" fill="currentColor">
             <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
           </svg>
-          {UI_STRINGS.todayRecap}
+          <span className="relative z-10">{UI_STRINGS.todayRecap}</span>
         </button>
       </div>
 

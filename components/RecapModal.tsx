@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { useApp } from '../state/AppContext';
 // Import useUI for modal control state
 import { useUI } from '../state/UIContext';
+import { marked } from 'marked';
 
 export const RecapModal: React.FC = () => {
   // Fix: Destructure UI state from useUI and recap data from useApp
@@ -92,9 +93,10 @@ export const RecapModal: React.FC = () => {
                                          <span className="text-xl">🧑‍🏫</span>
                                          <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest">AI 코치 피드백</h3>
                                      </div>
-                                     <div className="text-sm text-slate-700 leading-relaxed whitespace-pre-line font-medium">
-                                         {recapStats.aiAnalysis}
-                                     </div>
+                                     <div 
+                                         className="text-sm text-slate-700 leading-relaxed font-medium prose prose-sm max-w-none prose-p:my-1 prose-strong:text-indigo-800 prose-strong:font-black"
+                                         dangerouslySetInnerHTML={{ __html: marked.parse(recapStats.aiAnalysis) as string }}
+                                     />
                                 </div>
                             )}
 
