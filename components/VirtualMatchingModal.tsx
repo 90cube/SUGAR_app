@@ -25,7 +25,7 @@ const PlayerCard: React.FC<PlayerCardProps> = ({ profile, side, onRemove }) => (
                         승률 {Math.floor(profile.recentStats?.winRate || 0)}%
                     </span>
                     <span className="text-[9px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
-                        KD {profile.recentStats?.kd}%
+                        KD {Math.floor(profile.recentStats?.kd || 0)}%
                     </span>
                     <span className="text-[9px] text-slate-400 font-bold ml-1">{profile.soloTier.tierName}</span>
                  </div>
