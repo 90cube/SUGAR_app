@@ -20,11 +20,14 @@ const PlayerCard: React.FC<PlayerCardProps> = ({ profile, side, onRemove }) => (
              </div>
              <div className="flex flex-col min-w-0">
                  <span className="text-sm font-black text-slate-800 truncate font-mono tracking-tight">{profile.nickname}</span>
-                 <div className="flex items-center gap-2">
+                 <div className="flex items-center gap-1.5">
                     <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${side === 'A' ? 'bg-blue-50 text-blue-600' : 'bg-red-50 text-red-600'}`}>
+                        승률 {Math.floor(profile.recentStats?.winRate || 0)}%
+                    </span>
+                    <span className="text-[9px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
                         KD {profile.recentStats?.kd}%
                     </span>
-                    <span className="text-[9px] text-slate-400 font-bold">{profile.soloTier.tierName}</span>
+                    <span className="text-[9px] text-slate-400 font-bold ml-1">{profile.soloTier.tierName}</span>
                  </div>
              </div>
         </div>
