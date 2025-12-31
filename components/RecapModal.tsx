@@ -1,12 +1,28 @@
 
 import React, { useState } from 'react';
 import { useApp } from '../state/AppContext';
-// Import useUI for modal control state
 import { useUI } from '../state/UIContext';
 import { marked } from 'marked';
 
+// 성능 최적화를 위해 컴포넌트 외부로 분리
+const StatBox = ({ label, value, compareValue, suffix = '' }: { label: string, value: number, compareValue?: number, suffix?: string }) => {
+    const diff = compareValue !== undefined ? value - compareValue : 0;
+    const isPositive = diff >= 0;
+    
+    return (
+        <div className="bg-white/60 backdrop-blur-md p-3 rounded-2xl border border-white/60 text-center flex flex-col items-center justify-center h-full shadow-sm hover:shadow-md transition-shadow">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">{label}</span>
+            <span className="text-xl font-black text-slate-900 mt-1">{value.toFixed(1)}{suffix}</span>
+            {compareValue !== undefined && (
+                 <span className={`text-[10px] font-bold mt-1 ${isPositive ? 'text-blue-500' : 'text-red-500'}`}>
+                    {isPositive ? '▲' : '▼'} {Math.abs(diff).toFixed(1)}{suffix}
+                 </span>
+            )}
+        </div>
+    );
+};
+
 export const RecapModal: React.FC = () => {
-  // Fix: Destructure UI state from useUI and recap data from useApp
   const { isRecapModalOpen, closeRecapModal } = useUI();
   const { calculateRecap, recapStats, isRecapLoading } = useApp();
   
@@ -25,21 +41,20 @@ export const RecapModal: React.FC = () => {
     calculateRecap(selectedDate);
   };
 
-  const StatBox = ({ label, value, compareValue, suffix = '' }: { label: string, value: number, compareValue?: number, suffix?: string }) => {
-    const diff = compareValue !== undefined ? value - compareValue : 0;
-    const isPositive = diff >= 0;
-    
-    return (
-        <div className="bg-white/60 backdrop-blur-md p-3 rounded-2xl border border-white/60 text-center flex flex-col items-center justify-center h-full shadow-sm hover:shadow-md transition-shadow">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">{label}</span>
-            <span className="text-xl font-black text-slate-900 mt-1">{value.toFixed(1)}{suffix}</span>
-            {compareValue !== undefined && (
-                 <span className={`text-[10px] font-bold mt-1 ${isPositive ? 'text-blue-500' : 'text-red-500'}`}>
-                    {isPositive ? '▲' : '▼'} {Math.abs(diff).toFixed(1)}{suffix}
-                 </span>
-            )}
-        </div>
-    );
+  // showPicker를 안전하게 호출하는 핸들러
+  const handleDateClick = (e: React.MouseEvent<HTMLInputElement>) => {
+      const input = e.currentTarget;
+      try {
+          if (typeof input.showPicker === 'function') {
+              input.showPicker();
+          } else {
+              input.focus();
+          }
+      } catch (err) {
+          // 보안 에러나 미지원 브라우저 에러 무시하고 포커스만 시도
+          console.warn("DatePicker open failed:", err);
+          input.focus();
+      }
   };
 
   return (
@@ -57,22 +72,34 @@ export const RecapModal: React.FC = () => {
         </div>
 
         <div className="p-6 overflow-y-auto space-y-6 overscroll-contain">
-            {/* 날짜 선택 섹션 복구 및 스타일 강화 */}
-            <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Analysis Date</label>
-                <div className="flex gap-2">
+            {/* 날짜 선택 섹션 */}
+            <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-3">
+                <div className="flex justify-between items-center">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1">
+                        <span>📅</span> Analysis Date
+                    </label>
+                    <button 
+                        onClick={() => setSelectedDate(getTodayKST())}
+                        className="text-[9px] font-bold text-blue-500 hover:text-blue-600 hover:underline transition-colors"
+                    >
+                        오늘 날짜로 설정
+                    </button>
+                </div>
+                <div className="flex gap-2 h-12">
                     <input 
                         type="date" 
                         value={selectedDate}
                         onChange={(e) => setSelectedDate(e.target.value)}
-                        className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/20 shadow-sm transition-all"
+                        onClick={handleDateClick}
+                        className="flex-1 px-4 h-full bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all cursor-pointer"
+                        style={{ colorScheme: 'light' }} // 다크모드에서도 달력이 잘 보이도록 강제
                     />
                     <button 
                         onClick={handleAnalyze}
                         disabled={isRecapLoading}
-                        className="px-6 py-3 bg-yellow-400 hover:bg-yellow-300 text-slate-900 font-bold rounded-xl shadow-[0_0_15px_rgba(250,204,21,0.4)] disabled:opacity-50 transition-all active:scale-95 whitespace-nowrap"
+                        className="px-5 h-full bg-slate-900 hover:bg-slate-800 text-white font-black rounded-xl shadow-lg disabled:opacity-50 transition-all active:scale-95 whitespace-nowrap text-xs uppercase tracking-wider"
                     >
-                        {isRecapLoading ? '...' : '분석하기'}
+                        {isRecapLoading ? '분석 중...' : '조회하기'}
                     </button>
                 </div>
             </div>
@@ -150,7 +177,8 @@ export const RecapModal: React.FC = () => {
                 </div>
             ) : (
                 <div className="text-center py-12 text-slate-400 text-sm bg-slate-50/30 rounded-2xl border border-dashed border-slate-200">
-                    날짜를 선택하고 '분석하기' 버튼을 눌러주세요.
+                    <span className="block mb-2 text-2xl">👆</span>
+                    날짜를 선택하고 '조회하기' 버튼을 눌러주세요.
                 </div>
             )}
         </div>

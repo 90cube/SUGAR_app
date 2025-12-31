@@ -6,10 +6,12 @@ import { UserProfile, RecapStats } from "../types";
 export class GeminiService {
   /**
    * 가이드라인에 따라 API 호출 직전에 인스턴스를 생성합니다.
-   * API_KEY는 반드시 process.env.API_KEY에서 가져옵니다.
+   * process가 정의되지 않은 환경(순수 브라우저 등)에서의 크래시를 방지합니다.
    */
   private createClient() {
-    return new GoogleGenAI({ apiKey: process.env.API_KEY });
+    // 안전하게 process.env 접근
+    const apiKey = (typeof process !== 'undefined' && process.env) ? process.env.API_KEY : '';
+    return new GoogleGenAI({ apiKey: apiKey });
   }
 
   public async generateText(prompt: string): Promise<string> {
