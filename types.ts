@@ -100,19 +100,22 @@ export interface UserProfile {
   recentStats: RecentStats | null;
 }
 
+// 상세 모드별 통계
+export interface ModeStat {
+    modeName: string; // "폭파미션 (랭크전 솔로)" 형태 또는 단순 결합
+    matchCount: number;
+    winRate: number;
+    kd: number;
+    kills: number;
+    deaths: number;
+    aiAnalysis?: string; // 모드별 전용 피드백
+}
+
 export interface RecapStats {
   date: string;
-  totalMatches: number;
-  winRate: number;
-  kd: number;
-  topWeapon: string;
-  comparison: {
-    restWinRate: number;
-    restKd: number;
-    rankedWinRate: number;
-    rankedKd: number;
-  };
-  aiAnalysis?: string;
+  matchType: string;
+  matchMode: string;
+  stat: ModeStat;
 }
 
 export interface AnomalyReport {

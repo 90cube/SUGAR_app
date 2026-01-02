@@ -1,9 +1,9 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { SearchStatus, UserProfile, MatchDetail, Match, RecapStats, MatchResult, AnomalyReport, PageContent } from '../types';
+import { SearchStatus, UserProfile, MatchDetail, Match, RecapStats, MatchResult, AnomalyReport, PageContent, ModeStat } from '../types';
 import { nexonService } from '../services/nexonService';
 import { cloudStorageService } from '../services/cloudStorageService';
-import { geminiService } from '../services/geminiService';
+import { geminiService, ComparativeStats } from '../services/geminiService';
 import { communityService } from '../services/communityService';
 import { useAuth } from './AuthContext';
 import { useUI } from './UIContext';
@@ -26,7 +26,7 @@ interface AppContextType {
   openMatchDetail: (match: Match) => void;
   closeMatchDetail: () => void;
   recapStats: RecapStats | null;
-  calculateRecap: (date: string) => Promise<void>;
+  calculateRecap: (date: string, matchType: string, matchMode: string) => Promise<void>;
   isRecapLoading: boolean;
   performAnomalyCheck: () => Promise<void>;
   anomalyReport: AnomalyReport | null;
@@ -113,20 +113,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setIsLoadingMore(false);
   };
 
-  const calculateWinRate = (matches: Match[]) => {
-    if (matches.length === 0) return 0;
-    const wins = matches.filter(m => m.result === MatchResult.WIN).length;
-    return parseFloat(((wins / matches.length) * 100).toFixed(1));
-  };
-
-  const calculateKD = (matches: Match[]) => {
-    let kills = 0; let deaths = 0;
-    matches.forEach(m => { kills += m.kill; deaths += m.death; });
-    if (deaths === 0) return kills > 0 ? 100 : 0;
-    return parseFloat(((kills / deaths) * 100).toFixed(1));
-  };
-
-  const calculateRecap = async (date: string) => {
+  const calculateRecap = async (date: string, matchType: string, matchMode: string) => {
     if (!userProfile) return;
 
     // API Key Check
@@ -141,41 +128,94 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     setIsRecapLoading(true);
     setRecapStats(null);
+    
     try {
-      const matchesOnDate = userProfile.recentMatches.filter(m => m.rawDate.startsWith(date));
-      const restMatches = userProfile.recentMatches.filter(m => !m.rawDate.startsWith(date));
-      const rankedMatches = userProfile.recentMatches.filter(m => m.matchType === "랭크전");
-      const stats: RecapStats = {
-        date,
-        totalMatches: matchesOnDate.length,
-        winRate: calculateWinRate(matchesOnDate),
-        kd: calculateKD(matchesOnDate),
-        topWeapon: "N/A",
-        comparison: {
-          restWinRate: calculateWinRate(restMatches),
-          restKd: calculateKD(restMatches),
-          rankedWinRate: calculateWinRate(rankedMatches),
-          rankedKd: calculateKD(rankedMatches)
-        }
+      // 1. Target Matches (Selected Date + Type + Mode)
+      const targetMatches = userProfile.recentMatches.filter(m => 
+        m.rawDate.startsWith(date) && m.matchType === matchType && m.matchMode === matchMode
+      );
+
+      // 2. All Matches (History + Type + Mode) for Baseline Comparison
+      const allMatches = userProfile.recentMatches.filter(m => 
+        m.matchType === matchType && m.matchMode === matchMode
+      );
+
+      // Helper for stat calculation
+      const calcStats = (matches: Match[]): ModeStat => {
+          if (matches.length === 0) {
+              return { modeName: `${matchType}/${matchMode}`, matchCount: 0, winRate: 0, kd: 0, kills: 0, deaths: 0 };
+          }
+          const wins = matches.filter(m => m.result === MatchResult.WIN).length;
+          const totalKills = matches.reduce((sum, m) => sum + m.kill, 0);
+          const totalDeaths = matches.reduce((sum, m) => sum + m.death, 0);
+          const winRate = parseFloat(((wins / matches.length) * 100).toFixed(1));
+          const kd = totalDeaths === 0 ? (totalKills > 0 ? 100 : 0) : parseFloat(((totalKills / totalDeaths) * 100).toFixed(1));
+          return {
+              modeName: `${matchType}/${matchMode}`,
+              matchCount: matches.length,
+              winRate,
+              kd,
+              kills: totalKills,
+              deaths: totalDeaths
+          };
       };
-      if (stats.totalMatches > 0) {
-        try {
-            const feedback = await geminiService.analyzeDailyRecap(stats);
-            stats.aiAnalysis = feedback;
-        } catch (apiError: any) {
-             console.error(apiError);
-             if (apiError.message?.includes("400") || apiError.message?.includes("API key")) {
-                 stats.aiAnalysis = "⚠️ API 키 오류: 우측 상단 열쇠 아이콘을 눌러 키를 재설정하세요.";
-                 // Try to open selector automatically
-                 if (window.aistudio && window.aistudio.openSelectKey) {
-                    await window.aistudio.openSelectKey();
-                 }
-             } else {
-                 stats.aiAnalysis = "AI 분석 서버 연결 실패";
-             }
-        }
+
+      const dateStat = calcStats(targetMatches);
+      const overallStat = calcStats(allMatches);
+
+      if (targetMatches.length === 0) {
+          setRecapStats({
+              date,
+              matchType,
+              matchMode,
+              stat: { ...dateStat, aiAnalysis: "해당 조건의 매치 기록이 없습니다." }
+          });
+          setIsRecapLoading(false);
+          return;
       }
-      setRecapStats(stats);
+
+      // 3. Fetch Detailed Logs for Target Matches (Batch)
+      // This is the "Deep Dive" step
+      const matchIds = targetMatches.map(m => m.id);
+      let detailedLogsStr = "상세 정보 없음";
+      
+      try {
+          const rawDetails = await nexonService.fetchMatchDetailsBatch(matchIds);
+          
+          detailedLogsStr = rawDetails.map((detail: any, idx) => {
+              const myData = detail.match_detail.find((p: any) => p.user_name === userProfile.nickname);
+              const mapName = detail.match_map || "알 수 없는 맵";
+              const result = targetMatches[idx]?.result || "N/A"; // fallback
+              
+              if (!myData) return `- Match ${idx+1}: 데이터 손상`;
+              return `- [Match ${idx+1}] 맵: ${mapName} | 결과: ${result} | 기록: ${myData.kill}K ${myData.death}D (${myData.headshot}HS) | 데미지: ${myData.damage}`;
+          }).join("\n");
+
+      } catch (err) {
+          console.error("Failed to fetch batch details", err);
+          detailedLogsStr = "상세 매치 로그 조회 실패 (API 오류)";
+      }
+
+      // 4. AI Analysis with Comparison & Details
+      const analysisData: ComparativeStats = {
+          dateStat,
+          overallStat,
+          details: detailedLogsStr
+      };
+
+      try {
+          dateStat.aiAnalysis = await geminiService.analyzeDailyRecap(analysisData, matchType, matchMode);
+      } catch (e) {
+          dateStat.aiAnalysis = "분석 서버 연결 지연";
+      }
+
+      setRecapStats({
+          date,
+          matchType,
+          matchMode,
+          stat: dateStat
+      });
+
     } catch (e) {
       console.error("[AppContext] Recap calculation failed", e);
     } finally {

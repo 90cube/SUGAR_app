@@ -1,7 +1,13 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
 import { DEFAULT_GEMINI_MODEL } from "../constants";
-import { UserProfile, RecapStats } from "../types";
+import { UserProfile, RecapStats, ModeStat } from "../types";
+
+export interface ComparativeStats {
+    dateStat: ModeStat;
+    overallStat: ModeStat;
+    details: string; // Formatted detailed logs
+}
 
 export class GeminiService {
   /**
@@ -73,11 +79,52 @@ export class GeminiService {
     }
   }
 
-  public async analyzeDailyRecap(stats: RecapStats): Promise<string> {
+  public async analyzeDailyRecap(data: ComparativeStats, matchType: string, matchMode: string): Promise<string> {
       const ai = this.createClient();
+      
+      const { dateStat, overallStat, details } = data;
+      let systemPersona = "";
+      
+      // Basic Persona Setup
+      const isBombMission = matchType.includes("폭파미션");
+      const isRanked = matchMode.includes("랭크");
+
+      if (isRanked && isBombMission) {
+          systemPersona = "당신은 서든어택 랭크전(폭파미션) 전문 수석 코치입니다.";
+      } else if (isRanked) {
+          systemPersona = "당신은 서든어택 랭크전 전담 분석관입니다.";
+      } else {
+          systemPersona = "당신은 서든어택 전술 교관입니다.";
+      }
+
       const prompt = `
-        서든어택 전문 코치로서 다음 데이터를 분석해 플레이어에게 피드백하세요.
-        [오늘의 데이터] 승률: ${stats.winRate}%, K/D: ${stats.kd}% (평소: ${stats.comparison.restWinRate}%)
+        ${systemPersona}
+        다음은 플레이어의 선택한 날짜 기록과 전체 평균 기록을 비교한 데이터, 그리고 상세 경기 로그입니다.
+        이를 종합하여 정밀한 피드백을 제공하십시오.
+
+        [설정]
+        - 타입: ${matchType}
+        - 모드: ${matchMode}
+
+        [1. 선택 날짜(${dateStat.matchCount}판) 성과]
+        - 승률: ${dateStat.winRate}%
+        - K/D: ${dateStat.kd}%
+        - 킬/데스: ${dateStat.kills}K / ${dateStat.deaths}D
+
+        [2. 전체 평균(${overallStat.matchCount}판) 성과 - Baseline]
+        - 승률: ${overallStat.winRate}%
+        - K/D: ${overallStat.kd}%
+        
+        [3. 상세 매치 로그 (최근 순)]
+        ${details}
+
+        [작성 규칙]
+        1. **가장 먼저 맨 위에 [한줄평] 섹션을 작성하십시오.** 오늘 플레이를 관통하는 핵심을 20자 이내로 임팩트 있게 요약하십시오. (예: "**압도적인 피지컬로 전장을 지배했습니다.**")
+        2. **서식 활용**: 중요한 수치(K/D, 승률), 핵심 조언, 맵 이름 등은 반드시 **굵게(Bold)** 처리하여 가독성을 높이십시오.
+        3. **비교 분석**: 오늘 성과가 평소(Baseline)보다 좋았는지 나빴는지 명확히 명시하십시오.
+        4. **상세 피드백**: 로그를 분석하여 특정 맵에서의 강세/약세, 연승/연패 흐름을 짚어내십시오.
+        5. **전술 제언**: 단순 격려가 아닌, 실질적인 운영(세이브, 오더, 에임 집중 등) 조언을 하십시오.
+        6. 어조: 전문가다운 단정적인 어조 ("~합니다.", "~하십시오.")
       `;
 
       try {
@@ -85,7 +132,7 @@ export class GeminiService {
             model: DEFAULT_GEMINI_MODEL,
             contents: prompt,
         });
-        return response.text || "데이터 분석 중";
+        return response.text || "데이터 분석 중 오류 발생";
       } catch (e) {
           throw e;
       }
@@ -93,8 +140,6 @@ export class GeminiService {
 
   /**
    * 공식 공지사항을 요약합니다. 
-   * useSearch가 true일 때만 Google Search Grounding을 사용하고, 
-   * false일 경우(텍스트 붙여넣기 등)에는 순수 텍스트 생성 모드로 동작합니다.
    */
   public async summarizeGameUpdate(source: string, masterPrompt: string, useSearch: boolean = false): Promise<{ title: string; content: string; sources?: {uri: string, title: string}[] }> {
       const ai = this.createClient();
@@ -114,7 +159,6 @@ export class GeminiService {
       `;
 
       try {
-          // 검색 필요 시에만 도구 설정
           const config = useSearch ? { tools: [{ googleSearch: {} }] } : undefined;
 
           const response = await ai.models.generateContent({
@@ -125,7 +169,6 @@ export class GeminiService {
           
           const text = response.text || "";
           
-          // groundingChunks에서 URL 추출 (검색 모드일 때만 유효)
           const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
           const sources: {uri: string, title: string}[] = [];
           

@@ -136,8 +136,11 @@ class NexonService {
             matches.push(...mData.match.map((m: any) => ({
               id: m.match_id,
               result: m.match_result === "1" ? MatchResult.WIN : m.match_result === "2" ? MatchResult.LOSE : MatchResult.DRAW,
-              matchType: m.match_type,
-              matchMode: m.match_mode,
+              // User Request: Type = Bomb Mission, Mode = Ranked Solo
+              // API Response: match_mode = Bomb Mission, match_type = Ranked Solo (usually)
+              // Therefore: matchType = m.match_mode, matchMode = m.match_type
+              matchType: m.match_mode, 
+              matchMode: m.match_type,
               date: this.formatToKST(m.date_match), // Convert to KST
               rawDate: m.date_match,
               kill: m.kill,
@@ -186,6 +189,19 @@ class NexonService {
 
   async getMatchDetail(matchId: string) {
     return await this.fetchWithProxy(`${NEXON_API_BASE_URL}/match-detail?match_id=${matchId}`);
+  }
+
+  async fetchMatchDetailsBatch(matchIds: string[]): Promise<any[]> {
+      const results = [];
+      const CHUNK_SIZE = 5;
+      for (let i = 0; i < matchIds.length; i += CHUNK_SIZE) {
+          const chunk = matchIds.slice(i, i + CHUNK_SIZE);
+          const promises = chunk.map(id => this.getMatchDetail(id).catch(e => null));
+          const chunkResults = await Promise.all(promises);
+          results.push(...chunkResults.filter(r => r !== null));
+          if (i + CHUNK_SIZE < matchIds.length) await this.sleep(200);
+      }
+      return results;
   }
 
   async runAnomalyDetection(nickname: string, date: string, matches: Match[]): Promise<AnomalyReport> {
