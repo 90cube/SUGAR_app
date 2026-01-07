@@ -31,7 +31,7 @@ export const Home: React.FC = () => {
   };
 
   return (
-    <div className="w-full max-w-md mx-auto space-y-6 pb-12 relative flex flex-col min-h-[calc(100vh-8rem)]">
+    <div className="w-full max-w-md lg:max-w-6xl mx-auto space-y-6 pb-12 relative flex flex-col min-h-[calc(100vh-8rem)]">
       <AdminGuard>
           <button 
             onClick={openAdminEditor}
@@ -46,13 +46,10 @@ export const Home: React.FC = () => {
         <section className="space-y-8 pt-12 animate-in fade-in slide-in-from-bottom-8 duration-700">
           
           {/* Main Logo Section with Hover Reveal */}
-          <div className="relative flex flex-col items-center justify-center px-4 group z-30">
+          <div className="relative flex flex-col items-center justify-center px-4 group z-30 lg:max-w-2xl lg:mx-auto">
              {/* Text Logo Container */}
              <div className="relative w-full flex justify-center py-12 bg-white/40 backdrop-blur-xl border border-white/60 rounded-[3rem] shadow-[0_20px_60px_rgba(0,0,0,0.05)] overflow-hidden transition-all duration-500 group-hover:shadow-cyan-500/10 group-hover:border-cyan-500/30 z-20">
-                {/* Visual Glow Effect */}
                 <div className="absolute inset-0 bg-cyan-500/5 blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
-                
-                {/* Text Logo Core */}
                 <div className="relative flex-col items-center justify-center select-none cursor-default z-20 w-full font-mono">
                     <div className="flex justify-between items-center w-full px-10 sm:px-14 flex-nowrap">
                         <div className="text-6xl font-black text-slate-900 transition-all duration-500 group-hover:text-cyan-600 group-hover:scale-110">S</div>
@@ -68,7 +65,6 @@ export const Home: React.FC = () => {
                 </div>
              </div>
 
-             {/* Description Section (Overlay) - Changed to FIXED to prevent scroll expansion and center on screen */}
              <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-sm px-6 transition-all duration-500 opacity-0 scale-90 pointer-events-none group-hover:opacity-100 group-hover:scale-100 z-[100]">
                   <div className="flex flex-col items-center bg-white/95 backdrop-blur-2xl border-2 border-slate-100/50 p-8 rounded-[2.5rem] shadow-[0_20px_80px_rgba(34,211,238,0.2)]">
                       <div className="text-[11px] font-bold text-slate-500 flex flex-wrap justify-center gap-x-6 gap-y-3 text-center font-mono italic">
@@ -84,7 +80,7 @@ export const Home: React.FC = () => {
           
           <div className="h-4"></div>
 
-          <form onSubmit={handleSearch} className="space-y-4 px-2 relative z-10 font-mono">
+          <form onSubmit={handleSearch} className="space-y-4 px-2 relative z-10 font-mono lg:max-w-2xl lg:mx-auto">
             <div className="flex gap-2">
               <div className="relative flex-1 group">
                 <div className="absolute -inset-0.5 bg-cyan-400/20 rounded-[2rem] blur-sm opacity-25 group-hover:opacity-100 transition duration-500"></div>
@@ -97,7 +93,6 @@ export const Home: React.FC = () => {
                 />
               </div>
 
-              {/* Virtual Matching Button (Restored) */}
               <button 
                   type="button"
                   onClick={openVirtualMatchingModal}
@@ -138,25 +133,32 @@ export const Home: React.FC = () => {
         </section>
 
         {searchStatus === SearchStatus.SUCCESS && userProfile && (
-          <div className="space-y-5 px-1">
-            <div className="animate-in fade-in slide-in-from-bottom-8 duration-700 fill-mode-backwards" style={{ animationDelay: '100ms' }}>
-              <ProfileCard profile={userProfile} />
+          <div className="lg:grid lg:grid-cols-12 lg:gap-8 px-1">
+            {/* Left Column: Profile & Stats */}
+            <div className="lg:col-span-5 space-y-6">
+              <div className="animate-in fade-in slide-in-from-bottom-8 duration-700 fill-mode-backwards" style={{ animationDelay: '100ms' }}>
+                <ProfileCard profile={userProfile} />
+              </div>
+              <div className="grid grid-cols-2 gap-3 animate-in fade-in slide-in-from-bottom-8 duration-700 fill-mode-backwards" style={{ animationDelay: '200ms' }}>
+                <TierCard type="Solo" tier={userProfile.soloTier} />
+                <TierCard type="Party" tier={userProfile.partyTier} />
+              </div>
+              <div className="animate-in fade-in slide-in-from-bottom-8 duration-700 fill-mode-backwards" style={{ animationDelay: '300ms' }}>
+                <RecentTrend stats={userProfile.recentStats} />
+              </div>
             </div>
-            <div className="grid grid-cols-2 gap-3 animate-in fade-in slide-in-from-bottom-8 duration-700 fill-mode-backwards" style={{ animationDelay: '200ms' }}>
-              <TierCard type="Solo" tier={userProfile.soloTier} />
-              <TierCard type="Party" tier={userProfile.partyTier} />
-            </div>
-            <div className="animate-in fade-in slide-in-from-bottom-8 duration-700 fill-mode-backwards" style={{ animationDelay: '300ms' }}>
-              <RecentTrend stats={userProfile.recentStats} />
-            </div>
-            <div className="animate-in fade-in slide-in-from-bottom-8 duration-700 fill-mode-backwards" style={{ animationDelay: '400ms' }}>
-              <RecentMatches matches={userProfile.recentMatches} />
+
+            {/* Right Column: Match History */}
+            <div className="lg:col-span-7 mt-6 lg:mt-0">
+              <div className="animate-in fade-in slide-in-from-bottom-8 duration-700 fill-mode-backwards" style={{ animationDelay: '400ms' }}>
+                <RecentMatches matches={userProfile.recentMatches} />
+              </div>
             </div>
           </div>
         )}
 
         {searchStatus === SearchStatus.ERROR && (
-          <div className="animate-in fade-in zoom-in-95 duration-500 p-8 bg-slate-950 text-red-500 rounded-[3rem] text-center text-[10px] font-black border border-red-500/50 shadow-2xl font-mono">
+          <div className="animate-in fade-in zoom-in-95 duration-500 p-8 bg-slate-950 text-red-500 rounded-[3rem] text-center text-[10px] font-black border border-red-500/50 shadow-2xl font-mono lg:max-w-2xl lg:mx-auto">
             [CRITICAL_ERROR]: {pageContent.errorText.toUpperCase()}
           </div>
         )}

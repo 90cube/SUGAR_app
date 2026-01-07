@@ -56,7 +56,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       </div>
 
       <Header />
-      <main className="flex-grow container mx-auto px-4 py-6 max-w-md w-full relative z-10">
+      <main className="flex-grow container mx-auto px-4 py-6 max-w-md lg:max-w-6xl w-full relative z-10">
         {children}
       </main>
       
