@@ -186,8 +186,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       try {
         dateStat.aiAnalysis = await geminiService.analyzeDailyRecap(analysisData, matchType, matchMode);
-      } catch (e) {
-        dateStat.aiAnalysis = "분석 서버 연결 지연";
+      } catch (e: any) {
+        console.error("Analysis Error:", e);
+        dateStat.aiAnalysis = `분석 실패: ${e.message || "서버 응답 없음"}`;
       }
 
       setRecapStats({
