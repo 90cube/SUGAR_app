@@ -107,9 +107,12 @@ export const Home: React.FC = () => {
               className="w-full h-16 bg-cyan-500 text-slate-950 font-black rounded-[2rem] active:scale-[0.98] transition-all hover:bg-cyan-400 hover:shadow-[0_0_30px_rgba(34,211,238,0.4)] disabled:opacity-50 flex items-center justify-center border-b-4 border-cyan-700 tracking-[0.2em] text-xs uppercase"
             >
               {searchStatus === SearchStatus.LOADING ? (
-                <div className="flex items-center gap-3">
-                  <span className="w-5 h-5 border-3 border-slate-950/20 border-t-slate-950 rounded-full animate-spin" />
-                  <span className="animate-pulse">Analyzing...</span>
+                <div className="flex flex-col items-center">
+                  <div className="flex items-center gap-3">
+                    <span className="w-5 h-5 border-3 border-slate-950/20 border-t-slate-950 rounded-full animate-spin" />
+                    <span className="animate-pulse">Analyzing...</span>
+                  </div>
+                  <span className="text-[9px] text-slate-600 font-bold mt-1 opacity-70">NEXON OPEN API 기반 입니다.</span>
                 </div>
               ) : "Execute Analysis"}
             </button>
