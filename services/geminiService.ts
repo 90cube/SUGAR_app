@@ -77,7 +77,7 @@ export class GeminiService {
     `;
 
     try {
-      const path = `v1beta/models/gemini-pro:generateContent`; // gemini-3-pro-preview 대신 현시점 안정화된 모델명 사용 권장
+      const path = `v1beta/models/${DEFAULT_GEMINI_MODEL}:generateContent`;
       const payload = {
         contents: [{ parts: [{ text: prompt }] }]
       };
