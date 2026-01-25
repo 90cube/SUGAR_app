@@ -46,7 +46,7 @@ export default {
 
 				// Extract model from path: /gemini/v1beta/models/{model}:generateContent
 				const pathMatch = url.pathname.match(/models\/([^:\/]+)/);
-				const model = pathMatch ? pathMatch[1] : 'gemini-2.0-flash';
+				const model = pathMatch ? pathMatch[1] : 'gemini-1.5-flash';
 
 				// Use the correct Google AI API endpoint
 				const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`;
