@@ -7,8 +7,8 @@ export const API_VERSION = "v1";
  * [Su-Lab Configuration]
  */
 
-// Cloudflare Worker Base URL (배포 후 URL로 변경 필요)
-export const WORKER_BASE_URL = (import.meta as any).env?.VITE_WORKER_URL || "http://localhost:8787";
+// Cloudflare Worker Base URL
+export const WORKER_BASE_URL = (import.meta as any).env?.VITE_WORKER_URL || "https://sugarbackend.dudgh4141.workers.dev";
 
 // Nexon API Configuration
 export const NEXON_API_BASE_URL = "https://open.api.nexon.com/suddenattack/v1";
