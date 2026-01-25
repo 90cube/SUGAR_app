@@ -3,7 +3,6 @@ import React from 'react';
 import { Match, MatchResult } from '../types';
 import { UI_STRINGS } from '../constants';
 import { useApp } from '../state/AppContext';
-import { useAuth } from '../state/AuthContext';
 import { useUI } from '../state/UIContext';
 
 interface RecentMatchesProps {
@@ -20,7 +19,7 @@ const getResultStyles = (result: MatchResult) => {
 };
 
 const getResultBadge = (result: MatchResult) => {
-   switch (result) {
+  switch (result) {
     case MatchResult.WIN: return 'text-blue-700 bg-blue-100/80 shadow-[0_0_10px_rgba(59,130,246,0.2)]';
     case MatchResult.LOSE: return 'text-red-700 bg-red-100/80 shadow-[0_0_10px_rgba(239,68,68,0.2)]';
     case MatchResult.DRAW: return 'text-gray-700 bg-gray-200/80';
@@ -31,18 +30,13 @@ const getResultBadge = (result: MatchResult) => {
 export const RecentMatches: React.FC<RecentMatchesProps> = ({ matches }) => {
   const { openMatchDetail, visibleMatchCount, loadMoreMatches, isLoadingMore } = useApp();
   const { openRecapModal } = useUI();
-  const { isLoggedIn, openAuthModal } = useAuth();
 
   const displayedMatches = matches.slice(0, visibleMatchCount);
   const hasMore = visibleMatchCount < matches.length;
 
   const handleRecapClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!isLoggedIn) {
-      openAuthModal();
-    } else {
-      openRecapModal();
-    }
+    openRecapModal();
   };
 
   const handleMatchClick = (match: Match) => {
@@ -50,14 +44,14 @@ export const RecentMatches: React.FC<RecentMatchesProps> = ({ matches }) => {
   };
 
   const formatKd = (kdStr: string) => {
-      const val = parseFloat(kdStr.replace('%', ''));
-      if (isNaN(val)) return kdStr;
-      return `${val.toFixed(1)}%`;
+    const val = parseFloat(kdStr.replace('%', ''));
+    if (isNaN(val)) return kdStr;
+    return `${val.toFixed(1)}%`;
   };
 
   if (!matches || matches.length === 0) {
     return (
-       <div className="space-y-4">
+      <div className="space-y-4">
         <div className="flex items-center justify-between px-1">
           <h3 className="text-lg font-bold text-slate-900 drop-shadow-sm">최근 전적</h3>
         </div>
@@ -72,7 +66,7 @@ export const RecentMatches: React.FC<RecentMatchesProps> = ({ matches }) => {
     <div className="space-y-4">
       <div className="flex items-center justify-between px-1">
         <h3 className="text-lg font-bold text-slate-900 drop-shadow-sm">최근 전적 ({matches.length})</h3>
-        <button 
+        <button
           onClick={handleRecapClick}
           className="relative text-xs font-bold bg-slate-900 text-cyan-400 px-4 py-2 rounded-full active:scale-95 transition-all shadow-[0_0_15px_rgba(34,211,238,0.3)] hover:shadow-[0_0_25px_rgba(34,211,238,0.6)] hover:bg-cyan-500 hover:text-slate-900 flex items-center gap-1.5 border border-cyan-500/50 group"
         >
@@ -86,8 +80,8 @@ export const RecentMatches: React.FC<RecentMatchesProps> = ({ matches }) => {
 
       <div className="space-y-3">
         {displayedMatches.map((match, index) => (
-          <div 
-            key={match.id} 
+          <div
+            key={match.id}
             onClick={() => handleMatchClick(match)}
             style={{ animationDelay: `${index * 50}ms` }}
             className={`animate-in fade-in slide-in-from-bottom-2 duration-500 fill-mode-backwards relative flex items-center justify-between p-4 rounded-r-xl shadow-sm border border-white/60 border-l-4 backdrop-blur-md cursor-pointer transition-all active:scale-[0.99] hover:shadow-md ${getResultStyles(match.result)}`}
@@ -96,7 +90,7 @@ export const RecentMatches: React.FC<RecentMatchesProps> = ({ matches }) => {
               <span className="font-bold text-slate-800 text-sm">{match.matchMode}</span>
               <span className="text-xs text-slate-500 mt-0.5">{match.date}</span>
             </div>
-            
+
             <div className="flex items-center gap-4">
               <div className="text-right">
                 <div className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">K/D</div>
@@ -111,19 +105,19 @@ export const RecentMatches: React.FC<RecentMatchesProps> = ({ matches }) => {
       </div>
 
       {hasMore && (
-        <button 
-            onClick={loadMoreMatches}
-            disabled={isLoadingMore}
-            className="w-full py-3 bg-white/70 backdrop-blur-md text-slate-700 font-bold rounded-xl border border-white/60 shadow-sm active:scale-[0.98] transition-all flex items-center justify-center hover:bg-white/90 hover:shadow-lg disabled:opacity-70"
+        <button
+          onClick={loadMoreMatches}
+          disabled={isLoadingMore}
+          className="w-full py-3 bg-white/70 backdrop-blur-md text-slate-700 font-bold rounded-xl border border-white/60 shadow-sm active:scale-[0.98] transition-all flex items-center justify-center hover:bg-white/90 hover:shadow-lg disabled:opacity-70"
         >
-            {isLoadingMore ? (
-                 <div className="flex items-center gap-2">
-                    <span className="w-4 h-4 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin" />
-                    기록 불러오는 중...
-                 </div>
-            ) : (
-                `더 보기 (${matches.length - displayedMatches.length}개 남음)`
-            )}
+          {isLoadingMore ? (
+            <div className="flex items-center gap-2">
+              <span className="w-4 h-4 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin" />
+              기록 불러오는 중...
+            </div>
+          ) : (
+            `더 보기 (${matches.length - displayedMatches.length}개 남음)`
+          )}
         </button>
       )}
     </div>
