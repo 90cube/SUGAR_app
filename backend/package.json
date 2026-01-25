@@ -10,5 +10,8 @@
     "devDependencies": {
         "@cloudflare/workers-types": "^4.20240117.0",
         "wrangler": "^3.22.1"
+    },
+    "dependencies": {
+        "@google/genai": "^1.38.0"
     }
 }
