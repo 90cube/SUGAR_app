@@ -17,7 +17,7 @@ export const NEXON_API_BASE_URL = "https://open.api.nexon.com/suddenattack/v1";
 export const NEXON_SA_LOGO_URL = "https://rs.nxfs.nexon.com/common/logo/logo_suddenattack.png";
 
 // Default Gemini Model
-export const DEFAULT_GEMINI_MODEL = "gemini-1.5-flash";
+export const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
 
 export const UI_STRINGS = {
   loading: "실험 데이터 로딩 중...",
