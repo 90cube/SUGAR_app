@@ -3,6 +3,10 @@
 declare global {
   interface Window {
     google: any;
+    aistudio?: {
+      hasSelectedApiKey?: () => Promise<boolean>;
+      openSelectKey?: () => Promise<void>;
+    };
   }
 }
 
@@ -21,13 +25,13 @@ export enum MatchResult {
 }
 
 export interface Match {
-  id: string; 
+  id: string;
   result: MatchResult;
   matchType: string;
   matchMode: string;
   kd: string;
-  date: string; 
-  rawDate: string; 
+  date: string;
+  rawDate: string;
   kill: number;
   death: number;
   assist: number;
@@ -35,7 +39,7 @@ export interface Match {
 
 export interface PlayerMatchDetail {
   team_id: string;
-  match_result: string; 
+  match_result: string;
   user_name: string;
   season_grade: string;
   guild_name: string | null;
@@ -54,7 +58,7 @@ export interface MatchDetail extends Match {
     date_match: string;
     match_map: string;
     match_detail: PlayerMatchDetail[];
-  }; 
+  };
 }
 
 export interface RankMatchState {
@@ -71,23 +75,10 @@ export interface RecentStats {
   specialRate: number;
 }
 
-export interface AuthUser {
-  id: string;
-  loginId?: string;
-  name: string;
-  email: string;
-  picture?: string;
-  role: 'admin' | 'user';
-  isEmailVerified?: boolean;
-  isPhoneVerified?: boolean;
-  phone?: string;
-}
-
 export interface UserProfile {
-  ouid: string; 
+  ouid: string;
   nickname: string;
-  isAdmin?: boolean;
-  overallGrade: string; 
+  overallGrade: string;
   overallExp: number;
   overallRanking: number;
   seasonGrade: string;
@@ -102,13 +93,13 @@ export interface UserProfile {
 
 // 상세 모드별 통계
 export interface ModeStat {
-    modeName: string; // "폭파미션 (랭크전 솔로)" 형태 또는 단순 결합
-    matchCount: number;
-    winRate: number;
-    kd: number;
-    kills: number;
-    deaths: number;
-    aiAnalysis?: string; // 모드별 전용 피드백
+  modeName: string;
+  matchCount: number;
+  winRate: number;
+  kd: number;
+  kills: number;
+  deaths: number;
+  aiAnalysis?: string;
 }
 
 export interface RecapStats {
@@ -136,55 +127,8 @@ export interface AnomalyReport {
   };
 }
 
-// SQL 스키마와 동일한 소문자 값 사용
-export type BoardType = 'update' | 'balance' | 'kukkuk' | 'streaming' | 'temp' | 'hidden';
-
-export interface CommunityPost {
-  id: string;
-  boardType: BoardType;
-  title: string;
-  content: string;
-  author: string;
-  authorId: string; 
-  authorRole: 'admin' | 'user';
-  createdAt: string;
-  heads: number;      // 추천 (Headshot)
-  halfshots: number;  // 비추천 (Halfshot)
-  blueVotes: number;  // 투표 A (Blue)
-  redVotes: number;   // 투표 B (Red)
-  views: number;
-  thumbnail?: string;
-  imageUrl?: string;
-  thumbnailUrl?: string;
-  commentCount: number;
-  status: 'APPROVED' | 'PENDING' | 'HIDDEN' | 'DELETED'; 
-  isHidden?: boolean;
-  blueOption?: string;
-  redOption?: string;
-}
-
-export interface CommunityComment {
-  id: string;
-  postId: string;
-  authorId: string;
-  authorNickname: string;
-  content: string;
-  createdAt: string;
-  teamType: 'BLUE' | 'RED' | 'GRAY';
-}
-
-export interface CommunityUserProfile {
-  nickname: string;
-  joinDate: string;
-  postCount: number;
-  commentCount: number;
-  guillotineCount: number;
-}
-
 export interface PageContent {
-    welcomeTitle: string;
-    loadingText: string;
-    errorText: string;
-    anomalyButtonText: string;
-    searchButtonText: string;
+  welcomeText?: string;
+  loadingText: string;
+  errorText: string;
 }

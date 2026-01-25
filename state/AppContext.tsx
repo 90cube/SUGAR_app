@@ -1,12 +1,16 @@
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { SearchStatus, UserProfile, MatchDetail, Match, RecapStats, MatchResult, AnomalyReport, PageContent, ModeStat } from '../types';
 import { nexonService } from '../services/nexonService';
-import { cloudStorageService } from '../services/cloudStorageService';
 import { geminiService, ComparativeStats } from '../services/geminiService';
-import { communityService } from '../services/communityService';
-import { useAuth } from './AuthContext';
 import { useUI } from './UIContext';
+
+// Default page content (previously from cloudStorageService)
+const DEFAULT_PAGE_CONTENT: PageContent = {
+  loadingText: "실험 데이터 로딩 중...",
+  errorText: "피험자를 찾을 수 없습니다. (ID 확인 요망)",
+  welcomeText: "전적 연구소"
+};
 
 interface AppContextType {
   searchStatus: SearchStatus;
@@ -14,9 +18,6 @@ interface AppContextType {
   userProfile: UserProfile | null;
   searchUser: (nickname: string) => Promise<void>;
   pageContent: PageContent;
-  updatePageContent: (newContent: PageContent) => Promise<void>;
-  isSavingContent: boolean;
-  openCommunityUserProfile: (nickname: string, authorId?: string) => void;
   visibleMatchCount: number;
   loadMoreMatches: () => Promise<void>;
   isLoadingMore: boolean;
@@ -37,13 +38,11 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const { authUser } = useAuth();
-  const { setSelectedCommunityUser, openAnalysisModal } = useUI();
-  
+  const { openAnalysisModal } = useUI();
+
   const [searchStatus, setSearchStatus] = useState<SearchStatus>(SearchStatus.IDLE);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [pageContent, setPageContent] = useState<PageContent>(cloudStorageService.getDefaultContent());
-  const [isSavingContent, setIsSavingContent] = useState(false);
+  const [pageContent] = useState<PageContent>(DEFAULT_PAGE_CONTENT);
   const [visibleMatchCount, setVisibleMatchCount] = useState(10);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [activeMatch, setActiveMatch] = useState<Match | null>(null);
@@ -54,32 +53,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [anomalyReport, setAnomalyReport] = useState<AnomalyReport | null>(null);
   const [isAnomalyLoading, setIsAnomalyLoading] = useState(false);
 
-  useEffect(() => {
-     cloudStorageService.fetchContentConfig().then(setPageContent);
-  }, []);
-
-  const updatePageContent = async (newContent: PageContent) => {
-      setIsSavingContent(true);
-      const success = await cloudStorageService.saveContentConfig(newContent);
-      if (success) setPageContent(newContent);
-      setIsSavingContent(false);
-  };
-
-  const openCommunityUserProfile = async (nickname: string, authorId?: string) => {
-      const targetId = authorId || (nickname === authUser?.name ? authUser?.id : undefined);
-      const profile = await communityService.getCommunityUserProfile(nickname, targetId);
-      setSelectedCommunityUser({ ...profile, authorId: targetId });
-  };
-
   const openMatchDetail = async (match: Match) => {
     setActiveMatch(match);
     setIsMatchDetailLoading(true);
-    setActiveMatchDetail(null); 
+    setActiveMatchDetail(null);
     try {
       const detailData = await nexonService.getMatchDetail(match.id);
       setActiveMatchDetail({ ...match, RawData: detailData });
     } catch (e) {
-      setActiveMatchDetail({ ...match }); 
+      setActiveMatchDetail({ ...match });
     } finally {
       setIsMatchDetailLoading(false);
     }
@@ -89,7 +71,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const searchUser = async (nickname: string) => {
     setSearchStatus(SearchStatus.LOADING);
-    setVisibleMatchCount(10); 
+    setVisibleMatchCount(10);
     setAnomalyReport(null);
     try {
       const profile = await nexonService.fetchFullProfile(nickname);
@@ -118,102 +100,101 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     // API Key Check
     if (window.aistudio && window.aistudio.hasSelectedApiKey && !(await window.aistudio.hasSelectedApiKey())) {
-       try {
-           await window.aistudio.openSelectKey();
-       } catch (e) {
-           alert("API 키 설정이 필요합니다.");
-           return;
-       }
+      try {
+        await window.aistudio.openSelectKey();
+      } catch (e) {
+        alert("API 키 설정이 필요합니다.");
+        return;
+      }
     }
 
     setIsRecapLoading(true);
     setRecapStats(null);
-    
+
     try {
       // 1. Target Matches (Selected Date + Type + Mode)
-      const targetMatches = userProfile.recentMatches.filter(m => 
+      const targetMatches = userProfile.recentMatches.filter(m =>
         m.rawDate.startsWith(date) && m.matchType === matchType && m.matchMode === matchMode
       );
 
       // 2. All Matches (History + Type + Mode) for Baseline Comparison
-      const allMatches = userProfile.recentMatches.filter(m => 
+      const allMatches = userProfile.recentMatches.filter(m =>
         m.matchType === matchType && m.matchMode === matchMode
       );
 
       // Helper for stat calculation
       const calcStats = (matches: Match[]): ModeStat => {
-          if (matches.length === 0) {
-              return { modeName: `${matchType}/${matchMode}`, matchCount: 0, winRate: 0, kd: 0, kills: 0, deaths: 0 };
-          }
-          const wins = matches.filter(m => m.result === MatchResult.WIN).length;
-          const totalKills = matches.reduce((sum, m) => sum + m.kill, 0);
-          const totalDeaths = matches.reduce((sum, m) => sum + m.death, 0);
-          const winRate = parseFloat(((wins / matches.length) * 100).toFixed(1));
-          const kd = totalDeaths === 0 ? (totalKills > 0 ? 100 : 0) : parseFloat(((totalKills / totalDeaths) * 100).toFixed(1));
-          return {
-              modeName: `${matchType}/${matchMode}`,
-              matchCount: matches.length,
-              winRate,
-              kd,
-              kills: totalKills,
-              deaths: totalDeaths
-          };
+        if (matches.length === 0) {
+          return { modeName: `${matchType}/${matchMode}`, matchCount: 0, winRate: 0, kd: 0, kills: 0, deaths: 0 };
+        }
+        const wins = matches.filter(m => m.result === MatchResult.WIN).length;
+        const totalKills = matches.reduce((sum, m) => sum + m.kill, 0);
+        const totalDeaths = matches.reduce((sum, m) => sum + m.death, 0);
+        const winRate = parseFloat(((wins / matches.length) * 100).toFixed(1));
+        const kd = totalDeaths === 0 ? (totalKills > 0 ? 100 : 0) : parseFloat(((totalKills / totalDeaths) * 100).toFixed(1));
+        return {
+          modeName: `${matchType}/${matchMode}`,
+          matchCount: matches.length,
+          winRate,
+          kd,
+          kills: totalKills,
+          deaths: totalDeaths
+        };
       };
 
       const dateStat = calcStats(targetMatches);
       const overallStat = calcStats(allMatches);
 
       if (targetMatches.length === 0) {
-          setRecapStats({
-              date,
-              matchType,
-              matchMode,
-              stat: { ...dateStat, aiAnalysis: "해당 조건의 매치 기록이 없습니다." }
-          });
-          setIsRecapLoading(false);
-          return;
+        setRecapStats({
+          date,
+          matchType,
+          matchMode,
+          stat: { ...dateStat, aiAnalysis: "해당 조건의 매치 기록이 없습니다." }
+        });
+        setIsRecapLoading(false);
+        return;
       }
 
       // 3. Fetch Detailed Logs for Target Matches (Batch)
-      // This is the "Deep Dive" step
       const matchIds = targetMatches.map(m => m.id);
       let detailedLogsStr = "상세 정보 없음";
-      
+
       try {
-          const rawDetails = await nexonService.fetchMatchDetailsBatch(matchIds);
-          
-          detailedLogsStr = rawDetails.map((detail: any, idx) => {
-              const myData = detail.match_detail.find((p: any) => p.user_name === userProfile.nickname);
-              const mapName = detail.match_map || "알 수 없는 맵";
-              const result = targetMatches[idx]?.result || "N/A"; // fallback
-              
-              if (!myData) return `- Match ${idx+1}: 데이터 손상`;
-              return `- [Match ${idx+1}] 맵: ${mapName} | 결과: ${result} | 기록: ${myData.kill}K ${myData.death}D (${myData.headshot}HS) | 데미지: ${myData.damage}`;
-          }).join("\n");
+        const rawDetails = await nexonService.fetchMatchDetailsBatch(matchIds);
+
+        detailedLogsStr = rawDetails.map((detail: any, idx) => {
+          const myData = detail.match_detail.find((p: any) => p.user_name === userProfile.nickname);
+          const mapName = detail.match_map || "알 수 없는 맵";
+          const result = targetMatches[idx]?.result || "N/A"; // fallback
+
+          if (!myData) return `- Match ${idx + 1}: 데이터 손상`;
+          return `- [Match ${idx + 1}] 맵: ${mapName} | 결과: ${result} | 기록: ${myData.kill}K ${myData.death}D (${myData.headshot}HS) | 데미지: ${myData.damage}`;
+        }).join("\n");
 
       } catch (err) {
-          console.error("Failed to fetch batch details", err);
-          detailedLogsStr = "상세 매치 로그 조회 실패 (API 오류)";
+        console.error("Failed to fetch batch details", err);
+        detailedLogsStr = "상세 매치 로그 조회 실패 (API 오류)";
       }
 
       // 4. AI Analysis with Comparison & Details
       const analysisData: ComparativeStats = {
-          dateStat,
-          overallStat,
-          details: detailedLogsStr
+        dateStat,
+        overallStat,
+        details: detailedLogsStr
       };
 
       try {
-          dateStat.aiAnalysis = await geminiService.analyzeDailyRecap(analysisData, matchType, matchMode);
+        dateStat.aiAnalysis = await geminiService.analyzeDailyRecap(analysisData, matchType, matchMode);
       } catch (e) {
-          dateStat.aiAnalysis = "분석 서버 연결 지연";
+        dateStat.aiAnalysis = "분석 서버 연결 지연";
       }
 
       setRecapStats({
-          date,
-          matchType,
-          matchMode,
-          stat: dateStat
+        date,
+        matchType,
+        matchMode,
+        stat: dateStat
       });
 
     } catch (e) {
@@ -248,14 +229,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   return (
-    <AppContext.Provider value={{ 
+    <AppContext.Provider value={{
       searchStatus, setSearchStatus, userProfile, searchUser,
       activeMatch, activeMatchDetail, isMatchDetailLoading, openMatchDetail, closeMatchDetail,
       visibleMatchCount, loadMoreMatches, isLoadingMore,
       recapStats, calculateRecap, isRecapLoading,
       performAnomalyCheck, anomalyReport, isAnomalyLoading,
-      pageContent, updatePageContent, isSavingContent,
-      openCommunityUserProfile,
+      pageContent,
       openKeySelector
     }}>
       {children}
