@@ -32,7 +32,7 @@ export class GeminiService {
 
   public async generateText(prompt: string): Promise<string> {
     try {
-      const path = `v1beta/models/${DEFAULT_GEMINI_MODEL}:generateContent`;
+      const path = `v1alpha/models/${DEFAULT_GEMINI_MODEL}:generateContent`;
       const payload = {
         contents: [{ parts: [{ text: prompt }] }]
       };
@@ -77,7 +77,7 @@ export class GeminiService {
     `;
 
     try {
-      const path = `v1beta/models/${DEFAULT_GEMINI_MODEL}:generateContent`;
+      const path = `v1alpha/models/${DEFAULT_GEMINI_MODEL}:generateContent`;
       const payload = {
         contents: [{ parts: [{ text: prompt }] }]
       };
@@ -136,7 +136,7 @@ export class GeminiService {
       `;
 
     try {
-      const path = `v1beta/models/${DEFAULT_GEMINI_MODEL}:generateContent`;
+      const path = `v1alpha/models/${DEFAULT_GEMINI_MODEL}:generateContent`;
       const payload = {
         contents: [{ parts: [{ text: prompt }] }]
       };
@@ -169,7 +169,7 @@ export class GeminiService {
     try {
       // Worker를 통한 Google Search 기능은 워커 구현에 따라 달라질 수 있으므로, 
       // 여기서는 기본 텍스트 생성을 수행합니다.
-      const path = `v1beta/models/${DEFAULT_GEMINI_MODEL}:generateContent`;
+      const path = `v1alpha/models/${DEFAULT_GEMINI_MODEL}:generateContent`;
       const payload = {
         contents: [{ parts: [{ text: prompt }] }]
       };
@@ -210,7 +210,7 @@ export class GeminiService {
   public async generateFormalRejection(rawReason: string): Promise<string> {
     const prompt = `Su-Lab 커뮤니티 운영자로서 정중한 반려 사유를 작성하십시오: "${rawReason}"`;
     try {
-      const path = `v1beta/models/${DEFAULT_GEMINI_MODEL}:generateContent`;
+      const path = `v1alpha/models/${DEFAULT_GEMINI_MODEL}:generateContent`;
       const payload = {
         contents: [{ parts: [{ text: prompt }] }]
       };
