@@ -4,6 +4,7 @@
     "private": true,
     "scripts": {
         "dev": "wrangler dev",
+        "build": "echo 'Build handled by Cloudflare Workers'",
         "deploy": "wrangler deploy"
     },
     "devDependencies": {
