@@ -1,0 +1,8 @@
+name = "sugar-app-worker"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+[vars]
+# 사용자가 직접 워커 대시보드에서 등록해야 하는 변수들 (예시용 주석)
+# NEXON_API_KEY = "..."
+# GEMINI_API_KEY = "..."

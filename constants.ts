@@ -7,12 +7,14 @@ export const API_VERSION = "v1";
  * [Su-Lab Configuration]
  */
 
+// Cloudflare Worker Base URL (배포 후 URL로 변경 필요)
+export const WORKER_BASE_URL = (import.meta as any).env?.VITE_WORKER_URL || "http://localhost:8787";
+
 // Nexon API Configuration
-export const NEXON_API_KEY = (import.meta as any).env?.VITE_NEXON_API_KEY || "test_93beb7a0e000d7813a59226b7cc14b63de9e0ccb7dd76887c2a5135de18cf808efe8d04e6d233bd35cf2fabdeb93fb0d";
 export const NEXON_API_BASE_URL = "https://open.api.nexon.com/suddenattack/v1";
 
 // Logo URL
-export const NEXON_SA_LOGO_URL = "https://rs.nxfs.nexon.com/common/logo/logo_suddenattack.png"; 
+export const NEXON_SA_LOGO_URL = "https://rs.nxfs.nexon.com/common/logo/logo_suddenattack.png";
 
 // Default Gemini Model
 export const DEFAULT_GEMINI_MODEL = "gemini-3-flash-preview";
@@ -23,8 +25,8 @@ export const GOOGLE_CLIENT_ID = "770615003528-nbag5q4n1d8vcpnsjkuqqa0t57csbjm3.a
 /**
  * Supabase Config
  */
-export const SUPABASE_URL = "https://uwjjnncbpyhwslnipons.supabase.co"; 
-export const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV3ampubmNicHlod3Nsbmlwb25zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY1Mjc2MjUsImV4cCI6MjA4MjEwMzYyNX0.CGahTXEhj1kPCnU389xrquf_TMd7q1XLvnNmAEqxGqc";
+export const SUPABASE_URL = "https://uwjjnncbpyhwslnipons.supabase.co";
+export const SUPABASE_ANON_KEY = ""; // 워커 또는 환경 변수에서 처리됨
 
 // Storage Bucket Config
 export const IMAGE_BUCKET = "common-images"; // Default bucket

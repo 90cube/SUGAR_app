@@ -1,10 +1,10 @@
 
-import { NEXON_API_KEY, NEXON_API_BASE_URL } from '../constants';
+import { NEXON_API_BASE_URL, WORKER_BASE_URL } from '../constants';
 import { Match, MatchDetail, MatchResult, RankMatchState, RecentStats, UserProfile, AnomalyReport } from '../types';
 
 const ERROR_CODES: Record<string, string> = {
   "OPENAPI00001": "서버 내부 오류",
-  "OPENAPI00002": "API 키 만료", 
+  "OPENAPI00002": "API 키 만료",
   "OPENAPI00003": "잘못된 식별자",
   "OPENAPI00004": "잘못된 파라미터",
   "OPENAPI00005": "유효하지 않은 API 키",
@@ -22,7 +22,7 @@ class NexonService {
       const date = new Date(utcDateString);
       // UTC to KST (UTC+9)
       const kstDate = new Date(date.getTime() + (9 * 60 * 60 * 1000));
-      
+
       const yyyy = kstDate.getUTCFullYear();
       const mm = String(kstDate.getUTCMonth() + 1).padStart(2, '0');
       const dd = String(kstDate.getUTCDate()).padStart(2, '0');
@@ -43,14 +43,17 @@ class NexonService {
 
   private async fetchWithProxy(targetUrl: string) {
     const headers = {
-      'x-nxopen-api-key': NEXON_API_KEY,
       'accept': 'application/json'
     };
 
     try {
-      const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
-      
-      const response = await fetch(proxyUrl, {
+      // 기존 corsproxy 대신 Cloudflare Worker 사용
+      // targetUrl: https://open.api.nexon.com/suddenattack/v1/...
+      // workerPath: /nexon/suddenattack/v1/...
+      const urlObj = new URL(targetUrl);
+      const workerUrl = `${WORKER_BASE_URL}/nexon${urlObj.pathname}${urlObj.search}`;
+
+      const response = await fetch(workerUrl, {
         method: 'GET',
         headers: headers
       });
@@ -58,12 +61,12 @@ class NexonService {
       if (!response.ok) {
         const text = await response.text();
         let errorData;
-        try { 
-          errorData = JSON.parse(text); 
-        } catch { 
-          errorData = { error: { name: "UNKNOWN", message: text } }; 
+        try {
+          errorData = JSON.parse(text);
+        } catch {
+          errorData = { error: { name: "UNKNOWN", message: text } };
         }
-        
+
         const errorCode = errorData?.error?.name;
         if (errorCode && ERROR_CODES[errorCode]) {
           throw new Error(ERROR_CODES[errorCode]);
@@ -118,13 +121,13 @@ class NexonService {
     try {
       const basic = await this.fetchWithProxy(`${NEXON_API_BASE_URL}/user/basic?ouid=${ouid}`);
       await this.sleep(150);
-      
+
       const rank = await this.fetchWithProxy(`${NEXON_API_BASE_URL}/user/rank?ouid=${ouid}`).catch(() => null);
       await this.sleep(150);
-      
+
       const tier = await this.fetchWithProxy(`${NEXON_API_BASE_URL}/user/tier?ouid=${ouid}`).catch(() => null);
       await this.sleep(150);
-      
+
       const recent = await this.fetchWithProxy(`${NEXON_API_BASE_URL}/user/recent-info?ouid=${ouid}`).catch(() => null);
 
       const matches: Match[] = [];
@@ -139,7 +142,7 @@ class NexonService {
               // User Request: Type = Bomb Mission, Mode = Ranked Solo
               // API Response: match_mode = Bomb Mission, match_type = Ranked Solo (usually)
               // Therefore: matchType = m.match_mode, matchMode = m.match_type
-              matchType: m.match_mode, 
+              matchType: m.match_mode,
               matchMode: m.match_type,
               date: this.formatToKST(m.date_match), // Convert to KST
               rawDate: m.date_match,
@@ -149,7 +152,7 @@ class NexonService {
               kd: m.death === 0 ? `${m.kill * 100}%` : `${((m.kill / m.death) * 100).toFixed(0)}%`
             })));
           }
-        } catch {}
+        } catch { }
       }
 
       return {
@@ -192,23 +195,23 @@ class NexonService {
   }
 
   async fetchMatchDetailsBatch(matchIds: string[]): Promise<any[]> {
-      const results = [];
-      const CHUNK_SIZE = 5;
-      for (let i = 0; i < matchIds.length; i += CHUNK_SIZE) {
-          const chunk = matchIds.slice(i, i + CHUNK_SIZE);
-          const promises = chunk.map(id => this.getMatchDetail(id).catch(e => null));
-          const chunkResults = await Promise.all(promises);
-          results.push(...chunkResults.filter(r => r !== null));
-          if (i + CHUNK_SIZE < matchIds.length) await this.sleep(200);
-      }
-      return results;
+    const results = [];
+    const CHUNK_SIZE = 5;
+    for (let i = 0; i < matchIds.length; i += CHUNK_SIZE) {
+      const chunk = matchIds.slice(i, i + CHUNK_SIZE);
+      const promises = chunk.map(id => this.getMatchDetail(id).catch(e => null));
+      const chunkResults = await Promise.all(promises);
+      results.push(...chunkResults.filter(r => r !== null));
+      if (i + CHUNK_SIZE < matchIds.length) await this.sleep(200);
+    }
+    return results;
   }
 
   async runAnomalyDetection(nickname: string, date: string, matches: Match[]): Promise<AnomalyReport> {
     try {
       const dayMatches = matches.filter(m => m.rawDate.startsWith(date));
       if (dayMatches.length === 0) throw new Error("오늘 플레이한 경기가 없습니다.");
-      
+
       const kills = dayMatches.reduce((a, b) => a + b.kill, 0);
       const deaths = dayMatches.reduce((a, b) => a + b.death, 0);
       const avgKd = deaths === 0 ? kills : kills / deaths;

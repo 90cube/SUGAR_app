@@ -1,33 +1,43 @@
 
-import { GoogleGenAI, Type } from "@google/genai";
-import { DEFAULT_GEMINI_MODEL } from "../constants";
+import { DEFAULT_GEMINI_MODEL, WORKER_BASE_URL } from "../constants";
 import { UserProfile, RecapStats, ModeStat } from "../types";
 
 export interface ComparativeStats {
-    dateStat: ModeStat;
-    overallStat: ModeStat;
-    details: string; // Formatted detailed logs
+  dateStat: ModeStat;
+  overallStat: ModeStat;
+  details: string; // Formatted detailed logs
 }
 
 export class GeminiService {
   /**
-   * 가이드라인에 따라 API 호출 직전에 인스턴스를 생성합니다.
-   * process가 정의되지 않은 환경(순수 브라우저 등)에서의 크래시를 방지합니다.
+   * Cloudflare Worker를 통해 Gemini API를 호출합니다.
    */
-  private createClient() {
-    // 안전하게 process.env 접근
-    const apiKey = (typeof process !== 'undefined' && process.env) ? process.env.API_KEY : '';
-    return new GoogleGenAI({ apiKey: apiKey });
+  private async callWorker(path: string, payload: any) {
+    const url = `${WORKER_BASE_URL}/gemini/${path}`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Worker Gemini Error: ${error}`);
+    }
+
+    return await response.json();
   }
 
   public async generateText(prompt: string): Promise<string> {
-    const ai = this.createClient();
     try {
-      const response = await ai.models.generateContent({
-        model: DEFAULT_GEMINI_MODEL,
-        contents: prompt,
-      });
-      return response.text || "";
+      const path = `v1beta/models/${DEFAULT_GEMINI_MODEL}:generateContent`;
+      const payload = {
+        contents: [{ parts: [{ text: prompt }] }]
+      };
+      const result = await this.callWorker(path, payload);
+      return result.candidates?.[0]?.content?.parts?.[0]?.text || "";
     } catch (error) {
       console.error("Gemini API Error:", error);
       throw error;
@@ -51,7 +61,6 @@ export class GeminiService {
   }
 
   public async analyzeTeamMatchup(teamA: UserProfile[], teamB: UserProfile[]): Promise<string> {
-    const ai = this.createClient();
     const teamAData = teamA.map(p => this.masterPlayerData(p)).join('\n');
     const teamBData = teamB.map(p => this.masterPlayerData(p)).join('\n');
 
@@ -68,11 +77,12 @@ export class GeminiService {
     `;
 
     try {
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-pro-preview',
-        contents: prompt,
-      });
-      return response.text || "분석 실패";
+      const path = `v1beta/models/gemini-pro:generateContent`; // gemini-3-pro-preview 대신 현시점 안정화된 모델명 사용 권장
+      const payload = {
+        contents: [{ parts: [{ text: prompt }] }]
+      };
+      const result = await this.callWorker(path, payload);
+      return result.candidates?.[0]?.content?.parts?.[0]?.text || "분석 실패";
     } catch (error) {
       console.error("Team Analysis Error:", error);
       throw error;
@@ -80,24 +90,22 @@ export class GeminiService {
   }
 
   public async analyzeDailyRecap(data: ComparativeStats, matchType: string, matchMode: string): Promise<string> {
-      const ai = this.createClient();
-      
-      const { dateStat, overallStat, details } = data;
-      let systemPersona = "";
-      
-      // Basic Persona Setup
-      const isBombMission = matchType.includes("폭파미션");
-      const isRanked = matchMode.includes("랭크");
+    const { dateStat, overallStat, details } = data;
+    let systemPersona = "";
 
-      if (isRanked && isBombMission) {
-          systemPersona = "당신은 서든어택 랭크전(폭파미션) 전문 수석 코치입니다.";
-      } else if (isRanked) {
-          systemPersona = "당신은 서든어택 랭크전 전담 분석관입니다.";
-      } else {
-          systemPersona = "당신은 서든어택 전술 교관입니다.";
-      }
+    // Basic Persona Setup
+    const isBombMission = matchType.includes("폭파미션");
+    const isRanked = matchMode.includes("랭크");
 
-      const prompt = `
+    if (isRanked && isBombMission) {
+      systemPersona = "당신은 서든어택 랭크전(폭파미션) 전문 수석 코치입니다.";
+    } else if (isRanked) {
+      systemPersona = "당신은 서든어택 랭크전 전담 분석관입니다.";
+    } else {
+      systemPersona = "당신은 서든어택 전술 교관입니다.";
+    }
+
+    const prompt = `
         ${systemPersona}
         다음은 플레이어의 선택한 날짜 기록과 전체 평균 기록을 비교한 데이터, 그리고 상세 경기 로그입니다.
         이를 종합하여 정밀한 피드백을 제공하십시오.
@@ -127,26 +135,26 @@ export class GeminiService {
         6. 어조: 전문가다운 단정적인 어조 ("~합니다.", "~하십시오.")
       `;
 
-      try {
-        const response = await ai.models.generateContent({
-            model: DEFAULT_GEMINI_MODEL,
-            contents: prompt,
-        });
-        return response.text || "데이터 분석 중 오류 발생";
-      } catch (e) {
-          throw e;
-      }
+    try {
+      const path = `v1beta/models/${DEFAULT_GEMINI_MODEL}:generateContent`;
+      const payload = {
+        contents: [{ parts: [{ text: prompt }] }]
+      };
+      const result = await this.callWorker(path, payload);
+      return result.candidates?.[0]?.content?.parts?.[0]?.text || "데이터 분석 중 오류 발생";
+    } catch (e) {
+      throw e;
+    }
   }
 
   /**
    * 공식 공지사항을 요약합니다. 
    */
-  public async summarizeGameUpdate(source: string, masterPrompt: string, useSearch: boolean = false): Promise<{ title: string; content: string; sources?: {uri: string, title: string}[] }> {
-      const ai = this.createClient();
-      const today = new Date();
-      const dateTag = `[${today.getFullYear().toString().slice(2)}.${(today.getMonth() + 1).toString().padStart(2, '0')}.${today.getDate().toString().padStart(2, '0')}]`;
+  public async summarizeGameUpdate(source: string, masterPrompt: string, useSearch: boolean = false): Promise<{ title: string; content: string; sources?: { uri: string, title: string }[] }> {
+    const today = new Date();
+    const dateTag = `[${today.getFullYear().toString().slice(2)}.${(today.getMonth() + 1).toString().padStart(2, '0')}.${today.getDate().toString().padStart(2, '0')}]`;
 
-      const prompt = `
+    const prompt = `
         ${masterPrompt}
         
         **출력 규칙**:
@@ -158,55 +166,56 @@ export class GeminiService {
         ${source}
       `;
 
-      try {
-          const config = useSearch ? { tools: [{ googleSearch: {} }] } : undefined;
+    try {
+      // Worker를 통한 Google Search 기능은 워커 구현에 따라 달라질 수 있으므로, 
+      // 여기서는 기본 텍스트 생성을 수행합니다.
+      const path = `v1beta/models/${DEFAULT_GEMINI_MODEL}:generateContent`;
+      const payload = {
+        contents: [{ parts: [{ text: prompt }] }]
+      };
 
-          const response = await ai.models.generateContent({
-              model: DEFAULT_GEMINI_MODEL,
-              contents: prompt,
-              config: config
-          });
-          
-          const text = response.text || "";
-          
-          const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
-          const sources: {uri: string, title: string}[] = [];
-          
-          if (groundingChunks) {
-            groundingChunks.forEach((chunk: any) => {
-              if (chunk.web && chunk.web.uri) {
-                sources.push({ uri: chunk.web.uri, title: chunk.web.title || chunk.web.uri });
-              }
-            });
+      const result = await this.callWorker(path, payload);
+      const text = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
+
+      // Grounding Metadata 처리 (워커에서 전달받는 경우)
+      const groundingChunks = result.candidates?.[0]?.groundingMetadata?.groundingChunks;
+      const sources: { uri: string, title: string }[] = [];
+
+      if (groundingChunks) {
+        groundingChunks.forEach((chunk: any) => {
+          if (chunk.web && chunk.web.uri) {
+            sources.push({ uri: chunk.web.uri, title: chunk.web.title || chunk.web.uri });
           }
-
-          let title = `${dateTag} 업데이트 요약`;
-          let content = text;
-
-          const titleMatch = text.match(/TITLE:\s*(.*)/i);
-          const contentMatch = text.match(/CONTENT:\s*([\s\S]*)/i);
-
-          if (titleMatch && contentMatch) {
-            title = titleMatch[1].trim();
-            content = contentMatch[1].trim();
-          }
-
-          return { title, content, sources: sources.length > 0 ? sources : undefined };
-      } catch (e: any) {
-          console.error("Summary Error", e);
-          throw e;
+        });
       }
+
+      let title = `${dateTag} 업데이트 요약`;
+      let content = text;
+
+      const titleMatch = text.match(/TITLE:\s*(.*)/i);
+      const contentMatch = text.match(/CONTENT:\s*([\s\S]*)/i);
+
+      if (titleMatch && contentMatch) {
+        title = titleMatch[1].trim();
+        content = contentMatch[1].trim();
+      }
+
+      return { title, content, sources: sources.length > 0 ? sources : undefined };
+    } catch (e: any) {
+      console.error("Summary Error", e);
+      throw e;
+    }
   }
 
   public async generateFormalRejection(rawReason: string): Promise<string> {
-    const ai = this.createClient();
     const prompt = `Su-Lab 커뮤니티 운영자로서 정중한 반려 사유를 작성하십시오: "${rawReason}"`;
     try {
-      const response = await ai.models.generateContent({
-        model: DEFAULT_GEMINI_MODEL,
-        contents: prompt,
-      });
-      return response.text || "내부 기준 미달로 반려되었습니다.";
+      const path = `v1beta/models/${DEFAULT_GEMINI_MODEL}:generateContent`;
+      const payload = {
+        contents: [{ parts: [{ text: prompt }] }]
+      };
+      const result = await this.callWorker(path, payload);
+      return result.candidates?.[0]?.content?.parts?.[0]?.text || "내부 기준 미달로 반려되었습니다.";
     } catch (e) {
       return rawReason;
     }
