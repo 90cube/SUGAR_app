@@ -49,6 +49,16 @@ export const Header: React.FC = () => {
           >
             가상 매칭
           </button>
+
+          <a
+            href="https://buymeacoffee.com/dudgh41410"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-8 h-8 flex items-center justify-center bg-yellow-400 text-slate-900 rounded-2xl shadow-lg border-2 border-yellow-300 hover:scale-110 active:scale-95 transition-transform"
+            title="Buy me a coffee"
+          >
+            ☕
+          </a>
         </div>
       </div>
     </header>
