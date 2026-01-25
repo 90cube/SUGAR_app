@@ -1,5 +1,3 @@
-import { GoogleGenAI } from "@google/genai";
-
 export interface Env {
 	NEXON_API_KEY: string;
 	GEMINI_API_KEY: string;
@@ -38,54 +36,33 @@ export default {
 				return response;
 			}
 
-			// 2. Gemini API via SDK
+			// 2. Gemini API Direct Call
 			if (url.pathname.startsWith('/gemini/')) {
 				if (request.method !== 'POST') {
 					return new Response('Method Not Allowed', { status: 405, headers: corsHeaders });
 				}
 
-				const body = await request.json() as { model?: string; contents: any[] };
+				const body = await request.json() as any;
 
-				// Extract model from path or body
-				// Path format: /gemini/v1beta/models/{model}:generateContent
+				// Extract model from path: /gemini/v1beta/models/{model}:generateContent
 				const pathMatch = url.pathname.match(/models\/([^:\/]+)/);
-				const model = pathMatch ? pathMatch[1] : (body.model || 'gemini-2.0-flash');
+				const model = pathMatch ? pathMatch[1] : 'gemini-2.0-flash';
 
-				// Initialize SDK
-				const ai = new GoogleGenAI({ apiKey: env.GEMINI_API_KEY });
+				// Use the correct Google AI API endpoint
+				const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`;
 
-				// Extract text from contents
-				let prompt = '';
-				if (body.contents && Array.isArray(body.contents)) {
-					for (const content of body.contents) {
-						if (content.parts && Array.isArray(content.parts)) {
-							for (const part of content.parts) {
-								if (part.text) {
-									prompt += part.text;
-								}
-							}
-						}
-					}
-				}
-
-				// Call Gemini via SDK
-				const response = await ai.models.generateContent({
-					model: model,
-					contents: prompt,
+				const geminiResponse = await fetch(geminiUrl, {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+					},
+					body: JSON.stringify(body),
 				});
 
-				// Format response to match REST API structure
-				const result = {
-					candidates: [{
-						content: {
-							parts: [{ text: response.text }],
-							role: 'model'
-						},
-						finishReason: 'STOP'
-					}]
-				};
+				const responseData = await geminiResponse.text();
 
-				return new Response(JSON.stringify(result), {
+				return new Response(responseData, {
+					status: geminiResponse.status,
 					headers: { ...corsHeaders, 'Content-Type': 'application/json' }
 				});
 			}
