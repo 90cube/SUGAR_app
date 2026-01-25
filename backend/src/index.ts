@@ -1,9 +1,6 @@
-
 export interface Env {
 	NEXON_API_KEY: string;
-	// Cloudflare AI Gateway 설정
-	CF_ACCOUNT_ID: string;
-	CF_GATEWAY_NAME: string; // "sugar"
+	GEMINI_API_KEY: string;
 }
 
 export default {
@@ -39,14 +36,11 @@ export default {
 				return response;
 			}
 
-			// 2. Gemini API via Cloudflare AI Gateway
+			// 2. Gemini API Direct Call (Bypassing AI Gateway for simplicity)
 			if (url.pathname.startsWith('/gemini/')) {
-				// AI Gateway URL 형식: https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_name}/google-ai-studio
-				const gatewayBaseUrl = `https://gateway.ai.cloudflare.com/v1/${env.CF_ACCOUNT_ID}/${env.CF_GATEWAY_NAME}/google-ai-studio`;
-
-				// /gemini/v1beta/models/gemini-xxx:generateContent -> v1beta/models/gemini-xxx:generateContent
 				const apiPath = url.pathname.replace('/gemini/', '');
-				const geminiUrl = `${gatewayBaseUrl}/${apiPath}${url.search}`;
+				// Direct Google Generative AI Endpoint
+				const geminiUrl = `https://generativelanguage.googleapis.com/${apiPath}${url.search}&key=${env.GEMINI_API_KEY}`;
 
 				const geminiResponse = await fetch(geminiUrl, {
 					method: request.method,

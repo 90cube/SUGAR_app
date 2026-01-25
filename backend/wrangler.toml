@@ -4,12 +4,6 @@ compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
 
 [vars]
-# Cloudflare AI Gateway 설정
-CF_GATEWAY_NAME = "sugar"
-
 # 사용자가 Cloudflare Dashboard에서 등록해야 하는 Secret 변수들:
-# CF_ACCOUNT_ID = "your-account-id"
 # NEXON_API_KEY = "your-nexon-api-key"
-# 
-# AI Gateway에서 sugar_google API 키가 이미 등록되어 있으므로
-# GEMINI_API_KEY는 더 이상 필요하지 않습니다.
+# GEMINI_API_KEY = "your-gemini-api-key" (새로 추가됨)
