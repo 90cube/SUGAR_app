@@ -1,8 +1,9 @@
 name = "sugar-app-worker"
 main = "src/index.ts"
-compatibility_date = "2024-01-01"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
 
 [vars]
-# 사용자가 직접 워커 대시보드에서 등록해야 하는 변수들 (예시용 주석)
+# 사용자가 직접 워커 대시보드에서 등록해야 하는 변수들
 # NEXON_API_KEY = "..."
 # GEMINI_API_KEY = "..."
