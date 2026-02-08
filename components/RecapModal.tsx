@@ -14,6 +14,39 @@ const StatBox: React.FC<{ label: string, value: number, suffix?: string }> = ({ 
     );
 };
 
+// Typewriter component for character-by-character display
+const TypewriterText: React.FC<{ text: string; speed?: number }> = ({ text, speed = 15 }) => {
+    const [displayedText, setDisplayedText] = useState('');
+    const [isComplete, setIsComplete] = useState(false);
+
+    useEffect(() => {
+        setDisplayedText('');
+        setIsComplete(false);
+        let index = 0;
+        const timer = setInterval(() => {
+            if (index < text.length) {
+                setDisplayedText(text.slice(0, index + 1));
+                index++;
+            } else {
+                setIsComplete(true);
+                clearInterval(timer);
+            }
+        }, speed);
+
+        return () => clearInterval(timer);
+    }, [text, speed]);
+
+    return (
+        <>
+            <div
+                className="prose prose-invert max-w-none prose-p:text-acid-green/80 prose-p:font-code prose-p:text-sm prose-headings:font-pixel prose-headings:text-acid-pink prose-headings:text-base prose-strong:text-white prose-li:text-acid-green/70 prose-li:font-code prose-li:text-sm leading-relaxed"
+                dangerouslySetInnerHTML={{ __html: marked.parse(displayedText) as string }}
+            />
+            {!isComplete && <span className="animate-blink text-acid-green font-code">▌</span>}
+        </>
+    );
+};
+
 const ResultView: React.FC<{ stat: ModeStat }> = ({ stat }) => (
     <div className="space-y-4">
         {/* Summary Header */}
@@ -59,10 +92,7 @@ const ResultView: React.FC<{ stat: ModeStat }> = ({ stat }) => (
                         [OK] GENERATING_TACTICAL_FEEDBACK...
                     </div>
                     <div className="border-t border-acid-green/30 pt-4">
-                        <div
-                            className="prose prose-invert max-w-none prose-p:text-acid-green/80 prose-p:font-code prose-p:text-sm prose-headings:font-pixel prose-headings:text-acid-pink prose-headings:text-base prose-strong:text-white prose-li:text-acid-green/70 prose-li:font-code prose-li:text-sm leading-relaxed"
-                            dangerouslySetInnerHTML={{ __html: marked.parse(stat.aiAnalysis) as string }}
-                        />
+                        <TypewriterText text={stat.aiAnalysis} speed={10} />
                     </div>
                     <div className="mt-4 font-code text-xs text-acid-green/50 flex items-center gap-2">
                         <span className="animate-blink">_</span> END_OF_REPORT
@@ -220,9 +250,33 @@ export const RecapModal: React.FC = () => {
                         <ResultView stat={recapStats.stat} />
                     ) : (
                         availableTypes.length > 0 && (
-                            <div className="text-center py-12 text-gray-500 text-sm border-2 border-dashed border-gray-700 font-code">
-                                <span className="block mb-4 text-3xl">🔎</span>
-                                SELECT_MATCH_TYPE_AND_MODE_ABOVE
+                            <div className="text-center py-12 bg-black border-4 border-acid-green relative overflow-hidden">
+                                {/* CRT Effect */}
+                                <div className="absolute inset-0 opacity-5 pointer-events-none" style={{
+                                    backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,0,0.1) 2px, rgba(0,255,0,0.1) 4px)'
+                                }}></div>
+
+                                {/* ASCII Art Search Icon */}
+                                <pre className="font-code text-acid-green text-xs mb-4 leading-tight">
+                                    {`    .---.
+   /     \\
+  |  ◉◉  |
+   \\ ○○ /
+    '---'
+      |
+      |
+    ((_))`}
+                                </pre>
+
+                                <div className="font-pixel text-acid-green text-sm uppercase tracking-widest mb-2 animate-pulse">
+                                    AWAITING_ORDERS...
+                                </div>
+                                <div className="font-code text-acid-green/60 text-xs">
+                                    &gt; SELECT_TARGET_TYPE_AND_MODE_ABOVE &lt;
+                                </div>
+                                <div className="font-code text-acid-green/40 text-[10px] mt-4">
+                                    [SYSTEM_READY] 독수리 교관 대기 중...
+                                </div>
                             </div>
                         )
                     )}
