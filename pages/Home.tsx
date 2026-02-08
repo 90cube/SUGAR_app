@@ -7,11 +7,15 @@ import { ProfileCard } from '../components/ProfileCard';
 import { TierCard } from '../components/TierCard';
 import { RecentTrend } from '../components/RecentTrend';
 import { RecentMatches } from '../components/RecentMatches';
+import { useTypingEffect } from '../hooks/useTypingEffect';
 
 export const Home: React.FC = () => {
   const { searchStatus, userProfile, searchUser, performAnomalyCheck, pageContent } = useApp();
   const { openVirtualMatchingModal } = useUI();
   const [nickname, setNickname] = useState('');
+
+  // Typing effect for loading text
+  const loadingText = useTypingEffect('분석 중...', 150, searchStatus === SearchStatus.LOADING);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,7 +67,7 @@ export const Home: React.FC = () => {
                 value={nickname}
                 onChange={(e) => setNickname(e.target.value)}
                 placeholder="ENTER_CODENAME..."
-                className="relative w-full h-16 bg-white border-4 border-black text-black font-code text-xl px-6 focus:outline-none focus:bg-acid-green/10 placeholder:text-gray-400 placeholder:font-screen placeholder:text-2xl"
+                className="relative w-full h-16 bg-black border-4 border-acid-green text-acid-green font-screen text-xl font-bold px-6 focus:outline-none focus:bg-acid-green/10 placeholder:text-acid-green/50 placeholder:font-screen placeholder:font-bold placeholder:text-xl"
               />
             </div>
 
@@ -90,7 +94,7 @@ export const Home: React.FC = () => {
                 className="col-span-2 bg-acid-pink text-white font-pixel text-xs md:text-sm py-3 border-4 border-black shadow-hard hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all active:bg-pink-700 disabled:bg-gray-500 disabled:shadow-none disabled:translate-x-0 disabled:translate-y-0"
               >
                 {searchStatus === SearchStatus.LOADING ? (
-                  <span className="animate-blink">SCANNING...</span>
+                  <span className="font-screen text-lg">{loadingText || '_'}<span className="animate-blink">|</span></span>
                 ) : "EXECUTE ANALYZE.EXE"}
               </button>
             </div>

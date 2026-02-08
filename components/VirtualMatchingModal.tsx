@@ -1,10 +1,10 @@
-
 import React, { useState, useEffect } from 'react';
 import { useUI } from '../state/UIContext';
 import { nexonService } from '../services/nexonService';
 import { geminiService } from '../services/geminiService';
 import { UserProfile } from '../types';
 import { marked } from 'marked';
+import { useTypingEffect } from '../hooks/useTypingEffect';
 
 interface PlayerCardProps {
     profile: UserProfile;
@@ -51,6 +51,9 @@ export const VirtualMatchingModal: React.FC = () => {
 
     const [analysisResult, setAnalysisResult] = useState<string>('');
     const [errorMsg, setErrorMsg] = useState('');
+
+    // Typing effect for analyzing state
+    const analyzingText = useTypingEffect('분석 중...', 150, step === 'ANALYZING');
 
     // Reset when closed
     useEffect(() => {
@@ -209,8 +212,8 @@ export const VirtualMatchingModal: React.FC = () => {
                                                 value={inputA}
                                                 onChange={(e) => setInputA(e.target.value)}
                                                 onKeyDown={(e) => e.key === 'Enter' && addPlayer(inputA, 'A')}
-                                                placeholder="닉네임 입력..."
-                                                className="flex-1 px-3 py-2 bg-blue-950 border-2 border-blue-700 text-white font-code text-sm focus:outline-none focus:border-blue-400 placeholder:text-blue-700"
+                                                placeholder="ENTER_CODENAME..."
+                                                className="flex-1 px-3 py-2 bg-black border-2 border-blue-400 text-blue-300 font-screen text-base font-bold focus:outline-none focus:border-acid-green placeholder:text-blue-500 placeholder:font-screen placeholder:font-bold"
                                                 disabled={isLoadingA}
                                             />
                                             <button
@@ -252,8 +255,8 @@ export const VirtualMatchingModal: React.FC = () => {
                                                 value={inputB}
                                                 onChange={(e) => setInputB(e.target.value)}
                                                 onKeyDown={(e) => e.key === 'Enter' && addPlayer(inputB, 'B')}
-                                                placeholder="닉네임 입력..."
-                                                className="flex-1 px-3 py-2 bg-red-950 border-2 border-red-700 text-white font-code text-sm focus:outline-none focus:border-red-400 placeholder:text-red-700"
+                                                placeholder="ENTER_CODENAME..."
+                                                className="flex-1 px-3 py-2 bg-black border-2 border-red-400 text-red-300 font-screen text-base font-bold focus:outline-none focus:border-acid-green placeholder:text-red-500 placeholder:font-screen placeholder:font-bold"
                                                 disabled={isLoadingB}
                                             />
                                             <button
@@ -301,7 +304,10 @@ export const VirtualMatchingModal: React.FC = () => {
                                 <div className="absolute inset-0 border-4 border-t-acid-pink border-r-transparent border-b-transparent border-l-transparent animate-spin"></div>
                                 <span className="text-4xl animate-bounce">🧠</span>
                             </div>
-                            <h3 className="text-xl font-pixel text-acid-green mt-6 uppercase animate-pulse">PROCESSING DATA</h3>
+                            <h3 className="text-xl font-pixel text-acid-green mt-6 uppercase">
+                                <span className="font-screen text-2xl">{analyzingText || '_'}</span>
+                                <span className="animate-blink">|</span>
+                            </h3>
                             <div className="flex items-center gap-2 mt-3">
                                 <span className="w-2 h-2 bg-acid-pink animate-ping"></span>
                                 <p className="text-xs text-gray-400 font-code uppercase">
