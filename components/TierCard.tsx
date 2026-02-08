@@ -9,38 +9,28 @@ interface TierCardProps {
 
 export const TierCard: React.FC<TierCardProps> = ({ type, tier }) => {
   const isUnranked = tier.tierName === "UNRANK";
-  const typeLabel = type === "Solo" ? "솔로" : "파티";
 
   return (
-    <div className={`rounded-2xl p-5 shadow-lg border backdrop-blur-xl relative overflow-hidden transition-all duration-300 hover:scale-[1.02] hover:shadow-xl
-      ${isUnranked 
-        ? 'bg-slate-100/50 border-white/40 shadow-slate-200/20' 
-        : 'bg-white/60 border-white/60 shadow-indigo-500/5 ring-1 ring-white/50'}
+    <div className={`h-full flex flex-col justify-between py-2 text-center relative overflow-hidden group
+       ${isUnranked ? 'opacity-50 grayscale' : ''}
     `}>
-      {/* Subtle Gradient background for Ranked */}
-      {!isUnranked && (
-         <div className="absolute -top-10 -right-10 w-24 h-24 bg-blue-400/10 rounded-full blur-2xl"></div>
-      )}
+      {/* Scanline overlay for card */}
+      <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjMDAwIiBmaWxsLW9wYWNpdHk9IjAuMiIvPgo8L3N2Zz4=')] opacity-30 pointer-events-none"></div>
 
-      <div className="relative z-10">
-        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">{typeLabel} 랭크</span>
-        <div className={`text-lg font-black leading-none ${isUnranked ? 'text-slate-400' : 'text-slate-900'}`}>
-          {tier.tierName}
-        </div>
-        {!isUnranked && (
-           <div className="text-sm font-medium text-slate-500 mt-1">{tier.score.toLocaleString()} RP</div>
-        )}
-        {isUnranked && (
-          <div className="text-[10px] text-slate-400 mt-1 font-medium">배치고사 필요</div>
+      <div className="relative z-10 text-acid-green font-screen text-3xl font-bold mb-2 drop-shadow-md">
+        {tier.tierName}
+      </div>
+
+      <div className="relative z-10 text-white font-code text-xs">
+        {isUnranked ? (
+          <span className="animate-pulse">NO_DATA</span>
+        ) : (
+          <span>{tier.score.toLocaleString()} RP</span>
         )}
       </div>
-      
-      <div className="absolute bottom-2 right-2 opacity-90 drop-shadow-sm transition-transform duration-500 hover:scale-110 hover:rotate-3">
-        <img 
-          src={tier.tierImage} 
-          alt={`${tier.tierName} Tier`} 
-          className={`w-14 h-14 object-contain ${isUnranked ? 'opacity-40 grayscale' : ''}`}
-        />
+
+      <div className="absolute bottom-0 right-0 opacity-20 group-hover:opacity-100 transition-opacity">
+        <img src={tier.tierImage} className="w-10 h-10 object-contain pixelated" alt="tier" style={{ imageRendering: 'pixelated' }} />
       </div>
     </div>
   );
