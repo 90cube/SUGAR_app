@@ -30,15 +30,44 @@ const ResultView: React.FC<{ stat: ModeStat }> = ({ stat }) => (
         </div>
 
         {stat.aiAnalysis && (
-            <div className="bg-black border-2 border-acid-green p-6">
-                <div className="flex items-center gap-2 mb-4 border-b border-acid-green/30 pb-3">
-                    <span className="w-2 h-2 bg-acid-green animate-pulse"></span>
-                    <span className="text-xs font-pixel text-acid-green uppercase">AI_TACTICAL_FEEDBACK</span>
+            <div className="bg-black border-4 border-acid-green relative overflow-hidden">
+                {/* CRT Scanlines */}
+                <div className="absolute inset-0 opacity-10 pointer-events-none" style={{
+                    backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,0,0.1) 2px, rgba(0,255,0,0.1) 4px)'
+                }}></div>
+
+                {/* Terminal Header */}
+                <div className="bg-acid-green/20 border-b-2 border-acid-green px-4 py-2 flex items-center gap-3">
+                    <div className="flex gap-1">
+                        <span className="w-2 h-2 bg-red-500"></span>
+                        <span className="w-2 h-2 bg-yellow-500"></span>
+                        <span className="w-2 h-2 bg-acid-green"></span>
+                    </div>
+                    <span className="text-xs font-pixel text-acid-green uppercase flex items-center gap-2">
+                        <span className="animate-pulse">●</span> AI_TACTICAL_TERMINAL_V2.0
+                    </span>
                 </div>
-                <div
-                    className="prose prose-invert max-w-none prose-p:text-gray-300 prose-headings:font-pixel prose-headings:text-acid-green prose-strong:text-white font-code text-sm leading-relaxed"
-                    dangerouslySetInnerHTML={{ __html: marked.parse(stat.aiAnalysis) as string }}
-                />
+
+                {/* Terminal Content */}
+                <div className="p-6 relative z-10">
+                    <div className="font-code text-xs text-acid-green/50 mb-4">
+                        C:\SULAB\AI_ENGINE&gt; analyze --mode={stat.modeName} --deep
+                    </div>
+                    <div className="font-code text-xs text-acid-green/50 mb-4">
+                        [OK] PARSING_MATCH_DATA...<br />
+                        [OK] EXTRACTING_PATTERNS...<br />
+                        [OK] GENERATING_TACTICAL_FEEDBACK...
+                    </div>
+                    <div className="border-t border-acid-green/30 pt-4">
+                        <div
+                            className="prose prose-invert max-w-none prose-p:text-acid-green/80 prose-p:font-code prose-p:text-sm prose-headings:font-pixel prose-headings:text-acid-pink prose-headings:text-base prose-strong:text-white prose-li:text-acid-green/70 prose-li:font-code prose-li:text-sm leading-relaxed"
+                            dangerouslySetInnerHTML={{ __html: marked.parse(stat.aiAnalysis) as string }}
+                        />
+                    </div>
+                    <div className="mt-4 font-code text-xs text-acid-green/50 flex items-center gap-2">
+                        <span className="animate-blink">_</span> END_OF_REPORT
+                    </div>
+                </div>
             </div>
         )}
     </div>

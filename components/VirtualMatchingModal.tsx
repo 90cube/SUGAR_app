@@ -235,9 +235,22 @@ export const VirtualMatchingModal: React.FC = () => {
                                     </div>
                                 </div>
 
-                                {/* VS Divider */}
-                                <div className="flex items-center justify-center py-4 md:py-0">
-                                    <div className="bg-white text-black font-pixel text-sm w-12 h-12 flex items-center justify-center border-4 border-black shadow-hard">VS</div>
+                                {/* VS Divider with Pixel Soldiers */}
+                                <div className="flex items-center justify-center py-4 md:py-0 gap-2">
+                                    {/* Blue Soldier (facing right) */}
+                                    <div className="relative">
+                                        <div className="text-2xl" style={{ transform: 'scaleX(1)' }}>🔫</div>
+                                        <div className="absolute -top-1 -left-1 w-4 h-4 bg-blue-500 rounded-full border-2 border-blue-300 animate-pulse"></div>
+                                    </div>
+
+                                    {/* VS Badge */}
+                                    <div className="bg-white text-black font-pixel text-xs w-10 h-10 flex items-center justify-center border-4 border-black shadow-hard mx-1">VS</div>
+
+                                    {/* Red Soldier (facing left) */}
+                                    <div className="relative">
+                                        <div className="text-2xl" style={{ transform: 'scaleX(-1)' }}>🔫</div>
+                                        <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-red-300 animate-pulse"></div>
+                                    </div>
                                 </div>
 
                                 {/* Team B (Red) */}
