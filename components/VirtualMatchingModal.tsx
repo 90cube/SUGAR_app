@@ -13,26 +13,21 @@ interface PlayerCardProps {
 }
 
 const PlayerCard: React.FC<PlayerCardProps> = ({ profile, side, onRemove }) => (
-    <div className={`flex items-center justify-between p-3 rounded-2xl border mb-2 animate-in slide-in-from-top-2 duration-300 bg-white shadow-sm hover:shadow-md ${side === 'A' ? 'border-blue-100 hover:border-blue-300' : 'border-red-100 hover:border-red-300'}`}>
+    <div className={`flex items-center justify-between p-2 border-2 mb-2 ${side === 'A' ? 'border-blue-500 bg-blue-900/30' : 'border-red-500 bg-red-900/30'}`}>
         <div className="flex items-center gap-3 overflow-hidden">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xs font-black text-white shadow-md ${side === 'A' ? 'bg-blue-500' : 'bg-red-500'}`}>
+            <div className={`w-8 h-8 flex items-center justify-center font-pixel text-xs text-white ${side === 'A' ? 'bg-blue-600' : 'bg-red-600'}`}>
                 {profile.soloTier.tierName.substring(0, 1)}
             </div>
             <div className="flex flex-col min-w-0">
-                <span className="text-sm font-black text-slate-800 truncate font-mono tracking-tight">{profile.nickname}</span>
-                <div className="flex items-center gap-1.5">
-                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${side === 'A' ? 'bg-blue-50 text-blue-600' : 'bg-red-50 text-red-600'}`}>
-                        승률 {Math.floor(profile.recentStats?.winRate || 0)}%
-                    </span>
-                    <span className="text-[9px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
-                        KD {Math.floor(profile.recentStats?.kd || 0)}%
-                    </span>
-                    <span className="text-[9px] text-slate-400 font-bold ml-1">{profile.soloTier.tierName}</span>
+                <span className="text-sm font-bold text-white truncate font-code">{profile.nickname}</span>
+                <div className="flex items-center gap-2 text-[10px] font-code">
+                    <span className="text-acid-green">WR:{Math.floor(profile.recentStats?.winRate || 0)}%</span>
+                    <span className="text-acid-pink">KD:{Math.floor(profile.recentStats?.kd || 0)}%</span>
                 </div>
             </div>
         </div>
-        <button onClick={() => onRemove(profile.nickname, side)} className="text-slate-300 hover:text-red-500 p-2 rounded-xl hover:bg-red-50 transition-colors">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+        <button onClick={() => onRemove(profile.nickname, side)} className="text-gray-400 hover:text-red-500 p-1 transition-colors font-pixel text-xs">
+            [X]
         </button>
     </div>
 );
@@ -170,55 +165,44 @@ export const VirtualMatchingModal: React.FC = () => {
     if (!isVirtualMatchingModalOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-200/60 backdrop-blur-md p-4 animate-in fade-in duration-300">
-            <div className="w-full max-w-4xl bg-white/95 backdrop-blur-2xl rounded-[3rem] overflow-hidden flex flex-col shadow-2xl border-2 border-white/50 relative animate-in zoom-in-95 duration-300 max-h-[90vh]">
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 p-4">
+            {/* Y2K Window Frame */}
+            <div className="w-full max-w-4xl bg-metal-silver border-2 border-white border-b-black border-r-black shadow-2xl flex flex-col max-h-[90vh]">
 
-                {/* Header */}
-                <div className="p-6 flex items-center justify-between border-b border-slate-100 bg-white/50">
-                    <div>
-                        <h2 className="text-slate-900 font-black italic tracking-tighter text-2xl flex items-center gap-2">
-                            <span className="text-cyan-600">AI</span> VIRTUAL MATCH
-                        </h2>
-                        <div className="flex items-center gap-2 mt-1">
-                            <span className="w-1.5 h-1.5 bg-cyan-500 rounded-full animate-pulse"></span>
-                            <p className="text-slate-400 text-[10px] font-mono tracking-[0.2em] uppercase">Tactical_Simulation_Unit</p>
-                        </div>
-                    </div>
-                    <button onClick={closeVirtualMatchingModal} className="p-2 bg-slate-50 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors">
-                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                {/* Windows 95 Title Bar */}
+                <div className="bg-blue-900 px-3 py-2 flex items-center justify-between">
+                    <h2 className="text-white font-pixel text-sm flex items-center gap-2">
+                        <span className="text-acid-green">AI</span> VIRTUAL_MATCH.EXE
+                    </h2>
+                    <button onClick={closeVirtualMatchingModal} className="bg-metal-silver border-t border-l border-white border-b-2 border-r-2 border-b-black border-r-black w-6 h-6 flex items-center justify-center font-bold text-black text-xs hover:bg-gray-300 active:border-t-black active:border-l-black active:border-b-white active:border-r-white">
+                        X
                     </button>
                 </div>
 
                 {/* Content Area */}
-                <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50 custom-scrollbar">
-                    <style>{`
-                .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-                .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-                .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-                .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-            `}</style>
+                <div className="flex-1 overflow-y-auto p-4 bg-black border-t-2 border-l-2 border-black">
 
                     {/* STEP 1: INPUT SQUAD */}
                     {step === 'INPUT' && (
-                        <div className="flex flex-col h-full max-w-3xl mx-auto">
-                            <div className="text-center mb-8 space-y-2">
-                                <div className="inline-block px-4 py-1 rounded-full bg-slate-100 text-slate-500 text-[10px] font-black uppercase tracking-widest mb-2 border border-slate-200">
-                                    Pre-Match Setup
+                        <div className="flex flex-col h-full">
+                            <div className="text-center mb-6">
+                                <div className="inline-block px-3 py-1 bg-acid-green text-black font-pixel text-[10px] uppercase mb-2">
+                                    PRE-MATCH SETUP
                                 </div>
-                                <h3 className="text-xl font-black text-slate-900 tracking-tight">스쿼드 구성 (Squad Configuration)</h3>
-                                <p className="text-xs text-slate-500 font-medium">5vs5 가상 매치업을 위한 플레이어를 등록하세요.</p>
+                                <h3 className="text-xl font-pixel text-white">스쿼드 구성</h3>
+                                <p className="text-xs text-gray-400 font-code mt-1">5vs5 가상 매치업을 위한 플레이어를 등록하세요.</p>
                             </div>
 
-                            <div className="flex flex-col md:flex-row gap-6 items-start min-h-0">
+                            <div className="flex flex-col md:flex-row gap-4 items-stretch">
                                 {/* Team A (Blue) */}
-                                <div className="flex-1 w-full bg-slate-50 rounded-[2rem] border border-slate-200 shadow-sm flex flex-col overflow-hidden relative group hover:border-blue-200 transition-all duration-300">
-                                    <div className="p-4 bg-white border-b border-slate-100 flex justify-between items-center">
-                                        <span className="font-black text-blue-600 uppercase tracking-widest text-xs flex items-center gap-2">
-                                            <span className="w-2 h-2 bg-blue-500 rounded-full"></span> Alpha (Blue)
+                                <div className="flex-1 border-2 border-blue-500 bg-black flex flex-col">
+                                    <div className="bg-blue-900 px-3 py-2 flex justify-between items-center border-b border-blue-500">
+                                        <span className="font-pixel text-blue-300 text-xs flex items-center gap-2">
+                                            <span className="w-2 h-2 bg-blue-400 animate-pulse"></span> ALPHA [BLUE]
                                         </span>
-                                        <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{teamA.length}/5</span>
+                                        <span className="text-xs font-code text-blue-400">{teamA.length}/5</span>
                                     </div>
-                                    <div className="p-4 border-b border-slate-100/50 bg-white/50">
+                                    <div className="p-3 border-b border-blue-800">
                                         <div className="flex gap-2">
                                             <input
                                                 type="text"
@@ -226,42 +210,42 @@ export const VirtualMatchingModal: React.FC = () => {
                                                 onChange={(e) => setInputA(e.target.value)}
                                                 onKeyDown={(e) => e.key === 'Enter' && addPlayer(inputA, 'A')}
                                                 placeholder="닉네임 입력..."
-                                                className="flex-1 px-4 py-3 bg-slate-100 rounded-xl text-xs font-bold text-slate-900 border-none focus:ring-2 focus:ring-blue-500/20 focus:bg-white transition-all placeholder:text-slate-400"
+                                                className="flex-1 px-3 py-2 bg-blue-950 border-2 border-blue-700 text-white font-code text-sm focus:outline-none focus:border-blue-400 placeholder:text-blue-700"
                                                 disabled={isLoadingA}
                                             />
                                             <button
                                                 onClick={() => addPlayer(inputA, 'A')}
                                                 disabled={isLoadingA || !inputA}
-                                                className="bg-blue-600 text-white px-4 rounded-xl text-xs font-bold hover:bg-blue-500 disabled:opacity-50 transition-all shadow-lg shadow-blue-500/20 active:scale-95"
+                                                className="bg-blue-600 text-white px-3 font-pixel text-xs border-2 border-blue-400 hover:bg-blue-500 disabled:opacity-50 disabled:grayscale"
                                             >
                                                 {isLoadingA ? '...' : 'ADD'}
                                             </button>
                                         </div>
                                     </div>
-                                    <div className={`overflow-y-auto px-3 custom-scrollbar transition-all duration-300 ${teamA.length > 0 ? 'py-3 max-h-[300px]' : 'py-0 h-0'}`}>
+                                    <div className="flex-1 p-2 overflow-y-auto min-h-[100px]">
                                         {teamA.map(p => <PlayerCard key={p.nickname} profile={p} side="A" onRemove={removePlayer} />)}
+                                        {teamA.length === 0 && (
+                                            <div className="h-full flex items-center justify-center">
+                                                <span className="text-blue-800 font-code text-xs animate-pulse">NO_ACTIVE_UNIT</span>
+                                            </div>
+                                        )}
                                     </div>
-                                    {teamA.length === 0 && (
-                                        <div className="p-4 text-center">
-                                            <span className="text-[9px] font-bold text-slate-300 uppercase tracking-widest">No Active Unit</span>
-                                        </div>
-                                    )}
                                 </div>
 
                                 {/* VS Divider */}
-                                <div className="flex items-center justify-center pt-8 md:pt-10">
-                                    <div className="bg-slate-900 text-white font-black rounded-2xl w-10 h-10 flex items-center justify-center text-xs shadow-xl italic z-10">VS</div>
+                                <div className="flex items-center justify-center py-4 md:py-0">
+                                    <div className="bg-white text-black font-pixel text-sm w-12 h-12 flex items-center justify-center border-4 border-black shadow-hard">VS</div>
                                 </div>
 
                                 {/* Team B (Red) */}
-                                <div className="flex-1 w-full bg-slate-50 rounded-[2rem] border border-slate-200 shadow-sm flex flex-col overflow-hidden relative group hover:border-red-200 transition-all duration-300">
-                                    <div className="p-4 bg-white border-b border-slate-100 flex justify-between items-center">
-                                        <span className="font-black text-red-600 uppercase tracking-widest text-xs flex items-center gap-2">
-                                            <span className="w-2 h-2 bg-red-500 rounded-full"></span> Bravo (Red)
+                                <div className="flex-1 border-2 border-red-500 bg-black flex flex-col">
+                                    <div className="bg-red-900 px-3 py-2 flex justify-between items-center border-b border-red-500">
+                                        <span className="font-pixel text-red-300 text-xs flex items-center gap-2">
+                                            <span className="w-2 h-2 bg-red-400 animate-pulse"></span> BRAVO [RED]
                                         </span>
-                                        <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{teamB.length}/5</span>
+                                        <span className="text-xs font-code text-red-400">{teamB.length}/5</span>
                                     </div>
-                                    <div className="p-4 border-b border-slate-100/50 bg-white/50">
+                                    <div className="p-3 border-b border-red-800">
                                         <div className="flex gap-2">
                                             <input
                                                 type="text"
@@ -269,43 +253,42 @@ export const VirtualMatchingModal: React.FC = () => {
                                                 onChange={(e) => setInputB(e.target.value)}
                                                 onKeyDown={(e) => e.key === 'Enter' && addPlayer(inputB, 'B')}
                                                 placeholder="닉네임 입력..."
-                                                className="flex-1 px-4 py-3 bg-slate-100 rounded-xl text-xs font-bold text-slate-900 border-none focus:ring-2 focus:ring-red-500/20 focus:bg-white transition-all placeholder:text-slate-400"
+                                                className="flex-1 px-3 py-2 bg-red-950 border-2 border-red-700 text-white font-code text-sm focus:outline-none focus:border-red-400 placeholder:text-red-700"
                                                 disabled={isLoadingB}
                                             />
                                             <button
                                                 onClick={() => addPlayer(inputB, 'B')}
                                                 disabled={isLoadingB || !inputB}
-                                                className="bg-red-600 text-white px-4 rounded-xl text-xs font-bold hover:bg-red-500 disabled:opacity-50 transition-all shadow-lg shadow-red-500/20 active:scale-95"
+                                                className="bg-red-600 text-white px-3 font-pixel text-xs border-2 border-red-400 hover:bg-red-500 disabled:opacity-50 disabled:grayscale"
                                             >
                                                 {isLoadingB ? '...' : 'ADD'}
                                             </button>
                                         </div>
                                     </div>
-                                    <div className={`overflow-y-auto px-3 custom-scrollbar transition-all duration-300 ${teamB.length > 0 ? 'py-3 max-h-[300px]' : 'py-0 h-0'}`}>
+                                    <div className="flex-1 p-2 overflow-y-auto min-h-[100px]">
                                         {teamB.map(p => <PlayerCard key={p.nickname} profile={p} side="B" onRemove={removePlayer} />)}
+                                        {teamB.length === 0 && (
+                                            <div className="h-full flex items-center justify-center">
+                                                <span className="text-red-800 font-code text-xs animate-pulse">NO_ACTIVE_UNIT</span>
+                                            </div>
+                                        )}
                                     </div>
-                                    {teamB.length === 0 && (
-                                        <div className="p-4 text-center">
-                                            <span className="text-[9px] font-bold text-slate-300 uppercase tracking-widest">No Active Unit</span>
-                                        </div>
-                                    )}
                                 </div>
                             </div>
 
                             {errorMsg && (
-                                <div className="mt-6 p-4 bg-red-50 border border-red-100 rounded-2xl text-center animate-pulse">
-                                    <p className="text-red-500 text-xs font-bold font-mono">⚠️ ERROR: {errorMsg}</p>
+                                <div className="mt-4 p-3 bg-red-900 border-2 border-red-500 text-center">
+                                    <p className="text-red-300 text-xs font-code">⚠️ ERROR: {errorMsg}</p>
                                 </div>
                             )}
 
-                            <div className="mt-8">
+                            <div className="mt-6">
                                 <button
                                     onClick={handleStartAnalysis}
                                     disabled={teamA.length === 0 || teamB.length === 0}
-                                    className="w-full h-16 bg-cyan-500 text-slate-950 font-black rounded-[2rem] active:scale-[0.98] transition-all hover:bg-cyan-400 hover:shadow-[0_0_30px_rgba(34,211,238,0.4)] disabled:opacity-50 flex items-center justify-center border-b-4 border-cyan-700 tracking-[0.2em] text-sm uppercase gap-3"
+                                    className="w-full h-14 bg-acid-green text-black font-pixel text-sm border-4 border-black shadow-hard hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all disabled:opacity-50 disabled:grayscale uppercase tracking-widest flex items-center justify-center gap-2"
                                 >
-                                    <span className="text-xl">💠</span>
-                                    INITIALIZE_SIMULATION
+                                    💠 INITIALIZE_SIMULATION
                                 </button>
                             </div>
                         </div>
@@ -314,56 +297,53 @@ export const VirtualMatchingModal: React.FC = () => {
                     {/* STEP 2: ANALYZING */}
                     {step === 'ANALYZING' && (
                         <div className="flex flex-col items-center justify-center h-[50vh]">
-                            <div className="relative w-32 h-32 flex items-center justify-center">
-                                <div className="absolute inset-0 border-4 border-slate-100 rounded-full"></div>
-                                <div className="absolute inset-0 border-4 border-t-cyan-500 border-r-transparent border-b-transparent border-l-transparent rounded-full animate-spin"></div>
+                            <div className="relative w-24 h-24 flex items-center justify-center border-4 border-acid-green">
+                                <div className="absolute inset-0 border-4 border-t-acid-pink border-r-transparent border-b-transparent border-l-transparent animate-spin"></div>
                                 <span className="text-4xl animate-bounce">🧠</span>
                             </div>
-                            <h3 className="text-2xl font-black text-slate-900 mt-8 tracking-tight uppercase">Processing Data</h3>
+                            <h3 className="text-xl font-pixel text-acid-green mt-6 uppercase animate-pulse">PROCESSING DATA</h3>
                             <div className="flex items-center gap-2 mt-3">
-                                <span className="w-2 h-2 bg-cyan-500 rounded-full animate-ping"></span>
-                                <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">
-                                    AI Engine Connected...
+                                <span className="w-2 h-2 bg-acid-pink animate-ping"></span>
+                                <p className="text-xs text-gray-400 font-code uppercase">
+                                    AI ENGINE CONNECTED...
                                 </p>
-                                <p className="text-[9px] text-slate-400 font-bold mt-1">NEXON OPEN API 기반 입니다.</p>
                             </div>
                         </div>
                     )}
 
                     {/* STEP 3: RESULT */}
                     {step === 'RESULT' && (
-                        <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500 max-w-4xl mx-auto">
-
+                        <div className="space-y-4">
                             {/* Roster Summary */}
-                            <div className="flex items-center justify-center gap-6 p-5 bg-white rounded-3xl border border-slate-200 shadow-sm font-mono text-xs">
+                            <div className="flex items-center justify-center gap-4 p-4 border-2 border-white bg-black font-code text-xs">
                                 <div className="text-right">
-                                    <span className="text-blue-600 font-black block mb-1">TEAM ALPHA</span>
-                                    <span className="text-slate-500 font-bold">{teamA.map(p => p.nickname).join(', ')}</span>
+                                    <span className="text-blue-400 font-pixel block mb-1">TEAM_ALPHA</span>
+                                    <span className="text-gray-400">{teamA.map(p => p.nickname).join(', ')}</span>
                                 </div>
-                                <div className="bg-slate-900 px-3 py-1 rounded text-[10px] font-black text-white italic">VS</div>
+                                <div className="bg-white text-black px-2 py-1 font-pixel text-xs">VS</div>
                                 <div className="text-left">
-                                    <span className="text-red-600 font-black block mb-1">TEAM BRAVO</span>
-                                    <span className="text-slate-500 font-bold">{teamB.map(p => p.nickname).join(', ')}</span>
+                                    <span className="text-red-400 font-pixel block mb-1">TEAM_BRAVO</span>
+                                    <span className="text-gray-400">{teamB.map(p => p.nickname).join(', ')}</span>
                                 </div>
                             </div>
 
                             {/* Gemini Analysis Report */}
-                            <div className="bg-white rounded-[2.5rem] border border-slate-200 overflow-hidden shadow-xl relative">
-                                <div className="h-2 bg-gradient-to-r from-blue-500 via-cyan-400 to-red-500"></div>
+                            <div className="border-2 border-acid-green bg-black">
+                                <div className="h-2 bg-gradient-to-r from-blue-500 via-acid-green to-red-500"></div>
 
-                                <div className="p-8">
-                                    <div className="flex items-center gap-4 mb-8 border-b border-slate-100 pb-6">
-                                        <div className="w-12 h-12 bg-cyan-50 rounded-2xl flex items-center justify-center border border-cyan-100 text-2xl">
+                                <div className="p-6">
+                                    <div className="flex items-center gap-3 mb-6 border-b border-acid-green/30 pb-4">
+                                        <div className="w-10 h-10 bg-acid-green text-black flex items-center justify-center font-pixel text-xl">
                                             📊
                                         </div>
                                         <div>
-                                            <h3 className="font-black text-slate-900 uppercase tracking-tight text-lg">Strategic Analysis Report</h3>
-                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Powered by Gemini-Pro-Vision-3</p>
+                                            <h3 className="font-pixel text-acid-green uppercase text-sm">STRATEGIC ANALYSIS REPORT</h3>
+                                            <p className="text-[10px] text-gray-500 font-code uppercase">Powered by Gemini-Pro-Vision-3</p>
                                         </div>
                                     </div>
 
                                     <div
-                                        className="prose prose-slate max-w-none prose-p:text-slate-600 prose-headings:font-black prose-headings:text-slate-900 prose-headings:uppercase prose-strong:text-slate-900 prose-strong:font-black prose-li:text-slate-600"
+                                        className="prose prose-invert max-w-none prose-p:text-gray-300 prose-headings:font-pixel prose-headings:text-acid-green prose-headings:uppercase prose-strong:text-white prose-li:text-gray-300 font-code text-sm"
                                         dangerouslySetInnerHTML={renderMarkdown(analysisResult)}
                                     />
                                 </div>
@@ -372,9 +352,9 @@ export const VirtualMatchingModal: React.FC = () => {
                             <div className="flex justify-center pt-4">
                                 <button
                                     onClick={() => setStep('INPUT')}
-                                    className="px-8 py-4 bg-slate-100 hover:bg-slate-200 text-slate-600 font-black rounded-2xl transition-all border border-slate-200 uppercase text-xs tracking-widest shadow-sm active:scale-95"
+                                    className="px-6 py-3 bg-metal-silver text-black font-pixel text-xs border-t-2 border-l-2 border-white border-b-2 border-r-2 border-b-black border-r-black hover:bg-gray-300 active:border-t-black active:border-l-black active:border-b-white active:border-r-white uppercase"
                                 >
-                                    Reset Simulation
+                                    RESET_SIMULATION
                                 </button>
                             </div>
                         </div>
