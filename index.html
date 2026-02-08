@@ -6,26 +6,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
   <!-- SEO Meta Tags -->
-  <title>SULAB | Future Research System</title>
-  <meta name="description"
-    content="SULAB: Advanced Sudden Attack Analytics & Research System. AI-driven player profiling and tactical analysis." />
-  <meta name="keywords" content="서든어택, 서든, 전적검색, AI분석, SULAB, Sudden Attack, Research" />
+  <title>SULAB_SYSTEM [SEARCH.EXE]</title>
+  <meta name="description" content="SULAB: ADVANCED TACTICAL ANALYSIS. SYSTEM_READY." />
+  <meta name="keywords" content="서든어택, SULAB, Y2K, CYBER, ANALYTICS" />
   <meta name="author" content="Su-Lab Research" />
-  <meta name="robots" content="index, follow" />
 
-  <!-- Open Graph -->
-  <meta property="og:type" content="website" />
-  <meta property="og:url" content="https://sugar-app-7c7.pages.dev/" />
-  <meta property="og:title" content="SULAB | System Dashboard" />
-  <meta property="og:description" content="Advanced Tactical Analysis System for Sudden Attack." />
-  <meta property="og:image" content="https://rs.nxfs.nexon.com/common/logo/logo_suddenattack.png" />
-  <meta property="og:site_name" content="SULAB" />
-
-  <!-- Google Fonts -->
+  <!-- Google Fonts: VT323 (Pixel), Space Mono (Code), Press Start 2P (Retro Header) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link
-    href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap"
+    href="https://fonts.googleapis.com/css2?family=VT323&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Press+Start+2P&display=swap"
     rel="stylesheet">
 
   <!-- Tailwind -->
@@ -36,23 +26,40 @@
       theme: {
         extend: {
           fontFamily: {
-            sans: ['Inter', 'sans-serif'],
-            mono: ['JetBrains Mono', 'monospace'],
-            display: ['Space Grotesk', 'sans-serif'],
+            pixel: ['"Press Start 2P"', 'cursive'],
+            screen: ['"VT323"', 'monospace'],
+            code: ['"Space Mono"', 'monospace'],
           },
           colors: {
-            cyan: {
-              400: '#22d3ee',
-              500: '#06b6d4',
+            acid: {
+              green: '#ccff00',
+              pink: '#ff00ff',
+              cyan: '#00ffff',
             },
-            slate: {
-              800: '#1e293b',
-              900: '#0f172a',
-              950: '#020617',
+            metal: {
+              silver: '#c0c0c0',
+              dark: '#2d2d2d',
             }
           },
-          backgroundImage: {
-            'grid-pattern': "linear-gradient(to right, #1e293b 1px, transparent 1px), linear-gradient(to bottom, #1e293b 1px, transparent 1px)",
+          boxShadow: {
+            'hard': '4px 4px 0px 0px #000000',
+            'hard-pink': '4px 4px 0px 0px #ff00ff',
+            'hard-green': '4px 4px 0px 0px #ccff00',
+            'hard-cyan': '4px 4px 0px 0px #00ffff',
+          },
+          animation: {
+            'marquee': 'marquee 20s linear infinite',
+            'blink': 'blink 1s step-end infinite',
+          },
+          keyframes: {
+            marquee: {
+              '0%': { transform: 'translateX(100%)' },
+              '100%': { transform: 'translateX(-100%)' },
+            },
+            blink: {
+              '0%, 100%': { opacity: '1' },
+              '50%': { opacity: '0' },
+            }
           }
         }
       }
@@ -60,83 +67,82 @@
   </script>
 
   <style>
-    /* Future Lab Global Styles */
+    /* Y2K GLOBAL STYLES */
     body {
-      background-color: #020617;
-      /* Slate 950 */
-      color: #f8fafc;
-      font-family: 'Inter', sans-serif;
+      background-color: #050505;
+      color: #e0e0e0;
+      font-family: 'Space Mono', monospace;
       overflow-x: hidden;
     }
 
-    /* Subtle Grid Background */
-    .bg-grid {
+    ::selection {
+      background: #ff00ff;
+      color: #fff;
+    }
+
+    /* CRT Grid Background */
+    .bg-crt {
       position: fixed;
       top: 0;
       left: 0;
       width: 100vw;
       height: 100vh;
       background-image:
-        linear-gradient(rgba(30, 41, 59, 0.5) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(30, 41, 59, 0.5) 1px, transparent 1px);
-      background-size: 50px 50px;
+        linear-gradient(rgba(0, 255, 0, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 255, 0, 0.03) 1px, transparent 1px);
+      background-size: 20px 20px;
       z-index: -2;
-      opacity: 0.3;
       pointer-events: none;
     }
 
-    /* Ambient Glow */
-    .ambient-glow {
+    /* Scanline Overlay */
+    .scanline-overlay {
       position: fixed;
       top: 0;
       left: 0;
-      width: 100vw;
-      height: 100vh;
-      background: radial-gradient(circle at 50% 10%, rgba(6, 182, 212, 0.08), transparent 60%);
-      z-index: -1;
-      pointer-events: none;
-    }
-
-    /* Scanline Effect */
-    .scanline {
       width: 100%;
-      height: 100px;
+      height: 100%;
+      background: linear-gradient(to bottom,
+          rgba(255, 255, 255, 0),
+          rgba(255, 255, 255, 0) 50%,
+          rgba(0, 0, 0, 0.2) 50%,
+          rgba(0, 0, 0, 0.2));
+      background-size: 100% 4px;
       z-index: 9999;
-      background: linear-gradient(0deg, rgba(0, 0, 0, 0) 0%, rgba(6, 182, 212, 0.05) 50%, rgba(0, 0, 0, 0) 100%);
-      opacity: 0.15;
-      position: fixed;
-      bottom: 100%;
-      animation: scanline 8s linear infinite;
       pointer-events: none;
+      opacity: 0.15;
     }
 
-    @keyframes scanline {
-      0% {
-        bottom: 100%;
-      }
-
-      100% {
-        bottom: -100px;
-      }
-    }
-
-    /* Clean scrollbar */
+    /* Scrollbar */
     ::-webkit-scrollbar {
-      width: 8px;
-      height: 8px;
-    }
-
-    ::-webkit-scrollbar-track {
-      background: #0f172a;
+      width: 12px;
+      background: #2d2d2d;
     }
 
     ::-webkit-scrollbar-thumb {
-      background: #334155;
-      border-radius: 4px;
+      background: #c0c0c0;
+      border: 2px solid #000;
+      box-shadow: inset -1px -1px 0px #555, inset 1px 1px 0px #fff;
     }
 
-    ::-webkit-scrollbar-thumb:hover {
-      background: #475569;
+    /* Utilities */
+    .text-shadow-neon {
+      text-shadow: 0 0 5px #ff00ff, 0 0 10px #ff00ff;
+    }
+
+    .text-shadow-green {
+      text-shadow: 0 0 5px #ccff00, 0 0 10px #ccff00;
+    }
+
+    .window-border {
+      box-shadow: inset 1px 1px 0px #fff, inset -1px -1px 0px #555;
+      border: 2px solid #c0c0c0;
+      background: #c0c0c0;
+    }
+
+    .window-content {
+      box-shadow: inset 2px 2px 0px #000, inset -2px -2px 0px #fff;
+      background: #000;
     }
   </style>
 
@@ -145,9 +151,8 @@
 </head>
 
 <body>
-  <div class="bg-grid"></div>
-  <div class="ambient-glow"></div>
-  <div class="scanline"></div>
+  <div class="bg-crt"></div>
+  <div class="scanline-overlay"></div>
   <div id="root"></div>
   <script type="module" src="./index.tsx"></script>
 </body>
