@@ -1,12 +1,11 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useUI } from '../state/UIContext';
 import { updatesService } from '../services/updatesService';
 import { GameUpdate, UpdateSearchResult } from '../types';
 import { marked } from 'marked';
 
 type SourceFilter = 'all' | 'dcinside' | 'nexon';
-type SortMode = 'latest' | 'analyzed';
 
 // ─── 감정 뱃지 ───
 const SentimentBadge: React.FC<{ sentiment: string }> = ({ sentiment }) => {
@@ -43,7 +42,6 @@ const FeedCard: React.FC<{ update: GameUpdate; score?: number; onOpen: (u: GameU
       onClick={() => onOpen(update)}
       className="w-full text-left bg-gray-950 border border-gray-800 active:border-acid-green active:bg-gray-900 transition-colors"
     >
-      {/* Card Header */}
       <div className="px-4 pt-3 pb-2 flex items-center gap-2">
         <SourceBadge source={update.source} />
         <span className="text-gray-500 font-code text-[11px]">{timeAgo}</span>
@@ -52,13 +50,9 @@ const FeedCard: React.FC<{ update: GameUpdate; score?: number; onOpen: (u: GameU
           <span className="ml-auto text-acid-cyan font-code text-[10px]">{(score * 100).toFixed(0)}%</span>
         )}
       </div>
-
-      {/* Title */}
       <div className="px-4 pb-2">
         <h3 className="font-code text-white text-[15px] leading-snug line-clamp-2">{update.title}</h3>
       </div>
-
-      {/* AI Summary */}
       {update.analysis && (
         <div className="px-4 pb-3">
           <p className="text-gray-400 font-code text-[12px] leading-relaxed line-clamp-3">
@@ -78,15 +72,11 @@ const FeedCard: React.FC<{ update: GameUpdate; score?: number; onOpen: (u: GameU
           )}
         </div>
       )}
-
-      {/* No Analysis */}
       {!update.analysis && (
         <div className="px-4 pb-3">
           <p className="text-gray-600 font-code text-[12px] italic">AI 분석 대기중...</p>
         </div>
       )}
-
-      {/* Footer */}
       {update.author && (
         <div className="px-4 pb-3 border-t border-gray-800/50 pt-2">
           <span className="text-gray-600 font-code text-[10px]">by {update.author}</span>
@@ -96,23 +86,14 @@ const FeedCard: React.FC<{ update: GameUpdate; score?: number; onOpen: (u: GameU
   );
 };
 
-// ─── 상세 뷰 (슬라이드 인) ───
-const DetailView: React.FC<{ update: GameUpdate; onBack: () => void }> = ({ update, onBack }) => {
+// ─── 상세 뷰 ───
+const DetailView: React.FC<{ update: GameUpdate }> = ({ update }) => {
   const dateStr = update.published_at
     ? new Date(update.published_at).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
     : '';
 
   return (
-    <div className="animate-in slide-in-from-right duration-200 h-full overflow-y-auto">
-      {/* Back button */}
-      <button
-        onClick={onBack}
-        className="sticky top-0 z-10 w-full bg-black/90 backdrop-blur-sm border-b border-gray-800 px-4 py-3 flex items-center gap-2 active:bg-gray-900"
-      >
-        <span className="text-acid-green font-screen text-xl">&lt;</span>
-        <span className="text-white font-code text-sm">돌아가기</span>
-      </button>
-
+    <div className="h-full overflow-y-auto">
       {/* Article Header */}
       <div className="px-4 pt-4 pb-3 border-b border-gray-800">
         <div className="flex items-center gap-2 mb-3">
@@ -138,12 +119,9 @@ const DetailView: React.FC<{ update: GameUpdate; onBack: () => void }> = ({ upda
             <span className="font-pixel text-acid-pink text-[10px]">AI ANALYSIS REPORT</span>
           </div>
           <div className="px-4 py-3 space-y-4">
-            {/* Summary */}
             <div>
               <p className="text-white font-code text-[13px] leading-relaxed">{update.analysis.summary}</p>
             </div>
-
-            {/* Key Changes */}
             {update.analysis.key_changes.length > 0 && (
               <div>
                 <span className="font-pixel text-[9px] text-gray-500 mb-2 block">KEY CHANGES</span>
@@ -157,8 +135,6 @@ const DetailView: React.FC<{ update: GameUpdate; onBack: () => void }> = ({ upda
                 </div>
               </div>
             )}
-
-            {/* Community Reaction */}
             {update.analysis.community_reaction && (
               <div className="bg-gray-900 -mx-4 px-4 py-3 border-t border-gray-800">
                 <span className="font-pixel text-[9px] text-gray-500 mb-1.5 block">COMMUNITY REACTION</span>
@@ -177,8 +153,6 @@ const DetailView: React.FC<{ update: GameUpdate; onBack: () => void }> = ({ upda
           dangerouslySetInnerHTML={{ __html: marked.parse(update.content.slice(0, 8000)) as string }}
         />
       </div>
-
-      {/* Bottom spacer for mobile safe area */}
       <div className="h-20" />
     </div>
   );
@@ -186,26 +160,49 @@ const DetailView: React.FC<{ update: GameUpdate; onBack: () => void }> = ({ upda
 
 // ─── 메인 커뮤니티 페이지 ───
 export const CommunityPage: React.FC = () => {
-  const { isCommunityOpen, closeCommunity } = useUI();
+  const { isCommunityOpen } = useUI();
 
   const [source, setSource] = useState<SourceFilter>('all');
-  const [sort, setSort] = useState<SortMode>('latest');
   const [updates, setUpdates] = useState<GameUpdate[]>([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
 
-  // Search
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<UpdateSearchResult[]>([]);
   const [isSearchMode, setIsSearchMode] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
 
-  // Detail
   const [selectedUpdate, setSelectedUpdate] = useState<GameUpdate | null>(null);
-
-  // Stats
   const [stats, setStats] = useState<{ totalUpdates: number; totalAnalyzed: number } | null>(null);
+
+  // 상세 뷰 열기 → history push
+  const openDetail = useCallback((update: GameUpdate) => {
+    setSelectedUpdate(update);
+    window.history.pushState({ page: 'community-detail', id: update.id }, '', `#community/${update.id}`);
+  }, []);
+
+  // 상세 뷰 닫기 → 리스트로 (history push하지 않음, popstate에서 호출됨)
+  const closeDetail = useCallback(() => {
+    setSelectedUpdate(null);
+  }, []);
+
+  // 브라우저 뒤로가기로 상세 → 리스트 전환
+  useEffect(() => {
+    const handlePopState = () => {
+      const hash = window.location.hash;
+      if (hash === '#community' || hash === '#community/') {
+        // 리스트로 돌아가기
+        setSelectedUpdate(null);
+      } else if (hash.startsWith('#community/')) {
+        // 상세로 (앞으로가기)
+        // 이미 데이터가 있으면 유지, 없으면 무시
+      }
+      // #community가 아예 없으면 UIContext의 popstate가 처리
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   useEffect(() => {
     if (isCommunityOpen) {
@@ -274,16 +271,16 @@ export const CommunityPage: React.FC = () => {
   return (
     <div className="fixed inset-0 z-[200] bg-black flex flex-col">
       {/* ─── Top Bar ─── */}
-      <div className="shrink-0 bg-black border-b-2 border-gray-800 safe-area-top">
+      <div className="shrink-0 bg-black border-b-2 border-gray-800">
         <div className="flex items-center justify-between px-3 py-2.5">
-          <button onClick={closeCommunity} className="flex items-center gap-1.5 active:opacity-60">
-            <span className="text-acid-green font-screen text-2xl">&lt;</span>
-            <span className="text-white font-pixel text-[11px]">SULAB</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 bg-acid-pink border border-white flex items-center justify-center font-pixel text-white text-sm font-bold">
+              S
+            </div>
+            <span className="font-pixel text-white text-xs tracking-wider">COMMUNITY</span>
+          </div>
 
-          <span className="font-pixel text-white text-xs tracking-wider">COMMUNITY</span>
-
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-2">
             {stats && (
               <span className="text-gray-600 font-code text-[10px]">
                 {stats.totalUpdates} posts
@@ -292,66 +289,82 @@ export const CommunityPage: React.FC = () => {
           </div>
         </div>
 
-        {/* ─── Search Bar ─── */}
-        <div className="px-3 pb-2.5">
-          <form onSubmit={handleSearch} className="flex gap-2">
-            <div className="flex-1 relative">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="검색 (예: 밸런스 패치, 신규 무기...)"
-                className="w-full h-9 bg-gray-900 border border-gray-700 text-white font-code text-sm px-3 pr-8 focus:outline-none focus:border-acid-green placeholder:text-gray-600 placeholder:text-xs"
-              />
-              {isSearchMode && (
+        {/* Search Bar - 리스트 모드일 때만 */}
+        {!selectedUpdate && (
+          <>
+            <div className="px-3 pb-2.5">
+              <form onSubmit={handleSearch} className="flex gap-2">
+                <div className="flex-1 relative">
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="검색 (예: 밸런스 패치, 신규 무기...)"
+                    className="w-full h-9 bg-gray-900 border border-gray-700 text-white font-code text-sm px-3 pr-8 focus:outline-none focus:border-acid-green placeholder:text-gray-600 placeholder:text-xs"
+                  />
+                  {isSearchMode && (
+                    <button
+                      type="button"
+                      onClick={clearSearch}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 active:text-white text-lg font-code"
+                    >
+                      x
+                    </button>
+                  )}
+                </div>
                 <button
-                  type="button"
-                  onClick={clearSearch}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 active:text-white text-lg font-code"
+                  type="submit"
+                  disabled={isSearching}
+                  className="h-9 px-4 bg-acid-green text-black font-screen text-lg font-bold border border-black active:bg-acid-green/70 disabled:opacity-50"
                 >
-                  x
+                  {isSearching ? '...' : 'GO'}
                 </button>
-              )}
+              </form>
             </div>
-            <button
-              type="submit"
-              disabled={isSearching}
-              className="h-9 px-4 bg-acid-green text-black font-screen text-lg font-bold border border-black active:bg-acid-green/70 disabled:opacity-50"
-            >
-              {isSearching ? '...' : 'GO'}
-            </button>
-          </form>
-        </div>
 
-        {/* ─── Filter Tabs ─── */}
-        <div className="flex border-t border-gray-800">
-          {([
-            { key: 'all', label: 'ALL' },
-            { key: 'nexon', label: 'NEXON' },
-            { key: 'dcinside', label: 'HOT ISSUE' },
-          ] as { key: SourceFilter; label: string }[]).map(tab => (
+            {/* Filter Tabs */}
+            <div className="flex border-t border-gray-800">
+              {([
+                { key: 'all', label: 'ALL' },
+                { key: 'nexon', label: 'NEXON' },
+                { key: 'dcinside', label: 'HOT ISSUE' },
+              ] as { key: SourceFilter; label: string }[]).map(tab => (
+                <button
+                  key={tab.key}
+                  onClick={() => { setSource(tab.key); clearSearch(); }}
+                  className={`flex-1 py-2 font-pixel text-[10px] text-center border-b-2 transition-colors ${
+                    source === tab.key
+                      ? 'border-acid-green text-acid-green'
+                      : 'border-transparent text-gray-500 active:text-gray-300'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* 상세 모드일 때 뒤로가기 바 */}
+        {selectedUpdate && (
+          <div className="border-t border-gray-800">
             <button
-              key={tab.key}
-              onClick={() => { setSource(tab.key); clearSearch(); }}
-              className={`flex-1 py-2 font-pixel text-[10px] text-center border-b-2 transition-colors ${
-                source === tab.key
-                  ? 'border-acid-green text-acid-green'
-                  : 'border-transparent text-gray-500 active:text-gray-300'
-              }`}
+              onClick={() => window.history.back()}
+              className="w-full px-3 py-2 flex items-center gap-2 active:bg-gray-900"
             >
-              {tab.label}
+              <span className="text-acid-green font-screen text-lg">&lt;</span>
+              <span className="text-gray-400 font-code text-xs">목록으로</span>
             </button>
-          ))}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* ─── Content ─── */}
       <div className="flex-1 overflow-y-auto min-h-0 overscroll-contain">
         {selectedUpdate ? (
-          <DetailView update={selectedUpdate} onBack={() => setSelectedUpdate(null)} />
+          <DetailView update={selectedUpdate} />
         ) : (
           <div className="pb-safe">
-            {/* Search Results */}
             {isSearchMode && (
               <div className="px-3 py-2 bg-gray-900/50 border-b border-gray-800">
                 <span className="font-code text-gray-500 text-[11px]">
@@ -360,7 +373,6 @@ export const CommunityPage: React.FC = () => {
               </div>
             )}
 
-            {/* Loading Skeleton */}
             {loading && updates.length === 0 && (
               <div className="space-y-px">
                 {[1, 2, 3, 4].map(i => (
@@ -376,7 +388,6 @@ export const CommunityPage: React.FC = () => {
               </div>
             )}
 
-            {/* Feed List */}
             {!isSearchMode && !loading && updates.length === 0 && (
               <div className="flex flex-col items-center justify-center py-20 px-6">
                 <span className="font-pixel text-gray-600 text-sm mb-2">NO_DATA</span>
@@ -386,19 +397,17 @@ export const CommunityPage: React.FC = () => {
               </div>
             )}
 
-            {/* Feed */}
             <div className="divide-y divide-gray-800/50">
               {isSearchMode
                 ? searchResults.map(r => (
-                    <FeedCard key={r.update.id} update={r.update} score={r.score} onOpen={setSelectedUpdate} />
+                    <FeedCard key={r.update.id} update={r.update} score={r.score} onOpen={openDetail} />
                   ))
                 : updates.map(u => (
-                    <FeedCard key={u.id} update={u} onOpen={setSelectedUpdate} />
+                    <FeedCard key={u.id} update={u} onOpen={openDetail} />
                   ))
               }
             </div>
 
-            {/* Load More */}
             {!isSearchMode && hasMore && updates.length > 0 && (
               <button
                 onClick={handleLoadMore}
@@ -409,7 +418,6 @@ export const CommunityPage: React.FC = () => {
               </button>
             )}
 
-            {/* Bottom safe area */}
             <div className="h-8" />
           </div>
         )}
