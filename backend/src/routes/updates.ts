@@ -239,6 +239,76 @@ export async function handleStats(env: Env): Promise<Response> {
 	});
 }
 
+// POST /api/updates/filter - AI로 제목 필터링 (N8N → Worker AI)
+export async function handleFilter(request: Request, env: Env): Promise<Response> {
+	if (!validateIngestAuth(request, env)) {
+		return errorResponse('Unauthorized', 401);
+	}
+
+	let body: { titles: { external_id: string; title: string; author?: string; url?: string; published_at?: string }[] };
+	try {
+		body = await request.json() as any;
+	} catch {
+		return errorResponse('Invalid JSON body', 400);
+	}
+
+	if (!Array.isArray(body.titles) || body.titles.length === 0) {
+		return errorResponse('titles array is required', 400);
+	}
+
+	const titleList = body.titles.map((t, i) => `${i + 1}. ${t.title}`).join('\n');
+
+	const prompt = `당신은 FPS 게임 '서든어택' 커뮤니티 게시글 필터링 AI입니다.
+아래는 디시인사이드 서든어택 갤러리 인기글 제목 목록입니다.
+
+다음 기준으로 각 글을 판별하세요:
+- KEEP: 서든어택 게임 관련 유의미한 정보 (업데이트, 패치, 버그, 밸런스, 이벤트, 대회, 메타, 공략, 의견)
+- SKIP: 낚시글, 도배, 광고, 거래글, 개인 잡담, 게임과 무관한 내용
+
+[제목 목록]
+${titleList}
+
+반드시 아래 JSON 배열 형식으로만 응답하세요:
+[{"index": 1, "keep": true}, {"index": 2, "keep": false}, ...]`;
+
+	try {
+		// Gemini로 필터링 (Workers AI보다 한국어 이해도가 높음)
+		const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${env.GEMINI_API_KEY}`;
+		const geminiResponse = await fetch(geminiUrl, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				contents: [{ parts: [{ text: prompt }] }],
+			}),
+		});
+
+		const result = await geminiResponse.json() as any;
+		const text = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+		// JSON 파싱
+		const jsonMatch = text.match(/\[[\s\S]*\]/);
+		if (!jsonMatch) {
+			return jsonResponse({ filtered: body.titles, error: 'AI parse failed, returning all' });
+		}
+
+		const decisions: { index: number; keep: boolean }[] = JSON.parse(jsonMatch[0]);
+		const keepIndices = new Set(decisions.filter(d => d.keep).map(d => d.index));
+
+		const filtered = body.titles.filter((_, i) => keepIndices.has(i + 1));
+
+		return jsonResponse({
+			original: body.titles.length,
+			filtered: filtered.length,
+			removed: body.titles.length - filtered.length,
+			posts: filtered,
+		});
+	} catch (e: any) {
+		console.error('[Filter] AI error:', e.message);
+		// AI 실패 시 전부 반환
+		return jsonResponse({ filtered: body.titles.length, posts: body.titles, error: e.message });
+	}
+}
+
 function formatUpdateRow(row: any) {
 	let keyChanges: string[] = [];
 	try {

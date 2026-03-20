@@ -328,7 +328,7 @@ export const CommunityPage: React.FC = () => {
           {([
             { key: 'all', label: 'ALL' },
             { key: 'nexon', label: 'NEXON' },
-            { key: 'dcinside', label: 'DC INSIDE' },
+            { key: 'dcinside', label: 'HOT ISSUE' },
           ] as { key: SourceFilter; label: string }[]).map(tab => (
             <button
               key={tab.key}

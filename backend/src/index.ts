@@ -1,5 +1,5 @@
 import { corsHeaders, corsPreflightResponse, jsonResponse, errorResponse } from './utils/cors';
-import { handleIngest, handleList, handleGetOne, handleSearch, handleStats } from './routes/updates';
+import { handleIngest, handleList, handleGetOne, handleSearch, handleStats, handleFilter } from './routes/updates';
 import { handleScheduled } from './scheduled';
 
 export interface Env {
@@ -73,6 +73,11 @@ export default {
 				// POST /api/updates/search
 				if (path === '/search' && request.method === 'POST') {
 					return handleSearch(request, env);
+				}
+
+				// POST /api/updates/filter - AI 제목 필터링
+				if (path === '/filter' && request.method === 'POST') {
+					return handleFilter(request, env);
 				}
 
 				// GET /api/updates/stats
