@@ -6,4 +6,24 @@ compatibility_flags = ["nodejs_compat"]
 [vars]
 # 사용자가 Cloudflare Dashboard에서 등록해야 하는 Secret 변수들:
 # NEXON_API_KEY = "your-nexon-api-key"
-# GEMINI_API_KEY = "your-gemini-api-key" (새로 추가됨)
+# GEMINI_API_KEY = "your-gemini-api-key"
+# INGEST_API_KEY = "your-n8n-ingest-api-key"
+
+# D1 Database
+[[d1_databases]]
+binding = "DB"
+database_name = "sugar-updates"
+database_id = "20952ac3-27f7-4dc0-9bfe-7c5e5d67de37"
+
+# Vectorize Index (1024 dimensions, cosine)
+[[vectorize]]
+binding = "VECTOR_INDEX"
+index_name = "sugar-updates-index"
+
+# Workers AI
+[ai]
+binding = "AI"
+
+# Cron Triggers: KST 08:00 (UTC 23:00) / KST 20:00 (UTC 11:00)
+[triggers]
+crons = ["0 23 * * *", "0 11 * * *"]

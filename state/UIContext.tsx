@@ -13,6 +13,14 @@ interface UIContextType {
   isVirtualMatchingModalOpen: boolean;
   openVirtualMatchingModal: () => void;
   closeVirtualMatchingModal: () => void;
+
+  isUpdatesModalOpen: boolean;
+  openUpdatesModal: () => void;
+  closeUpdatesModal: () => void;
+
+  isCommunityOpen: boolean;
+  openCommunity: () => void;
+  closeCommunity: () => void;
 }
 
 const UIContext = createContext<UIContextType | undefined>(undefined);
@@ -21,6 +29,8 @@ export const UIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [isRecapModalOpen, setIsRecapModalOpen] = useState(false);
   const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState(false);
   const [isVirtualMatchingModalOpen, setIsVirtualMatchingModalOpen] = useState(false);
+  const [isUpdatesModalOpen, setIsUpdatesModalOpen] = useState(false);
+  const [isCommunityOpen, setIsCommunityOpen] = useState(false);
 
   const openRecapModal = () => setIsRecapModalOpen(true);
   const closeRecapModal = () => setIsRecapModalOpen(false);
@@ -28,32 +38,40 @@ export const UIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const closeAnalysisModal = () => setIsAnalysisModalOpen(false);
   const openVirtualMatchingModal = () => setIsVirtualMatchingModalOpen(true);
   const closeVirtualMatchingModal = () => setIsVirtualMatchingModalOpen(false);
+  const openUpdatesModal = () => setIsUpdatesModalOpen(true);
+  const closeUpdatesModal = () => setIsUpdatesModalOpen(false);
+  const openCommunity = () => setIsCommunityOpen(true);
+  const closeCommunity = () => setIsCommunityOpen(false);
 
   // 전역 ESC 키 핸들링
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        if (isUpdatesModalOpen) { closeUpdatesModal(); return; }
         if (isAnalysisModalOpen) { closeAnalysisModal(); return; }
         if (isRecapModalOpen) { closeRecapModal(); return; }
         if (isVirtualMatchingModalOpen) { closeVirtualMatchingModal(); return; }
+        if (isCommunityOpen) { closeCommunity(); return; }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isAnalysisModalOpen, isRecapModalOpen, isVirtualMatchingModalOpen]);
+  }, [isAnalysisModalOpen, isRecapModalOpen, isVirtualMatchingModalOpen, isUpdatesModalOpen, isCommunityOpen]);
 
   // 모달 오픈 시 스크롤 잠금
   useEffect(() => {
-    const anyModalOpen = isRecapModalOpen || isAnalysisModalOpen || isVirtualMatchingModalOpen;
+    const anyModalOpen = isRecapModalOpen || isAnalysisModalOpen || isVirtualMatchingModalOpen || isUpdatesModalOpen || isCommunityOpen;
     document.body.style.overflow = anyModalOpen ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
-  }, [isRecapModalOpen, isAnalysisModalOpen, isVirtualMatchingModalOpen]);
+  }, [isRecapModalOpen, isAnalysisModalOpen, isVirtualMatchingModalOpen, isUpdatesModalOpen, isCommunityOpen]);
 
   return (
     <UIContext.Provider value={{
       isRecapModalOpen, openRecapModal, closeRecapModal,
       isAnalysisModalOpen, openAnalysisModal, closeAnalysisModal,
       isVirtualMatchingModalOpen, openVirtualMatchingModal, closeVirtualMatchingModal,
+      isUpdatesModalOpen, openUpdatesModal, closeUpdatesModal,
+      isCommunityOpen, openCommunity, closeCommunity,
     }}>
       {children}
     </UIContext.Provider>

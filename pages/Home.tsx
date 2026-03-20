@@ -11,7 +11,7 @@ import { useTypingEffect } from '../hooks/useTypingEffect';
 
 export const Home: React.FC = () => {
   const { searchStatus, userProfile, searchUser, performAnomalyCheck, pageContent } = useApp();
-  const { openVirtualMatchingModal } = useUI();
+  const { openCommunity } = useUI();
   const [nickname, setNickname] = useState('');
 
   // Typing effect for loading text
@@ -75,10 +75,10 @@ export const Home: React.FC = () => {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <button
                 type="button"
-                onClick={openVirtualMatchingModal}
+                onClick={openCommunity}
                 className="bg-metal-silver border-t-2 border-l-2 border-white border-b-2 border-r-2 border-black text-black font-screen text-xl py-2 active:border-t-black active:border-l-black active:border-b-white active:border-r-white active:bg-gray-400"
               >
-                V_MATCH
+                COMMUNITY
               </button>
               <button
                 type="button"

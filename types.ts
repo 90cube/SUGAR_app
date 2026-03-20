@@ -132,3 +132,37 @@ export interface PageContent {
   loadingText: string;
   errorText: string;
 }
+
+// 업데이트 크롤링/분석 관련 타입
+export interface GameUpdate {
+  id: number;
+  source: 'dcinside' | 'nexon';
+  external_id: string;
+  title: string;
+  content: string;
+  author: string | null;
+  url: string | null;
+  published_at: string | null;
+  crawled_at: string;
+  analysis: UpdateAnalysis | null;
+}
+
+export interface UpdateAnalysis {
+  summary: string;
+  sentiment: 'positive' | 'negative' | 'neutral' | 'mixed';
+  key_changes: string[];
+  community_reaction: string;
+  analyzed_at: string;
+}
+
+export interface UpdateSearchResult {
+  update: GameUpdate;
+  score: number;
+}
+
+export interface UpdatesPagination {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}

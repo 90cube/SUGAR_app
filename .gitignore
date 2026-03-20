@@ -22,3 +22,12 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Environment / Secrets
+.env
+.env.*
+*.local
+n8n-credentials.json
+
+# Wrangler local cache
+backend/.wrangler/
