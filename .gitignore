@@ -31,3 +31,13 @@ n8n-credentials.json
 
 # Wrangler local cache
 backend/.wrangler/
+
+# Internal docs (local only)
+docs/
+
+# Bot runtime files
+bot/.last-crawl
+bot/.bot.pid
+bot/.crawl.pid
+bot/screenshots/
+logs/

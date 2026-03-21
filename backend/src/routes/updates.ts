@@ -1,6 +1,7 @@
 import { Env } from '../index';
 import { validateIngestAuth } from '../utils/auth';
 import { jsonResponse, errorResponse } from '../utils/cors';
+import { sendComplaintAlert, sendHotIssueAlert, sendOfficialUpdate } from '../utils/discord';
 
 interface IngestPost {
 	external_id: string;
@@ -70,6 +71,14 @@ export async function handleIngest(request: Request, env: Env): Promise<Response
 
 			if (check) {
 				inserted++;
+				// 넥슨 공식글은 디스코드로 알림
+				if (body.source === 'nexon') {
+					await sendOfficialUpdate(env, {
+						title: post.title,
+						summary: post.content.slice(0, 200),
+						url: post.url,
+					});
+				}
 			} else {
 				duplicates++;
 			}
@@ -281,7 +290,9 @@ export async function handleFilter(request: Request, env: Env): Promise<Response
 ${titleList}
 
 반드시 아래 JSON 배열 형식으로만 응답하세요:
-[{"index": 1, "keep": true}, {"index": 2, "keep": false}, ...]`;
+[{"index": 1, "keep": true, "complaint": false}, {"index": 2, "keep": false, "complaint": false}, ...]
+
+complaint 필드: 서든어택/넥슨에 대한 불만, 비판, 항의, 버그 신고 등이면 true (KEEP이면서 complaint일 수 있음)`;
 
 	try {
 		// Gemini로 필터링 (Workers AI보다 한국어 이해도가 높음)
@@ -303,15 +314,31 @@ ${titleList}
 			return jsonResponse({ filtered: body.titles, error: 'AI parse failed, returning all' });
 		}
 
-		const decisions: { index: number; keep: boolean }[] = JSON.parse(jsonMatch[0]);
+		const decisions: { index: number; keep: boolean; complaint?: boolean }[] = JSON.parse(jsonMatch[0]);
 		const keepIndices = new Set(decisions.filter(d => d.keep).map(d => d.index));
 
 		const filtered = body.titles.filter((_, i) => keepIndices.has(i + 1));
+
+		// 불만글 디스코드 전송
+		const complaints = decisions.filter(d => d.complaint);
+		for (const c of complaints) {
+			const post = body.titles[c.index - 1];
+			if (post) {
+				await sendComplaintAlert(env, {
+					title: post.title,
+					author: post.author,
+					url: post.url,
+					published_at: post.published_at,
+					reason: '디씨 갤러리 불만/비판 게시글 감지',
+				});
+			}
+		}
 
 		return jsonResponse({
 			original: body.titles.length,
 			filtered: filtered.length,
 			removed: body.titles.length - filtered.length,
+			complaints: complaints.length,
 			posts: filtered,
 		});
 	} catch (e: any) {

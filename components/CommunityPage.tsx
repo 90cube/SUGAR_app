@@ -7,6 +7,68 @@ import { marked } from 'marked';
 
 type SourceFilter = 'all' | 'dcinside' | 'nexon';
 
+// ─── 감정 이모지 반응 시스템 ───
+const REACTION_CONFIG = [
+  { key: 'cheer',   emoji: '🎉', label: '환호성',     color: '#FF6B9D' },
+  { key: 'good',    emoji: '👍', label: '좋음',       color: '#00E5A0' },
+  { key: 'meh',     emoji: '😐', label: '그냥 그럼',  color: '#88889A' },
+  { key: 'so_what', emoji: '🤷', label: '어쩌라고?',  color: '#FFB800' },
+  { key: 'dislike', emoji: '👎', label: '싫다',       color: '#FF6633' },
+  { key: 'worst',   emoji: '💀', label: '최악이야!',  color: '#FF2244' },
+] as const;
+
+const ReactionBar: React.FC<{
+  updateId: number;
+  reactions: Record<string, number>;
+  onReact: (updateId: number, reaction: string) => void;
+}> = ({ updateId, reactions, onReact }) => {
+  const total = Object.values(reactions).reduce((a, b) => a + b, 0);
+
+  return (
+    <div className="px-4 py-3 border-t border-gray-800/50">
+      {/* 이모지 버튼 */}
+      <div className="flex gap-1 mb-2">
+        {REACTION_CONFIG.map(r => {
+          const count = reactions[r.key] || 0;
+          return (
+            <button
+              key={r.key}
+              onClick={(e) => { e.stopPropagation(); onReact(updateId, r.key); }}
+              className="flex-1 flex flex-col items-center py-1.5 rounded-sm active:scale-95 transition-transform"
+              style={{ backgroundColor: count > 0 ? `${r.color}15` : 'transparent' }}
+              title={r.label}
+            >
+              <span className="text-base leading-none">{r.emoji}</span>
+              <span className="font-code text-[9px] mt-1" style={{ color: count > 0 ? r.color : '#555' }}>
+                {count > 0 ? count : ''}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* 비율 바 */}
+      {total > 0 && (
+        <div className="h-[3px] flex rounded-full overflow-hidden bg-gray-800/50">
+          {REACTION_CONFIG.map(r => {
+            const count = reactions[r.key] || 0;
+            if (count === 0) return null;
+            const pct = (count / total) * 100;
+            return (
+              <div
+                key={r.key}
+                style={{ width: `${pct}%`, backgroundColor: r.color }}
+                className="h-full transition-all duration-300"
+                title={`${r.label}: ${count} (${pct.toFixed(0)}%)`}
+              />
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ─── 감정 뱃지 ───
 const SentimentBadge: React.FC<{ sentiment: string }> = ({ sentiment }) => {
   const map: Record<string, { label: string; bg: string; text: string }> = {
@@ -34,7 +96,13 @@ const SourceBadge: React.FC<{ source: string }> = ({ source }) => {
 };
 
 // ─── 피드 카드 ───
-const FeedCard: React.FC<{ update: GameUpdate; score?: number; onOpen: (u: GameUpdate) => void }> = ({ update, score, onOpen }) => {
+const FeedCard: React.FC<{
+  update: GameUpdate;
+  score?: number;
+  onOpen: (u: GameUpdate) => void;
+  reactions: Record<string, number>;
+  onReact: (updateId: number, reaction: string) => void;
+}> = ({ update, score, onOpen, reactions, onReact }) => {
   const timeAgo = getTimeAgo(update.published_at || update.crawled_at);
 
   return (
@@ -78,16 +146,21 @@ const FeedCard: React.FC<{ update: GameUpdate; score?: number; onOpen: (u: GameU
         </div>
       )}
       {update.author && (
-        <div className="px-4 pb-3 border-t border-gray-800/50 pt-2">
+        <div className="px-4 pb-2 pt-1">
           <span className="text-gray-600 font-code text-[10px]">by {update.author}</span>
         </div>
       )}
+      <ReactionBar updateId={update.id} reactions={reactions} onReact={onReact} />
     </button>
   );
 };
 
 // ─── 상세 뷰 ───
-const DetailView: React.FC<{ update: GameUpdate }> = ({ update }) => {
+const DetailView: React.FC<{
+  update: GameUpdate;
+  reactions: Record<string, number>;
+  onReact: (updateId: number, reaction: string) => void;
+}> = ({ update, reactions, onReact }) => {
   const dateStr = update.published_at
     ? new Date(update.published_at).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
     : '';
@@ -145,6 +218,14 @@ const DetailView: React.FC<{ update: GameUpdate }> = ({ update }) => {
         </div>
       )}
 
+      {/* Reaction Bar */}
+      <div className="mx-3 mt-4 bg-gray-950 border border-gray-800">
+        <div className="bg-gray-900 px-4 py-2 border-b border-gray-800">
+          <span className="font-pixel text-[9px] text-gray-500">REACTION</span>
+        </div>
+        <ReactionBar updateId={update.id} reactions={reactions} onReact={onReact} />
+      </div>
+
       {/* Raw Content */}
       <div className="px-4 py-4">
         <span className="font-pixel text-[9px] text-gray-600 mb-3 block">ORIGINAL CONTENT</span>
@@ -175,6 +256,7 @@ export const CommunityPage: React.FC = () => {
 
   const [selectedUpdate, setSelectedUpdate] = useState<GameUpdate | null>(null);
   const [stats, setStats] = useState<{ totalUpdates: number; totalAnalyzed: number } | null>(null);
+  const [allReactions, setAllReactions] = useState<Record<number, Record<string, number>>>({});
 
   // 상세 뷰 열기 → history push
   const openDetail = useCallback((update: GameUpdate) => {
@@ -221,6 +303,9 @@ export const CommunityPage: React.FC = () => {
       } else {
         setUpdates(prev => [...prev, ...result.updates]);
       }
+      // 반응 데이터도 함께 로드
+      const ids = result.updates.map((u: GameUpdate) => u.id);
+      loadReactions(ids);
       setPage(p);
       setHasMore(p < result.pagination.totalPages);
     } catch (e) {
@@ -236,6 +321,23 @@ export const CommunityPage: React.FC = () => {
       setStats(s);
     } catch {}
   };
+
+  // 반응 데이터 로드
+  const loadReactions = useCallback(async (ids: number[]) => {
+    if (ids.length === 0) return;
+    try {
+      const data = await updatesService.fetchBatchReactions(ids);
+      setAllReactions(prev => ({ ...prev, ...data }));
+    } catch {}
+  }, []);
+
+  // 반응 클릭 핸들러
+  const handleReact = useCallback(async (updateId: number, reaction: string) => {
+    try {
+      const result = await updatesService.react(updateId, reaction);
+      setAllReactions(prev => ({ ...prev, [updateId]: result.reactions }));
+    } catch {}
+  }, []);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -362,7 +464,7 @@ export const CommunityPage: React.FC = () => {
       {/* ─── Content ─── */}
       <div className="flex-1 overflow-y-auto min-h-0 overscroll-contain">
         {selectedUpdate ? (
-          <DetailView update={selectedUpdate} />
+          <DetailView update={selectedUpdate} reactions={allReactions[selectedUpdate.id] || {}} onReact={handleReact} />
         ) : (
           <div className="pb-safe">
             {isSearchMode && (
@@ -400,10 +502,10 @@ export const CommunityPage: React.FC = () => {
             <div className="divide-y divide-gray-800/50">
               {isSearchMode
                 ? searchResults.map(r => (
-                    <FeedCard key={r.update.id} update={r.update} score={r.score} onOpen={openDetail} />
+                    <FeedCard key={r.update.id} update={r.update} score={r.score} onOpen={openDetail} reactions={allReactions[r.update.id] || {}} onReact={handleReact} />
                   ))
                 : updates.map(u => (
-                    <FeedCard key={u.id} update={u} onOpen={openDetail} />
+                    <FeedCard key={u.id} update={u} onOpen={openDetail} reactions={allReactions[u.id] || {}} onReact={handleReact} />
                   ))
               }
             </div>

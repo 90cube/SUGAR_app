@@ -84,7 +84,7 @@ const ResultView: React.FC<{ stat: ModeStat }> = ({ stat }) => (
                 {/* Terminal Content */}
                 <div className="p-6 relative z-10">
                     <div className="font-code text-xs text-acid-green/50 mb-4">
-                        C:\SULAB\AI_ENGINE&gt; analyze --mode={stat.modeName} --deep
+                        C:\서든랩\AI_ENGINE&gt; analyze --mode={stat.modeName} --deep
                     </div>
                     <div className="font-code text-xs text-acid-green/50 mb-4">
                         [OK] PARSING_MATCH_DATA...<br />

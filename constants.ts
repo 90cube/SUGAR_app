@@ -1,10 +1,10 @@
 
-// Global constants for Su-Lab
-export const APP_NAME = "Su-Lab";
+// Global constants for 서든랩
+export const APP_NAME = "서든랩";
 export const API_VERSION = "v1";
 
 /**
- * [Su-Lab Configuration]
+ * [서든랩 Configuration]
  */
 
 // Cloudflare Worker Base URL

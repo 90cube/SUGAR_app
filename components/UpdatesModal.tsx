@@ -98,7 +98,7 @@ export const UpdatesModal: React.FC = () => {
 
         {/* Title Bar */}
         <div className="bg-blue-900 px-3 py-1.5 flex justify-between items-center shrink-0">
-          <span className="text-white font-pixel text-xs">C:\SULAB\UPDATES.EXE</span>
+          <span className="text-white font-pixel text-xs">C:\서든랩\UPDATES.EXE</span>
           <div className="flex gap-1">
             <button className="w-5 h-5 bg-gray-300 border border-gray-500 text-[10px] flex items-center justify-center font-bold hover:bg-gray-400">_</button>
             <button

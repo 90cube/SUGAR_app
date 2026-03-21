@@ -1,14 +1,23 @@
 import { corsHeaders, corsPreflightResponse, jsonResponse, errorResponse } from './utils/cors';
 import { handleIngest, handleList, handleGetOne, handleSearch, handleStats, handleFilter } from './routes/updates';
+import { handleReact, handleGetReactions, handleBatchReactions } from './routes/reactions';
+import { handleDiscordInteraction, registerDiscordCommands, handleClassify, handleChatAPI } from './routes/discord';
 import { handleScheduled } from './scheduled';
 
 export interface Env {
 	NEXON_API_KEY: string;
 	GEMINI_API_KEY: string;
 	INGEST_API_KEY: string;
+	DISCORD_BOT_TOKEN: string;
+	DISCORD_CH_COMPLAINTS: string;
+	DISCORD_CH_HOT_ISSUES: string;
+	DISCORD_CH_OFFICIAL: string;
+	DISCORD_CH_SUMMARY: string;
+	DISCORD_CH_SENTIMENT: string;
 	DB: D1Database;
 	VECTOR_INDEX: VectorizeIndex;
 	AI: Ai;
+	CHAT_HISTORY: KVNamespace;
 }
 
 export default {
@@ -85,6 +94,18 @@ export default {
 					return handleStats(env);
 				}
 
+				// POST /api/updates/:id/react - 감정 반응
+				const reactMatch = path.match(/^\/(\d+)\/react$/);
+				if (reactMatch && request.method === 'POST') {
+					return handleReact(request, env, reactMatch[1]);
+				}
+
+				// GET /api/updates/:id/reactions
+				const reactionsMatch = path.match(/^\/(\d+)\/reactions$/);
+				if (reactionsMatch && request.method === 'GET') {
+					return handleGetReactions(env, reactionsMatch[1]);
+				}
+
 				// GET /api/updates/:id
 				const idMatch = path.match(/^\/(\d+)$/);
 				if (idMatch && request.method === 'GET') {
@@ -97,6 +118,31 @@ export default {
 				}
 
 				return errorResponse('Not Found', 404);
+			}
+
+			// 4. Reactions batch API
+			if (url.pathname === '/api/reactions/batch' && request.method === 'GET') {
+				return handleBatchReactions(request, env);
+			}
+
+			// 5. Discord Interactions endpoint
+			if (url.pathname === '/discord/interactions' && request.method === 'POST') {
+				return handleDiscordInteraction(request, env, ctx);
+			}
+
+			// 6. Discord 슬래시 커맨드 등록 (1회용)
+			if (url.pathname === '/discord/register-commands' && request.method === 'POST') {
+				return registerDiscordCommands(env);
+			}
+
+			// 7. 메시지 분류 (N8N → Worker)
+			if (url.pathname === '/api/discord/classify' && request.method === 'POST') {
+				return handleClassify(request, env);
+			}
+
+			// 8. 채팅 응답 생성 (N8N → Worker)
+			if (url.pathname === '/api/discord/chat' && request.method === 'POST') {
+				return handleChatAPI(request, env);
 			}
 
 			return errorResponse('Not Found', 404);

@@ -27,6 +27,17 @@ CREATE TABLE IF NOT EXISTS analyses (
   UNIQUE(update_id)
 );
 
+-- reactions: 감정 이모지 반응
+CREATE TABLE IF NOT EXISTS reactions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  update_id INTEGER NOT NULL REFERENCES updates(id) ON DELETE CASCADE,
+  reaction_type TEXT NOT NULL CHECK(reaction_type IN ('cheer', 'good', 'meh', 'so_what', 'dislike', 'worst')),
+  count INTEGER NOT NULL DEFAULT 0,
+  UNIQUE(update_id, reaction_type)
+);
+
+CREATE INDEX IF NOT EXISTS idx_reactions_update ON reactions(update_id);
+
 -- crawl_logs: 작업 로그
 CREATE TABLE IF NOT EXISTS crawl_logs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

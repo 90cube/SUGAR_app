@@ -20,6 +20,11 @@ database_id = "20952ac3-27f7-4dc0-9bfe-7c5e5d67de37"
 binding = "VECTOR_INDEX"
 index_name = "sugar-updates-index"
 
+# KV: 채팅 히스토리
+[[kv_namespaces]]
+binding = "CHAT_HISTORY"
+id = "6a5584a31a814f5ab76a913e0cf65ab8"
+
 # Workers AI
 [ai]
 binding = "AI"

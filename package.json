@@ -1,5 +1,5 @@
 {
-  "name": "sugar-app",
+  "name": "suddenlab-app",
   "private": true,
   "version": "1.0.0",
   "type": "module",
@@ -9,9 +9,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "marked": "15.0.0",
+    "puppeteer": "^24.40.0",
     "react": "^19.2.3",
-    "react-dom": "^19.2.3",
-    "marked": "15.0.0"
+    "react-dom": "^19.2.3"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

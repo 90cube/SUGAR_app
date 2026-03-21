@@ -165,7 +165,7 @@ export class GeminiService {
         **출력 규칙**:
         1. TITLE: [제목] / CONTENT: [마크다운 본문] 형식을 유지하십시오.
         2. 제목에 "${dateTag}"를 포함하십시오.
-        3. 마지막에 "Su-Lab 매니저 "CUBE" 였습니다."를 붙이십시오.
+        3. 마지막에 "서든랩 매니저 "CUBE" 였습니다."를 붙이십시오.
 
         [데이터 소스]
         ${source}
@@ -213,7 +213,7 @@ export class GeminiService {
   }
 
   public async generateFormalRejection(rawReason: string): Promise<string> {
-    const prompt = `Su-Lab 커뮤니티 운영자로서 정중한 반려 사유를 작성하십시오: "${rawReason}"`;
+    const prompt = `서든랩 커뮤니티 운영자로서 정중한 반려 사유를 작성하십시오: "${rawReason}"`;
     try {
       const path = `v1beta/models/${DEFAULT_GEMINI_MODEL}:generateContent`;
       const payload = {

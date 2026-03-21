@@ -20,7 +20,7 @@ export const Header: React.FC = () => {
               <div className="w-9 h-9 md:w-10 md:h-10 bg-acid-pink border-2 border-white flex items-center justify-center font-pixel text-white text-xl md:text-2xl font-bold shadow-hard-cyan group-hover:shadow-none transition-shadow">
                 S
               </div>
-              <span className="font-pixel text-lg md:text-xl text-white tracking-tighter hidden sm:block">SULAB_OS</span>
+              <span className="font-pixel text-lg md:text-xl text-white tracking-tighter hidden sm:block">서든랩_OS</span>
             </div>
           ) : (
             <span className="font-pixel text-red-500">IMG_ERR</span>
