@@ -4,11 +4,109 @@ const path = require('path');
 
 // ── Config ──────────────────────────────────────────────
 const WORKER_URL = 'https://sugarbackend.dudgh4141.workers.dev';
-const INGEST_KEY = 'sugar-ingest-key-2026-secure';
-const SCREENSHOT_DIR = path.join(__dirname, 'screenshots');
+const INGEST_KEY = 'e805ae6c8d8d2ba4eb8c005c081658032da35d8ab37a2bb4883c4102db5e0391';
 const CRON_STATE_FILE = path.join(__dirname, '.last-crawl');
+const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN || '';
 
-if (!fs.existsSync(SCREENSHOT_DIR)) fs.mkdirSync(SCREENSHOT_DIR);
+// ── 디스코드 채널 ID ──────────────────────────────────────
+const CHANNELS = {
+	complaints: '1484420432714006538',   // 불만글-알림
+	hotIssues:  '1484420434815356968',   // 핫이슈
+	official:   '1484420437092995213',   // 공식-업데이트
+	summary:    '1484420439508914227',   // 커뮤니티-요약
+};
+
+// ── 디스코드 메시지 전송 ────────────────────────────────
+async function sendToDiscord(channelId, content) {
+	if (!BOT_TOKEN) return;
+	try {
+		await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
+			method: 'POST',
+			headers: { 'Authorization': `Bot ${BOT_TOKEN}`, 'Content-Type': 'application/json' },
+			body: JSON.stringify({ content: content.slice(0, 2000) }),
+		});
+	} catch (err) {
+		console.error(`[Discord] 전송 실패:`, err.message);
+	}
+}
+
+// ── 개별 게시글 상세 정보 추출 (댓글 수, 조회수, 추천) ──
+async function fetchPostDetail(page, url) {
+	try {
+		await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
+		await page.waitForTimeout(1500);
+
+		const detail = await page.evaluate(() => {
+			const text = document.body.innerText || '';
+			const commentMatch = text.match(/댓글[:\s]*(\d+(?:[,\d]*)?)/);
+			const viewMatch = text.match(/조회[:\s]*(\d+(?:[,\d]*)?)/);
+			const likeMatch = text.match(/추천[:\s]*(\d+(?:[,\d]*)?)/);
+
+			// 본문 일부 추출
+			const contentEl = document.querySelector('.thum-txtin, .writing-view-box, .write_div');
+			const content = contentEl?.textContent?.trim().slice(0, 300) || '';
+
+			return {
+				comments: commentMatch ? parseInt(commentMatch[1].replace(/,/g, '')) : 0,
+				views: viewMatch ? parseInt(viewMatch[1].replace(/,/g, '')) : 0,
+				likes: likeMatch ? parseInt(likeMatch[1].replace(/,/g, '')) : 0,
+				content,
+			};
+		});
+		return detail;
+	} catch (err) {
+		console.warn(`[Detail] 추출 실패 (${url}): ${err.message}`);
+		return { comments: 0, views: 0, likes: 0, content: '' };
+	}
+}
+
+// ── 단건 AI 필터링 ─────────────────────────────────────
+async function filterSinglePost(title) {
+	try {
+		const res = await fetch(`${WORKER_URL}/api/updates/filter`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${INGEST_KEY}` },
+			body: JSON.stringify({ titles: [{ title, source: 'dcinside' }] }),
+		});
+		const result = await res.json();
+		const kept = (result.posts || []).some(p => p.title === title);
+		const isComplaint = Number(result.complaints) > 0;
+		return { kept, isComplaint };
+	} catch (err) {
+		console.warn(`[Filter] AI 실패, 통과 처리: ${err.message}`);
+		return { kept: true, isComplaint: false };
+	}
+}
+
+// ── 개별 게시글 디스코드 전송 (상세 정보 포함) ──────────
+async function postToDiscord(item, detail, isComplaint) {
+	const { comments, views, likes } = detail;
+	const stats = [`💬${comments}`, `👁${views}`, `👍${likes}`].join(' ┃ ');
+
+	let msg = `📝 **${item.title}**\n`;
+	msg += `${stats}\n`;
+	if (detail.content) msg += `> ${detail.content.slice(0, 100)}${detail.content.length > 100 ? '...' : ''}\n`;
+	msg += item.url || '';
+
+	// 채널 선택: 불만글이면 complaints, 아니면 hotIssues
+	const channel = isComplaint ? CHANNELS.complaints : CHANNELS.hotIssues;
+	await sendToDiscord(channel, msg);
+}
+
+// ── 크롤링 결과 요약 보고 ────────────────────────────────
+async function reportSummary(stats) {
+	const now = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
+	let report = `📊 **크롤링 리포트** (${now})\n`;
+	report += `━━━━━━━━━━━━━━━━━━━━\n`;
+	report += `넥슨 공식: ${stats.nexon}건\n`;
+	report += `디씨 수집: ${stats.dcTotal}건\n`;
+	report += `  ├ AI 통과: ${stats.dcKept}건\n`;
+	report += `  ├ 불만글: ${stats.dcComplaints}건\n`;
+	report += `  └ 제거: ${stats.dcRemoved}건\n`;
+	report += `총 게시: ${stats.nexon + stats.dcKept}건`;
+	if (stats.dcTotal === 0 && stats.nexon === 0) report += `\n💤 새로운 게시물 없음`;
+	await sendToDiscord(CHANNELS.summary, report);
+}
 
 // ── 마지막 크롤링 시간 관리 ─────────────────────────────
 function getLastCrawlTime() {
@@ -16,10 +114,8 @@ function getLastCrawlTime() {
 		const ts = fs.readFileSync(CRON_STATE_FILE, 'utf8').trim();
 		return new Date(ts);
 	} catch {
-		// 첫 실행: 오늘 00:00 부터
-		const d = new Date();
-		d.setHours(0, 0, 0, 0);
-		return d;
+		// 첫 실행: 8시간 전부터 (오늘 자정이 아닌 최근 8시간)
+		return new Date(Date.now() - 8 * 60 * 60 * 1000);
 	}
 }
 
@@ -27,47 +123,13 @@ function saveLastCrawlTime() {
 	fs.writeFileSync(CRON_STATE_FILE, new Date().toISOString());
 }
 
-// ── Worker Gemini 프록시로 스크린샷 분석 ─────────────────
-async function analyzeScreenshot(screenshotPath, prompt) {
-	const imageBuffer = fs.readFileSync(screenshotPath);
-	const base64Image = imageBuffer.toString('base64');
-
-	const res = await fetch(`${WORKER_URL}/gemini/models/gemini-2.5-flash`, {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({
-			contents: [{
-				parts: [
-					{ text: prompt },
-					{ inlineData: { mimeType: 'image/png', data: base64Image } },
-				],
-			}],
-			generationConfig: { temperature: 0, maxOutputTokens: 8000 },
-		}),
-	});
-
-	const data = await res.json();
-	return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-}
-
-// ── JSON 파싱 ───────────────────────────────────────────
-function extractJSON(text) {
-	const codeMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-	if (codeMatch) try { return JSON.parse(codeMatch[1]); } catch {}
-	const arrMatch = text.match(/\[[\s\S]*\]/);
-	if (arrMatch) try { return JSON.parse(arrMatch[0]); } catch {}
-	const objMatch = text.match(/\{[\s\S]*\}/);
-	if (objMatch) try { return JSON.parse(objMatch[0]); } catch {}
-	return [];
-}
-
-// ── 넥슨 공식 크롤링 (리스트 → 각 글 클릭) ─────────────
+// ── 넥슨 공식 크롤링 (공지사항 + 업데이트만, DOM 직접 추출) ─
 async function crawlNexon(page) {
-	console.log('[Nexon] 공지사항 크롤링...');
+	console.log('[Nexon] 공지사항/업데이트 크롤링...');
 	const results = [];
 	const lastCrawl = getLastCrawlTime();
-	const lastCrawlStr = lastCrawl.toISOString().slice(0, 10);
 
+	// 공지사항 + 패치노트 2개 섹션만 (자유게시판/커뮤니티 절대 제외)
 	const sections = [
 		{ url: 'https://sa.nexon.com/news/notice/list.aspx', source: 'nexon_notice', name: '공지사항' },
 		{ url: 'https://sa.nexon.com/news/update/list.aspx', source: 'nexon_patch', name: '업데이트' },
@@ -76,75 +138,88 @@ async function crawlNexon(page) {
 	for (const section of sections) {
 		try {
 			await page.goto(section.url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-			await page.waitForTimeout(5000);
+			await page.waitForTimeout(3000);
 
-			// 1. 리스트 스크린샷
-			const listSS = path.join(SCREENSHOT_DIR, `${section.source}_list.png`);
-			await page.screenshot({ path: listSS, fullPage: false });
-			console.log(`[Nexon] ${section.name} 리스트 캡처`);
+			// 게시글 링크 수집 (ArticleSN 파라미터 포함 링크만)
+			const links = await page.evaluate(() => {
+				const rows = document.querySelectorAll('table tr, .board_list tr, .list_wrap tr');
+				const items = [];
+				for (const row of rows) {
+					const link = row.querySelector('a[href*="ArticleSN"], a[href*="view.aspx"]');
+					if (!link) continue;
 
-			// 2. Gemini로 리스트 분석 - 날짜 기준 필터
-			const listAnalysis = await analyzeScreenshot(listSS,
-				`이 스크린샷은 서든어택 ${section.name} 페이지입니다.
-게시물 목록에서 각 게시물의 제목, 날짜, 순서(위에서 몇번째)를 추출하세요.
-마지막 확인 시간: ${lastCrawlStr}
-이 날짜 이후(포함)의 게시물만 추출하세요.
+					// 제목: 링크 텍스트 그대로
+					const title = link.textContent?.trim();
+					if (!title || title.length < 2) continue;
 
-JSON 배열: [{"title": "제목", "date": "YYYY-MM-DD", "index": 1}]
-index는 목록에서 위에서부터의 순번 (1부터 시작).
-해당하는 게시물이 없으면 빈 배열 [].
-JSON만 출력.`
-			);
-
-			const listItems = Array.isArray(extractJSON(listAnalysis)) ? extractJSON(listAnalysis) : [];
-			console.log(`[Nexon] ${section.name}: ${listItems.length}건 새 글 발견`);
-
-			// 3. 각 글 클릭해서 내용 스크린샷
-			for (const item of listItems) {
-				try {
-					// 리스트 페이지로 돌아가기
-					await page.goto(section.url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-					await page.waitForTimeout(3000);
-
-					// 게시물 목록에서 해당 글 클릭 (제목 텍스트로 찾기)
-					const titleLink = await page.locator(`a, td, span, div`).filter({ hasText: item.title }).first();
-
-					if (titleLink) {
-						await titleLink.click({ timeout: 5000 }).catch(async () => {
-							// 제목으로 못 찾으면 순번으로 시도
-							const rows = page.locator('table tr, .board-list li, .list-item').nth(item.index || 0);
-							const link = rows.locator('a').first();
-							if (await link.count() > 0) await link.click();
-						});
-						await page.waitForTimeout(3000);
-
-						// 상세 페이지 스크린샷
-						const detailSS = path.join(SCREENSHOT_DIR, `${section.source}_detail_${item.index}.png`);
-						await page.screenshot({ path: detailSS, fullPage: true });
-
-						// Gemini로 내용 분석
-						const detailAnalysis = await analyzeScreenshot(detailSS,
-							`이 스크린샷은 서든어택 ${section.name} 상세 페이지입니다.
-제목, 날짜, 본문 내용을 추출하세요.
-본문은 핵심 내용만 요약해서 500자 이내로.
-
-JSON: {"title": "제목", "date": "날짜", "content": "본문 요약"}
-JSON만 출력.`
-						);
-
-						const detail = extractJSON(detailAnalysis);
-						if (detail && detail.title) {
-							results.push({
-								source: section.source,
-								title: detail.title,
-								content: detail.content || '',
-								url: page.url(),
-								published_at: detail.date || item.date,
-								visibility: 'public',
-							});
-							console.log(`  [OK] ${detail.title}`);
+					// 날짜: 같은 행에서 날짜 텍스트 찾기
+					const cells = row.querySelectorAll('td');
+					let dateText = '';
+					for (const cell of cells) {
+						const text = cell.textContent?.trim() || '';
+						if (/\d{4}[.\-]\d{2}[.\-]\d{2}/.test(text)) {
+							dateText = text.match(/\d{4}[.\-]\d{2}[.\-]\d{2}/)[0];
+							break;
 						}
 					}
+
+					const href = link.getAttribute('href') || '';
+					const absUrl = href.startsWith('http') ? href : `https://sa.nexon.com${href}`;
+
+					items.push({ title, date: dateText, url: absUrl });
+				}
+				return items;
+			});
+
+			// 최근 7일 글 수집 (ON CONFLICT DO NOTHING으로 중복 방지)
+			const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+			const cutoffDate = cutoff.toISOString().slice(0, 10);
+			const newLinks = links.filter(item => {
+				if (!item.date) return false;
+				const itemDate = new Date(item.date.replace(/\./g, '-'));
+				if (isNaN(itemDate.getTime())) return false;
+				return itemDate >= new Date(cutoffDate);
+			});
+
+			console.log(`[Nexon] ${section.name}: ${newLinks.length}/${links.length}건 (cutoff: ${cutoff.toISOString().slice(0, 10)})`);
+
+			// 각 글 클릭해서 내용 추출 (DOM에서 직접)
+			for (const item of newLinks.slice(0, 10)) {
+				try {
+					await page.goto(item.url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+					await page.waitForTimeout(2000);
+
+					const currentUrl = page.url();
+					// 리스트 페이지로 되돌아갔으면 깨진 링크
+					if (currentUrl.includes('list.aspx')) {
+						console.warn(`  [SKIP] 깨진 링크: ${item.title}`);
+						continue;
+					}
+
+					// 제목은 리스트에서 추출한 원본 제목 사용 (DOM 변형 없음)
+					// 내용: DOM에서 직접 추출
+					const content = await page.evaluate(() => {
+						const selectors = [
+							'.view_content', '.article_content', '.board_content',
+							'.content_area', '#content', '.news_view', '.bbs_content',
+						];
+						for (const sel of selectors) {
+							const el = document.querySelector(sel);
+							if (el) return el.textContent?.trim().slice(0, 500) || '';
+						}
+						// 없으면 메인 텍스트 블록
+						const body = document.querySelector('main, article, .container');
+						return body?.textContent?.trim().slice(0, 500) || '';
+					});
+
+					results.push({
+						source: section.source,
+						title: item.title,       // AI 없이 원본 제목 그대로
+						content: content || '',
+						url: currentUrl,
+						published_at: item.date || '',
+					});
+					console.log(`  [OK] ${item.title}`);
 				} catch (err) {
 					console.error(`  [FAIL] ${item.title}: ${err.message}`);
 				}
@@ -159,93 +234,103 @@ JSON만 출력.`
 	return results;
 }
 
-// ── 디씨인사이드 크롤링 (오늘 날짜만, 여러 페이지) ──────
-async function crawlDCInside(page) {
-	console.log('[DC] 디씨인사이드 서든갤...');
+// ── 디씨인사이드 크롤링 (서든어택 마갤 + Z마갤, 모바일 DOM 직접 추출) ──
+async function crawlDCInside(browser) {
+	console.log('[DC] 디씨인사이드 서든어택 마갤...');
 	const results = [];
-	const today = new Date().toISOString().slice(0, 10);
-	let foundOldPost = false;
 
-	for (let pageNum = 1; pageNum <= 3 && !foundOldPost; pageNum++) {
-		try {
-			await page.goto(
-				`https://gall.dcinside.com/mgallery/board/lists/?id=suddenattack&page=${pageNum}`,
-				{ waitUntil: 'domcontentloaded', timeout: 30000 }
-			);
-			await page.waitForTimeout(5000);
+	// 모바일 UA로 별도 컨텍스트 (봇 차단 우회)
+	const mobileCtx = await browser.newContext({
+		userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
+		locale: 'ko-KR',
+		viewport: { width: 390, height: 844 },
+	});
+	const page = await mobileCtx.newPage();
 
-			// 뷰포트 스크린샷
-			const ssPath = path.join(SCREENSHOT_DIR, `dc_p${pageNum}.png`);
-			await page.screenshot({ path: ssPath, fullPage: false });
-			console.log(`[DC] ${pageNum}페이지 캡처`);
+	// 서든어택 마갤 + Z마갤 (정갤/인기글/개념글 절대 금지)
+	const GALLERIES = [
+		{ id: 'sa',  name: '서든갤' },
+		{ id: 'saz', name: '서든Z갤' },
+	];
 
-			const analysis = await analyzeScreenshot(ssPath,
-				`디시인사이드 서든어택 갤러리 게시판입니다. 오늘: ${today}
-- 시간만 표시(예: "14:30")된 글 = 오늘 글
-- 날짜 표시(예: "03.19")된 글 = 해당 날짜 글
-- 공지/AD 제외
+	for (const gallery of GALLERIES) {
+		let foundOldPost = false;
 
-오늘(${today}) 글만 추출.
-이전 날짜 글이 보이면 has_old: true.
-
-JSON: {"posts": [{"title": "제목", "date": "시간", "num": "글번호"}], "has_old": false}
-JSON만 출력.`
-			);
-
-			let parsed;
+		for (let pageNum = 1; pageNum <= 3 && !foundOldPost; pageNum++) {
 			try {
-				parsed = extractJSON(analysis);
-				if (!parsed.posts) parsed = { posts: Array.isArray(parsed) ? parsed : [], has_old: false };
-			} catch { parsed = { posts: [], has_old: false }; }
+				const url = `https://m.dcinside.com/board/${gallery.id}?page=${pageNum}`;
+				await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
+				await page.waitForTimeout(2000);
 
-			if (parsed.has_old) foundOldPost = true;
+				// 모바일 DOM: ul.gall-detail-lst > li > div.gall-detail-lnktb > a.lt
+				const posts = await page.evaluate((galleryId) => {
+					const items = [];
+					const wrappers = document.querySelectorAll('ul.gall-detail-lst div.gall-detail-lnktb');
 
-			for (const item of (parsed.posts || [])) {
-				if (item.title && !results.find(r => r.title === item.title)) {
-					results.push({
-						source: 'dcinside', title: item.title,
-						url: `https://gall.dcinside.com/mgallery/board/view/?id=suddenattack&no=${item.num || ''}`,
-						content: '', published_at: item.date || today,
-					});
+					for (const wrap of wrappers) {
+						// 공지글 스킵 (부모 li에 notice 클래스)
+						const parentLi = wrap.closest('li');
+						if (parentLi?.classList.contains('notice')) continue;
+
+						const link = wrap.querySelector('a.lt');
+						if (!link) continue;
+
+						// 제목: .subjectin 텍스트
+						const title = link.querySelector('.subjectin')?.textContent?.trim();
+						if (!title || title.length < 1) continue;
+
+						// URL에서 글번호 추출
+						const href = link.getAttribute('href') || '';
+						const numMatch = href.match(/\/(\d+)(?:\?|$)/);
+						const num = numMatch?.[1] || '';
+						if (!num) continue;
+
+						// 날짜: ginfo ul의 li 중 HH:MM 패턴
+						const ginfoLis = link.querySelectorAll('ul.ginfo li');
+						let dateText = '';
+						for (const li of ginfoLis) {
+							const t = li.textContent?.trim();
+							if (/^\d{2}:\d{2}$/.test(t)) { dateText = t; break; }
+							if (/^\d{2}\.\d{2}$/.test(t) || /^\d{4}[.\-]/.test(t)) { dateText = t; break; }
+						}
+
+						items.push({ title, num, date: dateText, href });
+					}
+					return items;
+				}, gallery.id);
+
+				let todayCount = 0;
+				for (const item of posts) {
+					const isToday = /^\d{2}:\d{2}$/.test(item.date);
+					const isDateFormat = /^\d{2}\.\d{2}$/.test(item.date) || /^\d{4}[.\-]/.test(item.date);
+
+					if (isDateFormat) {
+						foundOldPost = true;
+						continue;
+					}
+					if (!isToday) continue;
+
+					const fullUrl = item.href.startsWith('http') ? item.href : `https://m.dcinside.com${item.href}`;
+					if (!results.find(r => r.url === fullUrl)) {
+						results.push({
+							source: 'dcinside',
+							title: item.title,
+							url: fullUrl,
+							content: '',
+							published_at: item.date,
+						});
+						todayCount++;
+					}
 				}
+
+				console.log(`[DC] ${gallery.name} ${pageNum}p: +${todayCount}건 (누적 ${results.length}, 이전날짜: ${foundOldPost})`);
+			} catch (err) {
+				console.error(`[DC] ${gallery.name} ${pageNum}p 실패:`, err.message);
 			}
-
-			console.log(`[DC] ${pageNum}p: +${(parsed.posts || []).length}건 (누적 ${results.length}, 이전날짜: ${foundOldPost})`);
-
-			// 스크롤해서 추가 캡처
-			await page.evaluate(() => window.scrollBy(0, window.innerHeight * 0.8));
-			await page.waitForTimeout(1000);
-			const ss2 = path.join(SCREENSHOT_DIR, `dc_p${pageNum}_scroll.png`);
-			await page.screenshot({ path: ss2, fullPage: false });
-
-			const analysis2 = await analyzeScreenshot(ss2,
-				`디시인사이드 서든어택 갤러리 (스크롤 아래). 오늘: ${today}
-오늘 글만 추출. 시간만 표시 = 오늘.
-JSON: {"posts": [{"title": "제목", "date": "시간", "num": "글번호"}], "has_old": false}
-JSON만 출력.`
-			);
-
-			let parsed2;
-			try {
-				parsed2 = extractJSON(analysis2);
-				if (!parsed2.posts) parsed2 = { posts: Array.isArray(parsed2) ? parsed2 : [], has_old: false };
-			} catch { parsed2 = { posts: [], has_old: false }; }
-
-			if (parsed2.has_old) foundOldPost = true;
-			for (const item of (parsed2.posts || [])) {
-				if (item.title && !results.find(r => r.title === item.title)) {
-					results.push({
-						source: 'dcinside', title: item.title,
-						url: `https://gall.dcinside.com/mgallery/board/view/?id=suddenattack&no=${item.num || ''}`,
-						content: '', published_at: item.date || today,
-					});
-				}
-			}
-		} catch (err) {
-			console.error(`[DC] ${pageNum}p 실패:`, err.message);
 		}
 	}
 
+	await mobileCtx.close();
 	console.log(`[DC] 오늘 글 총: ${results.length}건`);
 	return results;
 }
@@ -255,7 +340,7 @@ function toWorkerPost(item, idx) {
 	return {
 		external_id: item.url || `${item.source}_${Date.now()}_${idx}`,
 		title: item.title,
-		content: item.content || item.title,
+		content: item.content || '',
 		author: '',
 		url: item.url || '',
 		published_at: item.published_at || '',
@@ -265,15 +350,29 @@ function toWorkerPost(item, idx) {
 async function ingestToWorker(source, posts) {
 	if (posts.length === 0) return 0;
 	try {
+		const workerPosts = posts.map((p, i) => toWorkerPost(p, i));
+
+		// 디버그: 첫 2건 샘플 + 빈 필드 체크
+		const emptyIds = workerPosts.filter(p => !p.external_id).length;
+		const emptyTitles = workerPosts.filter(p => !p.title).length;
+		if (emptyIds > 0 || emptyTitles > 0) {
+			console.warn(`[Ingest] ⚠️ ${source}: 빈 external_id ${emptyIds}건, 빈 title ${emptyTitles}건`);
+		}
+		console.log(`[Ingest] ${source} 전송: ${workerPosts.length}건 (샘플: ${JSON.stringify(workerPosts.slice(0, 2).map(p => ({ id: p.external_id?.slice(-30), title: p.title?.slice(0, 20) })))})`);
+
 		const res = await fetch(`${WORKER_URL}/api/updates/ingest`, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${INGEST_KEY}` },
-			body: JSON.stringify({
-				source,  // "nexon" or "dcinside"
-				posts: posts.map((p, i) => toWorkerPost(p, i)),
-			}),
+			body: JSON.stringify({ source, posts: workerPosts }),
 		});
 		const data = await res.json();
+
+		// 디버그: Worker 응답 전체 로깅
+		console.log(`[Ingest] ${source} 응답: inserted=${data.inserted}, duplicates=${data.duplicates}, errors=${data.errors}`);
+		if (data.errors > 0) {
+			console.warn(`[Ingest] ⚠️ ${source}: ${data.errors}건 에러 발생 — Worker 로그 확인 필요`);
+		}
+
 		return data.inserted || 0;
 	} catch (err) {
 		console.error(`[Ingest] ${source} 실패:`, err.message);
@@ -281,55 +380,68 @@ async function ingestToWorker(source, posts) {
 	}
 }
 
-async function filterAndIngest(items) {
-	if (items.length === 0) return;
+// ── 새 파이프라인: 1건씩 상세 → 필터 → 게시 ────────────
+async function processpipeline(nexonItems, dcItems, browser) {
+	const stats = { nexon: 0, dcTotal: dcItems.length, dcKept: 0, dcComplaints: 0, dcRemoved: 0 };
 
-	const nexonItems = items.filter(i => i.source.startsWith('nexon'));
-	const dcItems = items.filter(i => i.source === 'dcinside');
-
-	// 넥슨: 바로 저장
+	// ── 넥슨: 바로 저장 + 디코 게시 ──
 	if (nexonItems.length > 0) {
 		const n = await ingestToWorker('nexon', nexonItems);
+		stats.nexon = n;
 		console.log(`[Ingest] 넥슨: ${n}/${nexonItems.length}건`);
-	}
-
-	// 디씨: AI 필터 후 저장
-	if (dcItems.length > 0) {
-		try {
-			const res = await fetch(`${WORKER_URL}/api/updates/filter`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${INGEST_KEY}` },
-				body: JSON.stringify({ titles: dcItems.map(i => ({ title: i.title, source: i.source })) }),
-			});
-			const filtered = await res.json();
-
-			const approved = dcItems.filter(i => (filtered.approved || []).includes(i.title));
-			const complaints = dcItems.filter(i => (filtered.complaints || []).includes(i.title));
-			const rest = dcItems.filter(i =>
-				!(filtered.approved || []).includes(i.title) &&
-				!(filtered.complaints || []).includes(i.title) &&
-				!(filtered.filtered || []).includes(i.title)
-			);
-
-			// 필터 결과가 비어있으면 전부 통과시킴
-			const toIngest = approved.length > 0 ? approved : [...approved, ...rest];
-			if (toIngest.length > 0) {
-				const n = await ingestToWorker('dcinside', toIngest);
-				console.log(`[Ingest] 디씨 통과: ${n}/${toIngest.length}건`);
-			}
-			if (complaints.length > 0) {
-				// 불만글은 별도로 저장 (TODO: visibility 처리는 Worker 쪽에서)
-				const n = await ingestToWorker('dcinside', complaints);
-				console.log(`[Ingest] 디씨 불만: ${n}/${complaints.length}건`);
-			}
-
-			console.log(`[Filter] 총 ${dcItems.length} → 통과: ${approved.length}, 불만: ${complaints.length}, 제거: ${(filtered.filtered || []).length}`);
-		} catch (err) {
-			console.error('[Filter] 실패, 전부 저장:', err.message);
-			const n = await ingestToWorker('dcinside', dcItems);
-			console.log(`[Ingest] 디씨 (필터없이): ${n}/${dcItems.length}건`);
+		for (const item of nexonItems) {
+			const tag = item.source === 'nexon_patch' ? '패치' : '공지';
+			await sendToDiscord(CHANNELS.official, `📢 **[${tag}]** ${item.title}\n${item.url || ''}`);
 		}
 	}
+
+	// ── 디씨: 1건씩 순차 처리 ──
+	if (dcItems.length > 0) {
+		// 상세 페이지 방문용 모바일 컨텍스트
+		const detailCtx = await browser.newContext({
+			userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
+			locale: 'ko-KR',
+			viewport: { width: 390, height: 844 },
+		});
+		const detailPage = await detailCtx.newPage();
+
+		for (let i = 0; i < dcItems.length; i++) {
+			const item = dcItems[i];
+			console.log(`[Pipeline] (${i + 1}/${dcItems.length}) "${item.title}"`);
+
+			// 1) AI 필터
+			const { kept, isComplaint } = await filterSinglePost(item.title);
+			if (!kept) {
+				console.log(`  [SKIP] AI 제거`);
+				stats.dcRemoved++;
+				continue;
+			}
+
+			// 2) 상세 페이지에서 댓글/조회/추천 추출
+			const detail = await fetchPostDetail(detailPage, item.url);
+			console.log(`  [OK] 💬${detail.comments} 👁${detail.views} 👍${detail.likes}${isComplaint ? ' ⚠불만' : ''}`);
+
+			if (isComplaint) stats.dcComplaints++;
+
+			// 3) 상세 content 보강
+			item.content = detail.content || item.content;
+
+			// 4) DB 저장
+			await ingestToWorker('dcinside', [item]);
+
+			// 5) 디스코드 게시
+			await postToDiscord(item, detail, isComplaint);
+			stats.dcKept++;
+
+			// 디씨 레이트리밋 방지 (1~2초 간격)
+			await new Promise(r => setTimeout(r, 1500));
+		}
+
+		await detailCtx.close();
+	}
+
+	console.log(`[Pipeline] 완료 — 넥슨: ${stats.nexon}, 디씨: ${stats.dcKept}/${stats.dcTotal} (제거: ${stats.dcRemoved}, 불만: ${stats.dcComplaints})`);
+	return stats;
 }
 
 // ── 메인 ────────────────────────────────────────────────
@@ -340,7 +452,7 @@ async function runCrawl() {
 	console.log(`[Crawl] 이전 크롤링: ${lastCrawl.toLocaleString('ko-KR')}`);
 	console.log('='.repeat(50));
 
-	const browser = await chromium.launch({ headless: false });
+	const browser = await chromium.launch({ headless: true });
 	const context = await browser.newContext({
 		userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36',
 		locale: 'ko-KR',
@@ -350,14 +462,16 @@ async function runCrawl() {
 
 	try {
 		const nexonItems = await crawlNexon(page);
-		const dcItems = await crawlDCInside(page);
-		const allItems = [...nexonItems, ...dcItems];
-		console.log(`[Crawl] 총 수집: ${allItems.length}건`);
+		const dcItems = await crawlDCInside(browser);
+		console.log(`[Crawl] 총 수집: ${nexonItems.length + dcItems.length}건 (넥슨 ${nexonItems.length}, 디씨 ${dcItems.length})`);
 
-		if (allItems.length > 0) await filterAndIngest(allItems);
-
+		const stats = await processpipeline(nexonItems, dcItems, browser);
+		await reportSummary(stats);
 		saveLastCrawlTime();
-		console.log('[Crawl] 완료! 크롤링 시간 저장됨');
+		console.log('[Crawl] 완료!');
+	} catch (err) {
+		await sendToDiscord(CHANNELS.summary, `❌ **크롤링 실패**\n${err.message}`);
+		throw err;
 	} finally {
 		await browser.close();
 	}
@@ -365,6 +479,14 @@ async function runCrawl() {
 
 // ── 실행 ────────────────────────────────────────────────
 const args = process.argv.slice(2);
+
+process.on('unhandledRejection', (err) => console.error('[UnhandledRejection]', err));
+process.on('uncaughtException', (err) => console.error('[UncaughtException]', err));
+
+async function safeCrawl() {
+	try { await runCrawl(); }
+	catch (err) { console.error('[Crawl] 실패했지만 크론 유지:', err.message); }
+}
 
 if (args.includes('--once')) {
 	runCrawl().then(() => process.exit(0)).catch(err => {
@@ -374,9 +496,9 @@ if (args.includes('--once')) {
 } else if (args.includes('--cron')) {
 	const schedule = require('node-schedule');
 	console.log('[Cron] 스케줄: 매일 08:05, 20:05 KST');
-	schedule.scheduleJob('5 8 * * *', () => runCrawl());
-	schedule.scheduleJob('5 20 * * *', () => runCrawl());
-	runCrawl(); // 시작 시 1회
+	schedule.scheduleJob('5 8 * * *', () => safeCrawl());
+	schedule.scheduleJob('5 20 * * *', () => safeCrawl());
+	safeCrawl(); // 시작 시 1회
 } else {
 	console.log('사용법:');
 	console.log('  node crawl.js --once   # 1회 크롤링');

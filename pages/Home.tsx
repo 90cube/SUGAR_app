@@ -34,7 +34,7 @@ export const Home: React.FC = () => {
       <div className="w-full bg-acid-green border-b-4 border-black overflow-hidden py-1">
         <div className="whitespace-nowrap animate-marquee">
           <span className="text-black font-pixel font-bold text-xs">
-            SYSTEM_READY... INITIALIZING 서든랩_PROTOCOL_V2.0... ANOMALY_SCAN_ACTIVE... TARGET_LOCKED... WELCOME_USER...
+            SYSTEM_READY... INITIALIZING SUDDENLAB_PROTOCOL_V2.0... ANOMALY_SCAN_ACTIVE... TARGET_LOCKED... WELCOME_USER...
           </span>
         </div>
       </div>
@@ -45,12 +45,12 @@ export const Home: React.FC = () => {
         <section className={`transition-all duration-500 ease-out flex flex-col items-center ${searchStatus === SearchStatus.SUCCESS ? 'pt-4 pb-8' : 'pt-24 pb-12'}`}>
 
           {/* Logo with Glitch Effect */}
-          <div className="relative mb-12 group cursor-none">
-            <h1 className="text-6xl md:text-8xl font-pixel text-white drop-shadow-[4px_4px_0_#ff00ff] relative z-10 tracking-tighter">
-              서든랩
+          <div className="relative mb-12 group cursor-none w-full overflow-hidden">
+            <h1 className="text-3xl sm:text-5xl md:text-8xl font-pixel text-white drop-shadow-[4px_4px_0_#ff00ff] relative z-10 tracking-tighter text-center">
+              SUDDENLAB
             </h1>
-            <div className="absolute top-0 left-0 w-full h-full text-6xl md:text-8xl font-pixel text-acid-green opacity-0 group-hover:opacity-100 group-hover:translate-x-1 group-hover:-translate-y-1 transition-all duration-75 mix-blend-difference pointer-events-none">
-              서든랩
+            <div className="absolute top-0 left-0 w-full h-full text-3xl sm:text-5xl md:text-8xl font-pixel text-acid-green opacity-0 group-hover:opacity-100 group-hover:translate-x-1 group-hover:-translate-y-1 transition-all duration-75 mix-blend-difference pointer-events-none text-center">
+              SUDDENLAB
             </div>
             <div className="absolute -bottom-6 w-full text-center">
               <span className="bg-acid-pink text-white px-2 py-0.5 font-code text-xs font-bold transform -skew-x-12 inline-block border-2 border-white shadow-hard">
@@ -146,7 +146,7 @@ export const Home: React.FC = () => {
                 <div className="bg-black border-4 border-acid-green p-1 h-full min-h-[500px] shadow-hard-pink relative overflow-hidden">
                   {/* Terminal Header */}
                   <div className="bg-acid-green text-black px-4 py-2 font-pixel font-bold text-sm mb-4 flex justify-between">
-                    <span>C:\서든랩\LOGS\HISTORY.TXT</span>
+                    <span>C:\SUDDENLAB\LOGS\HISTORY.TXT</span>
                     <span>REC_COUNT: {userProfile.recentMatches.length}</span>
                   </div>
                   <div className="p-2 h-full overflow-y-auto font-screen text-acid-green text-xl">
