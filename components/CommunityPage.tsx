@@ -5,7 +5,7 @@ import { updatesService } from '../services/updatesService';
 import { GameUpdate, UpdateSearchResult } from '../types';
 import { marked } from 'marked';
 
-type SourceFilter = 'all' | 'dcinside' | 'nexon';
+type SourceFilter = 'all' | 'dcinside' | 'nexon' | 'shorts';
 
 // ─── 감정 이모지 반응 시스템 ───
 const REACTION_CONFIG = [
@@ -87,11 +87,243 @@ const SentimentBadge: React.FC<{ sentiment: string }> = ({ sentiment }) => {
 
 // ─── 소스 뱃지 ───
 const SourceBadge: React.FC<{ source: string }> = ({ source }) => {
-  const isNexon = source === 'nexon';
+  const styles: Record<string, { bg: string; label: string }> = {
+    nexon:     { bg: 'bg-blue-600',    label: 'NEXON' },
+    dcinside:  { bg: 'bg-orange-500',  label: 'DC' },
+    poll:      { bg: 'bg-purple-600',  label: '🗳️ POLL' },
+    editorial: { bg: 'bg-emerald-600', label: 'EDIT' },
+  };
+  const s = styles[source] || styles.dcinside;
   return (
-    <span className={`px-1.5 py-0.5 font-pixel text-[9px] ${isNexon ? 'bg-blue-600 text-white' : 'bg-orange-500 text-white'}`}>
-      {isNexon ? 'NEXON' : 'DC'}
+    <span className={`px-1.5 py-0.5 font-pixel text-[9px] text-white ${s.bg}`}>
+      {s.label}
     </span>
+  );
+};
+
+// ─── 숏츠 데이터 (서든어택 꿀팁) ───
+interface ShortVideo {
+  id: string; title: string; creator: string;
+  types: string[]; maps: string[];
+}
+
+const SHORTS_DATA: ShortVideo[] = [
+  // 위폭연구소장
+  { id: '6eF-3adI5s0', title: 'B2연구소 딱 1분만 집중해서 배워봐!!', creator: '위폭연구소장', types: ['꿀팁'], maps: [] },
+  { id: 'A90yX1GuZck', title: '총 안쏘고 토너먼트 우승하는 법', creator: '위폭연구소장', types: ['꿀팁'], maps: [] },
+  { id: 'd4Thxenc9Oc', title: '서든 방패들면 뭐하냐고~', creator: '위폭연구소장', types: ['하이라이트'], maps: [] },
+  { id: 'nkNGRlCpkVU', title: '머리에서 숏녹 폭 쉽게 던지는 법', creator: '위폭연구소장', types: ['위폭'], maps: ['머리'] },
+  { id: '0kEVBxAPdRE', title: '서든 혼자서 6초만에 게임 끝내기', creator: '위폭연구소장', types: ['하이라이트'], maps: [] },
+  { id: 'fGcqr_M7Wa8', title: '녹위 혼자서 쉽게 올라가는 방법', creator: '위폭연구소장', types: ['꿀팁'], maps: ['녹위'] },
+  { id: 'mM-z0DYE2Mc', title: '랭크전 4800구간 모두가 놀란 세이브', creator: '위폭연구소장', types: ['세이브', '랭크전'], maps: [] },
+  { id: 'k9cYXNY4rR8', title: '랭크전 4400구간 올킬세이브', creator: '위폭연구소장', types: ['세이브', '랭크전'], maps: [] },
+  { id: 'RjIU2lc6DmE', title: '나만의 감도를 쉽게 찾는 법', creator: '위폭연구소장', types: ['꿀팁'], maps: [] },
+  { id: 'g_KhqQyYlSA', title: '패스폭 대기 자리 쉽게 잡는 법', creator: '위폭연구소장', types: ['위폭', '꿀팁'], maps: [] },
+  { id: 'B_XufHs8hRE', title: '랭크전 랭킹 1·2등 유지하는 법', creator: '위폭연구소장', types: ['꿀팁', '랭크전'], maps: [] },
+  { id: 'fsAddYtSVgc', title: '머리에서 쓰리깡 폭 쉽게 던지는 법', creator: '위폭연구소장', types: ['위폭'], maps: ['머리'] },
+  { id: '6LfwsTyR3Ys', title: '컨 사이 폭 쉽게 던지는 법', creator: '위폭연구소장', types: ['위폭'], maps: [] },
+  { id: 'NwI6wJm6uf4', title: '삼박 개구리 쉽게 잡는법 (카운터)', creator: '위폭연구소장', types: ['꿀팁'], maps: ['삼박자'] },
+  { id: 'lv19AI3RhXE', title: '녹뒤폭 쉽게 던지는법', creator: '위폭연구소장', types: ['위폭'], maps: ['녹위'] },
+  { id: 'jJTGPw3KmeU', title: '3미리 쉽게 잡는법', creator: '위폭연구소장', types: ['꿀팁'], maps: ['삼박자'] },
+  { id: 'BTUU0o71MjY', title: '삼박 개구리 쉽게 잡는법', creator: '위폭연구소장', types: ['꿀팁'], maps: ['삼박자'] },
+  { id: 'pC8tV2MtS2E', title: '머리폭 쉽게 던지는법', creator: '위폭연구소장', types: ['위폭'], maps: ['머리'] },
+  { id: 'k6bWXw_-E2Y', title: '레드 옥상 쉽게 가는법 (1탄)', creator: '위폭연구소장', types: ['꿀팁'], maps: ['레드'] },
+  { id: 'BcZfY6_riMI', title: '3깡 버닝 쉽게 하는법', creator: '위폭연구소장', types: ['꿀팁'], maps: ['삼박자'] },
+  { id: 'lUkyI0ebFWE', title: '랭커구간 정확신속 카이팅', creator: '위폭연구소장', types: ['꿀팁', '랭크전'], maps: [] },
+  { id: 'rBtyuhkUk9A', title: '랭킹1등 내 설 내가 지켜', creator: '위폭연구소장', types: ['하이라이트', '랭크전'], maps: [] },
+  // 강혜준
+  { id: 'lszJvS51PTI', title: '챔스 맴버들 사이에서 세이브', creator: '강혜준', types: ['세이브'], maps: [] },
+  { id: 'rAFNm7zwUw0', title: '시티캣 A설대 다이나', creator: '강혜준', types: ['하이라이트'], maps: ['시티캣'] },
+  { id: 'kWkxteQ1eJM', title: '4vs1 세이브 10초면 충분해', creator: '강혜준', types: ['세이브'], maps: [] },
+  { id: 'XypI4v75rnI', title: '팀원들 모두가 외쳤다. 유하~', creator: '강혜준', types: ['하이라이트', '랭크전'], maps: [] },
+  { id: '-4DFC4flSOs', title: '클랜간판전 16킬 캐리', creator: '강혜준', types: ['하이라이트'], maps: [] },
+  // 텐시
+  { id: 'SNuRr7aIctg', title: '올킬 세이브', creator: '텐시', types: ['세이브'], maps: [] },
+  { id: 'JRskqhGqQ3o', title: '5보급 필승전략 위폭', creator: '텐시', types: ['위폭'], maps: ['5보급'] },
+  { id: 'AKYkXjDGWvA', title: '이게 텐시다!!', creator: '텐시', types: ['하이라이트'], maps: [] },
+  { id: '_WaC1BFhDWk', title: '짧고 강렬한 세이브', creator: '텐시', types: ['세이브'], maps: [] },
+  { id: 'BpzPlxhTTMw', title: '프로즌시티 월샷', creator: '텐시', types: ['월샷'], maps: ['프로즌시티'] },
+  { id: 'QfyDfMMDNvc', title: '시작하자마자 올킬 가능? 가능.', creator: '텐시', types: ['하이라이트'], maps: [] },
+  // 샷오바장인
+  { id: 'axL6JsEPk28', title: '시티켓 다이나', creator: '샷오바장인', types: ['위폭'], maps: ['시티캣'] },
+  { id: 'fZ9X3ZG3VgA', title: '크포 개방 작업폭', creator: '샷오바장인', types: ['위폭'], maps: ['크로스파이어'] },
+  { id: 'bDxTUJUrCVo', title: '이탈리아 머나먼 월샷(막힘)', creator: '샷오바장인', types: ['월샷'], maps: ['이탈리아'] },
+  { id: 'NO_vQK_n4M8', title: '마베 스위치 2층 폭 대기', creator: '샷오바장인', types: ['위폭'], maps: ['마베'] },
+  { id: 'YsDrNNMaep0', title: '트리오 삼거리 버그폭', creator: '샷오바장인', types: ['위폭'], maps: ['트리오'] },
+  { id: 'XAIZy9S2bHY', title: '5보급 B 입구 폭', creator: '샷오바장인', types: ['위폭'], maps: ['5보급'] },
+  { id: 'elGOArrjUws', title: '프방 A/B 빠른 백업폭', creator: '샷오바장인', types: ['위폭'], maps: ['프로방스'] },
+  { id: 'BPp5FCIDhlQ', title: '데저트 쌍문 레베 / A숏 야자 위폭', creator: '샷오바장인', types: ['위폭'], maps: ['데저트'] },
+  { id: 'GAGuh5CX7zU', title: '프방 블베 / A숏아래 위폭', creator: '샷오바장인', types: ['위폭'], maps: ['프로방스'] },
+  { id: 'ofMRZDogyVw', title: '데저트 A숏 야자 뒤 위폭', creator: '샷오바장인', types: ['위폭'], maps: ['데저트'] },
+  { id: 'bX33_Lxy7yE', title: '펠리스 B부대 앞/뒤 폭', creator: '샷오바장인', types: ['위폭'], maps: ['펠리스'] },
+  { id: '0Bh6rsMjDaw', title: '화콜 A설대 위폭 모음', creator: '샷오바장인', types: ['위폭'], maps: ['화콜'] },
+  { id: 'NIEajozElMY', title: '화콜 천막 밑 멸망폭', creator: '샷오바장인', types: ['위폭'], maps: ['화콜'] },
+  { id: 'FUCxi_1QbZc', title: '화콜 센숏 버그폭', creator: '샷오바장인', types: ['위폭'], maps: ['화콜'] },
+  { id: 'g5mOUjQcl1g', title: '프방 B설대에서 위폭 2개', creator: '샷오바장인', types: ['위폭'], maps: ['프로방스'] },
+  { id: 'nSip6fjK2vY', title: '화콜 물방 입구 폭 5개', creator: '샷오바장인', types: ['위폭'], maps: ['화콜'] },
+  { id: '-6HOY19Tu3E', title: '크포 위치 체크 2(혈흔)', creator: '샷오바장인', types: ['꿀팁'], maps: ['크로스파이어'] },
+  { id: 'rNDvcnM163w', title: '데저트 A센스나 박스 위폭', creator: '샷오바장인', types: ['위폭'], maps: ['데저트'] },
+  { id: 'P5eE52HfCVg', title: '데저트2 신전 1층 폭', creator: '샷오바장인', types: ['위폭'], maps: ['데저트'] },
+  { id: 'wfVaBn1hqWY', title: '펠리스 B롱 섬광 2가지', creator: '샷오바장인', types: ['위폭'], maps: ['펠리스'] },
+  { id: 'np-vEonfEtQ', title: '프방 A 광역 섬광', creator: '샷오바장인', types: ['위폭'], maps: ['프로방스'] },
+  { id: 'yrs8WU8Fqw4', title: '올드타운 언더 위폭', creator: '샷오바장인', types: ['위폭'], maps: ['올드타운'] },
+  { id: 'Ec4PlfFaE6M', title: '프로방스 우유통 위폭', creator: '샷오바장인', types: ['위폭'], maps: ['프로방스'] },
+  { id: 'rKY2CZTP-nU', title: '이탈리아 발코니 폭 2개', creator: '샷오바장인', types: ['위폭'], maps: ['이탈리아'] },
+  { id: 'PRcgawpZMYw', title: '올타 B진입로 위폭(레베)', creator: '샷오바장인', types: ['위폭'], maps: ['올드타운'] },
+  { id: 'ZLCcSKBHXGU', title: '말릴 때 이렇게 해보세요', creator: '샷오바장인', types: ['꿀팁'], maps: [] },
+  { id: 'mrMujlDWmh8', title: '런어인의 폭탄 해체 방법', creator: '샷오바장인', types: ['꿀팁'], maps: [] },
+  // victor
+  { id: 'QALfTdfqu0s', title: '우유통 틈', creator: 'victor', types: ['하이라이트'], maps: ['프로방스'] },
+  { id: 'LV7qd_bb2gI', title: '양각 처리', creator: 'victor', types: ['꿀팁'], maps: [] },
+  { id: 'su4GPZ7P7Bs', title: '순서가 있어', creator: 'victor', types: ['꿀팁'], maps: [] },
+  { id: 'T-jYXbSp4ps', title: '데저트 A백업', creator: 'victor', types: ['꿀팁'], maps: ['데저트'] },
+  { id: '1BNat9Alw3g', title: 'A뚫', creator: 'victor', types: ['하이라이트'], maps: [] },
+  { id: 'uLKj8VjY1Hk', title: '클랭 올킬', creator: 'victor', types: ['하이라이트'], maps: [] },
+  { id: 'SSw7PlKnYtk', title: '통했나', creator: 'victor', types: ['하이라이트'], maps: [] },
+  { id: 'dnRdeIuNQiA', title: '아다리 낚시', creator: 'victor', types: ['꿀팁'], maps: [] },
+  { id: 'e-k1za-Php8', title: '심리전', creator: 'victor', types: ['꿀팁'], maps: [] },
+  { id: 'EZT8moYcDEE', title: 'DRT', creator: 'victor', types: ['하이라이트'], maps: [] },
+  { id: 'NGLWCeW58G8', title: '어택중에도 미니맵', creator: 'victor', types: ['꿀팁'], maps: [] },
+  { id: 'IIVCPIYzERg', title: '좋은 브리핑', creator: 'victor', types: ['꿀팁'], maps: [] },
+  // lafo
+  { id: '74nhcfoZwis', title: '10년동안 위폭 연구만 했던 유저', creator: 'lafo', types: ['위폭'], maps: [] },
+  { id: 'guAoiNvulvE', title: '월샷만 15년째 쏘는 유저의 플레이', creator: 'lafo', types: ['월샷'], maps: [] },
+  { id: '844mRXORHqw', title: '무빙없어도 다 잡는 유저', creator: 'lafo', types: ['하이라이트'], maps: [] },
+  { id: 'b-tAFaS0Zpw', title: '절대 안 보이는 엇각 자리에서 킬하기', creator: 'lafo', types: ['꿀팁'], maps: [] },
+  { id: 'xtLkmigGr2A', title: '빼꼼하면서 잡는 꿀팁 3가지', creator: 'lafo', types: ['꿀팁'], maps: [] },
+  { id: 'XaTPMFxKmCs', title: '100년만에 나온 매드무비', creator: 'lafo', types: ['하이라이트'], maps: [] },
+  { id: 'VpunnvQ4Iv0', title: '말 그대로 벽을 보는중인 적 팀', creator: 'lafo', types: ['하이라이트'], maps: [] },
+  { id: 'N83Iasw38HY', title: '한 번쯤은 만나본 랭크전 빌런', creator: 'lafo', types: ['랭크전'], maps: [] },
+  { id: 'lGYxiPc_mrQ', title: '월샷으로 게임하는 1인칭 시점', creator: 'lafo', types: ['월샷'], maps: [] },
+  // 라포
+  { id: 'Qq957mNHkVw', title: '1티어 라플 스카 소음기 vs 노소음기', creator: '라포', types: ['무기리뷰'], maps: [] },
+  { id: '7NGjY5zDz_g', title: '랭크전에 써먹기 좋은 1티어 샵건', creator: '라포', types: ['무기리뷰', '랭크전'], maps: [] },
+  { id: 'MwqRJizfdpU', title: '서든어택의 근본, 스나는 아직도 좋은가?', creator: '라포', types: ['무기리뷰'], maps: [] },
+  { id: 'TZdUfz125Qs', title: '손 풀고 첫 라운드에 나온 깔끔한 플레이', creator: '라포', types: ['하이라이트'], maps: [] },
+  { id: 'gGR2vwdKFTg', title: '넓은 맵에서 줌만 쏘면 핵공격 되는 1티어 라플', creator: '라포', types: ['무기리뷰'], maps: [] },
+  { id: 'IesXH-K8tkA', title: '현 시점 전구간에서 쓰는 1티어 라플', creator: '라포', types: ['무기리뷰'], maps: [] },
+  { id: '_g3BRfgbWKQ', title: '사기 신규 12세트 동글이 AWX', creator: '라포', types: ['무기리뷰'], maps: [] },
+  { id: '4N1c69HgPYc', title: '제일 비싼 윈체 써봤습니다', creator: '라포', types: ['무기리뷰'], maps: [] },
+  { id: '0S_ysfbvcDY', title: '앞만 보면 안되는 이유 ㅋㅋ', creator: '라포', types: ['꿀팁'], maps: [] },
+  { id: 'I2dcZWawVBs', title: '뛰어다니면서 B 혼자 막아주는 스나', creator: '라포', types: ['월샷'], maps: [] },
+  { id: 'tjFk9E1Oc1o', title: '쓰기 어렵지만 잘쓰면 사기 총', creator: '라포', types: ['무기리뷰'], maps: [] },
+  { id: 'Sy2RdDfZMQo', title: '핵처럼 보이는 관통 샷', creator: '라포', types: ['월샷'], maps: [] },
+  { id: '2tjSgp4Es1w', title: '한번씩 쓰면 무조건 통하는 기술', creator: '라포', types: ['꿀팁'], maps: [] },
+  { id: 'hLZv6wx2TWM', title: '랭크전 고스트폭이 1티어인 이유', creator: '라포', types: ['위폭', '랭크전'], maps: [] },
+  { id: 'nRxKbNpDpDE', title: '해체할때만 쓸 수 있는 스네이크 기술', creator: '라포', types: ['꿀팁'], maps: [] },
+  { id: 'P8ntFZqlf4Q', title: '생존모드 무조건 챙겨야 할 총 1위', creator: '라포', types: ['무기리뷰'], maps: [] },
+  { id: 'a617o8qZ4QE', title: '스프레이 활용하기', creator: '라포', types: ['꿀팁'], maps: [] },
+  { id: 'zLcd0YB6VgM', title: '공격수 세이브', creator: '라포', types: ['세이브'], maps: [] },
+  { id: 'JUvMk9Anz5k', title: '반샷의 장점', creator: '라포', types: ['꿀팁'], maps: [] },
+];
+
+const TYPE_TAGS = ['전체', '위폭', '꿀팁', '세이브', '월샷', '무기리뷰', '하이라이트', '랭크전'] as const;
+const MAP_TAGS = ['전체', '프로방스', '데저트', '화콜', '삼박자', '이탈리아', '올드타운', '크로스파이어', '펠리스', '5보급', '시티캣', '머리', '녹위', '레드', '프로즌시티', '트리오', '마베'] as const;
+
+const ShortsGrid: React.FC = () => {
+  const [typeFilter, setTypeFilter] = useState('전체');
+  const [mapFilter, setMapFilter] = useState('전체');
+
+  const filtered = SHORTS_DATA.filter(v => {
+    const typeOk = typeFilter === '전체' || v.types.includes(typeFilter);
+    const mapOk = mapFilter === '전체' || v.maps.includes(mapFilter);
+    return typeOk && mapOk;
+  });
+
+  // 맵 탭에서 실제 영상이 있는 맵만 표시
+  const activeMaps = MAP_TAGS.filter(m => m === '전체' || SHORTS_DATA.some(v => v.maps.includes(m)));
+
+  return (
+    <div>
+      {/* 유형 필터 */}
+      <div className="px-2 pt-2 pb-1">
+        <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
+          {TYPE_TAGS.map(tag => (
+            <button
+              key={tag}
+              onClick={() => setTypeFilter(tag)}
+              className={`shrink-0 px-2.5 py-1 font-code text-[11px] border transition-colors ${
+                typeFilter === tag
+                  ? 'bg-acid-pink text-white border-acid-pink'
+                  : 'bg-transparent text-gray-500 border-gray-700 active:border-gray-500'
+              }`}
+            >
+              {tag}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 맵 필터 */}
+      <div className="px-2 pb-2">
+        <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
+          {activeMaps.map(tag => (
+            <button
+              key={tag}
+              onClick={() => setMapFilter(tag)}
+              className={`shrink-0 px-2.5 py-1 font-code text-[11px] border transition-colors ${
+                mapFilter === tag
+                  ? 'bg-acid-cyan text-black border-acid-cyan'
+                  : 'bg-transparent text-gray-500 border-gray-700 active:border-gray-500'
+              }`}
+            >
+              {tag === '전체' ? '맵 전체' : tag}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 결과 카운트 */}
+      <div className="px-3 pb-2">
+        <span className="font-code text-gray-600 text-[10px]">
+          {filtered.length}건{typeFilter !== '전체' || mapFilter !== '전체' ? ` (필터: ${[typeFilter, mapFilter].filter(f => f !== '전체').join(' + ')})` : ''}
+        </span>
+      </div>
+
+      {/* 그리드 */}
+      {filtered.length === 0 ? (
+        <div className="py-16 text-center">
+          <span className="font-pixel text-gray-600 text-xs">NO_MATCH</span>
+          <p className="font-code text-gray-700 text-[10px] mt-2">필터 조합에 맞는 영상이 없습니다</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-2 px-2 pb-4">
+          {filtered.map(v => (
+            <a
+              key={v.id}
+              href={`https://www.youtube.com/shorts/${v.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="bg-gray-950 border border-gray-800 overflow-hidden active:border-acid-green transition-colors"
+            >
+              <div className="relative w-full" style={{ paddingBottom: '177%' }}>
+                <img
+                  src={`https://i.ytimg.com/vi/${v.id}/oar2.jpg`}
+                  alt={v.title}
+                  className="absolute inset-0 w-full h-full object-cover"
+                  loading="lazy"
+                />
+                {/* 크리에이터 뱃지 */}
+                <div className="absolute top-1 right-1 bg-black/70 px-1.5 py-0.5">
+                  <span className="font-code text-acid-green text-[9px]">{v.creator}</span>
+                </div>
+              </div>
+              <div className="px-2 py-1.5">
+                <p className="font-code text-white text-[11px] line-clamp-2 leading-tight">{v.title}</p>
+                <div className="flex gap-1 mt-1 flex-wrap">
+                  {v.types.map(t => (
+                    <span key={t} className="bg-acid-pink/20 text-acid-pink font-code text-[8px] px-1 py-0.5">{t}</span>
+                  ))}
+                  {v.maps.map(m => (
+                    <span key={m} className="bg-acid-cyan/20 text-acid-cyan font-code text-[8px] px-1 py-0.5">{m}</span>
+                  ))}
+                </div>
+              </div>
+            </a>
+          ))}
+        </div>
+      )}
+    </div>
   );
 };
 
@@ -103,51 +335,29 @@ const FeedCard: React.FC<{
   reactions: Record<string, number>;
   onReact: (updateId: number, reaction: string) => void;
 }> = ({ update, score, onOpen, reactions, onReact }) => {
-  const timeAgo = getTimeAgo(update.published_at || update.crawled_at);
+  const dateStr = formatPublishedDate(update.published_at);
 
   return (
     <button
       onClick={() => onOpen(update)}
       className="w-full text-left bg-gray-950 border border-gray-800 active:border-acid-green active:bg-gray-900 transition-colors"
     >
-      <div className="px-4 pt-3 pb-2 flex items-center gap-2">
+      <div className="px-4 pt-3 pb-1 flex items-center gap-2">
         <SourceBadge source={update.source} />
-        <span className="text-gray-500 font-code text-[11px]">{timeAgo}</span>
+        {dateStr && <span className="text-gray-500 font-code text-[11px]">{dateStr}</span>}
         {update.analysis && <SentimentBadge sentiment={update.analysis.sentiment} />}
         {score !== undefined && (
           <span className="ml-auto text-acid-cyan font-code text-[10px]">{(score * 100).toFixed(0)}%</span>
         )}
       </div>
-      <div className="px-4 pb-2">
+      <div className="px-4 pb-1">
         <h3 className="font-code text-white text-[15px] leading-snug line-clamp-2">{update.title}</h3>
       </div>
       {update.analysis && (
-        <div className="px-4 pb-3">
-          <p className="text-gray-400 font-code text-[12px] leading-relaxed line-clamp-3">
+        <div className="px-4 pb-2">
+          <p className="text-gray-500 font-code text-[12px] leading-relaxed line-clamp-2">
             {update.analysis.summary}
           </p>
-          {update.analysis.key_changes.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mt-2">
-              {update.analysis.key_changes.slice(0, 3).map((c, i) => (
-                <span key={i} className="bg-gray-800 text-acid-green font-code text-[10px] px-2 py-0.5">
-                  {c.length > 20 ? c.slice(0, 20) + '...' : c}
-                </span>
-              ))}
-              {update.analysis.key_changes.length > 3 && (
-                <span className="text-gray-600 font-code text-[10px] px-1">+{update.analysis.key_changes.length - 3}</span>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-      {!update.analysis && (
-        <div className="px-4 pb-3">
-          <p className="text-gray-600 font-code text-[12px] italic">AI 분석 대기중...</p>
-        </div>
-      )}
-      {update.author && (
-        <div className="px-4 pb-2 pt-1">
-          <span className="text-gray-600 font-code text-[10px]">by {update.author}</span>
         </div>
       )}
       <ReactionBar updateId={update.id} reactions={reactions} onReact={onReact} />
@@ -161,9 +371,7 @@ const DetailView: React.FC<{
   reactions: Record<string, number>;
   onReact: (updateId: number, reaction: string) => void;
 }> = ({ update, reactions, onReact }) => {
-  const dateStr = update.published_at
-    ? new Date(update.published_at).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-    : '';
+  const dateStr = formatPublishedDate(update.published_at);
 
   return (
     <div className="h-full overflow-y-auto">
@@ -171,12 +379,10 @@ const DetailView: React.FC<{
       <div className="px-4 pt-4 pb-3 border-b border-gray-800">
         <div className="flex items-center gap-2 mb-3">
           <SourceBadge source={update.source} />
-          {update.analysis && <SentimentBadge sentiment={update.analysis.sentiment} />}
-          <span className="text-gray-500 font-code text-[11px]">{dateStr}</span>
+          {dateStr && <span className="text-gray-500 font-code text-[11px]">게시날짜 {dateStr}</span>}
         </div>
         <h1 className="font-code text-white text-lg font-bold leading-snug">{update.title}</h1>
         <div className="flex items-center gap-3 mt-2">
-          {update.author && <span className="text-gray-500 font-code text-xs">{update.author}</span>}
           {update.url && (
             <a href={update.url} target="_blank" rel="noopener noreferrer" className="text-acid-cyan font-code text-xs active:underline">
               원문 보기 &gt;
@@ -185,55 +391,17 @@ const DetailView: React.FC<{
         </div>
       </div>
 
-      {/* AI Analysis Card */}
-      {update.analysis && (
-        <div className="mx-3 mt-4 bg-gray-950 border border-acid-pink/30 overflow-hidden">
-          <div className="bg-acid-pink/10 px-4 py-2 border-b border-acid-pink/20">
-            <span className="font-pixel text-acid-pink text-[10px]">AI ANALYSIS REPORT</span>
-          </div>
-          <div className="px-4 py-3 space-y-4">
-            <div>
-              <p className="text-white font-code text-[13px] leading-relaxed">{update.analysis.summary}</p>
-            </div>
-            {update.analysis.key_changes.length > 0 && (
-              <div>
-                <span className="font-pixel text-[9px] text-gray-500 mb-2 block">KEY CHANGES</span>
-                <div className="space-y-1.5">
-                  {update.analysis.key_changes.map((change, i) => (
-                    <div key={i} className="flex items-start gap-2">
-                      <span className="text-acid-green font-code text-xs mt-0.5 shrink-0">&gt;</span>
-                      <span className="text-gray-300 font-code text-xs leading-relaxed">{change}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            {update.analysis.community_reaction && (
-              <div className="bg-gray-900 -mx-4 px-4 py-3 border-t border-gray-800">
-                <span className="font-pixel text-[9px] text-gray-500 mb-1.5 block">COMMUNITY REACTION</span>
-                <p className="text-yellow-300/80 font-code text-xs leading-relaxed">{update.analysis.community_reaction}</p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Reaction Bar */}
-      <div className="mx-3 mt-4 bg-gray-950 border border-gray-800">
-        <div className="bg-gray-900 px-4 py-2 border-b border-gray-800">
-          <span className="font-pixel text-[9px] text-gray-500">REACTION</span>
-        </div>
-        <ReactionBar updateId={update.id} reactions={reactions} onReact={onReact} />
-      </div>
-
-      {/* Raw Content */}
+      {/* Content */}
       <div className="px-4 py-4">
-        <span className="font-pixel text-[9px] text-gray-600 mb-3 block">ORIGINAL CONTENT</span>
         <div
-          className="font-code text-gray-400 text-xs leading-relaxed [&_p]:mb-3 [&_ul]:ml-4 [&_ul]:mb-3 [&_li]:list-disc [&_h1]:text-white [&_h1]:text-sm [&_h1]:font-bold [&_h1]:mb-2 [&_h2]:text-white [&_h2]:text-sm [&_h2]:font-bold [&_h2]:mb-2 [&_h3]:text-gray-300 [&_h3]:text-xs [&_h3]:font-bold [&_h3]:mb-1 [&_strong]:text-white [&_a]:text-acid-cyan"
+          className="font-code text-gray-300 text-[13px] leading-relaxed [&_p]:mb-3 [&_ul]:ml-4 [&_ul]:mb-3 [&_li]:list-disc [&_h1]:text-white [&_h1]:text-sm [&_h1]:font-bold [&_h1]:mb-2 [&_h2]:text-white [&_h2]:text-sm [&_h2]:font-bold [&_h2]:mb-2 [&_h3]:text-gray-300 [&_h3]:text-xs [&_h3]:font-bold [&_h3]:mb-1 [&_strong]:text-white [&_a]:text-acid-cyan"
           dangerouslySetInnerHTML={{ __html: marked.parse(update.content.slice(0, 8000)) as string }}
         />
       </div>
+
+      {/* Reaction Bar */}
+      <ReactionBar updateId={update.id} reactions={reactions} onReact={onReact} />
+
       <div className="h-20" />
     </div>
   );
@@ -241,7 +409,7 @@ const DetailView: React.FC<{
 
 // ─── 메인 커뮤니티 페이지 ───
 export const CommunityPage: React.FC = () => {
-  const { isCommunityOpen } = useUI();
+  const { isCommunityOpen, closeCommunity } = useUI();
 
   const [source, setSource] = useState<SourceFilter>('all');
   const [updates, setUpdates] = useState<GameUpdate[]>([]);
@@ -382,7 +550,13 @@ export const CommunityPage: React.FC = () => {
             <span className="font-pixel text-white text-xs tracking-wider">COMMUNITY</span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={closeCommunity}
+              className="font-pixel text-[10px] text-acid-green hover:text-white transition-colors tracking-wider cursor-pointer"
+            >
+              전적검색
+            </button>
             {stats && (
               <span className="text-gray-600 font-code text-[10px]">
                 {stats.totalUpdates} posts
@@ -430,6 +604,7 @@ export const CommunityPage: React.FC = () => {
                 { key: 'all', label: 'ALL' },
                 { key: 'nexon', label: 'NEXON' },
                 { key: 'dcinside', label: 'HOT ISSUE' },
+                { key: 'shorts', label: 'SHORTS' },
               ] as { key: SourceFilter; label: string }[]).map(tab => (
                 <button
                   key={tab.key}
@@ -499,16 +674,20 @@ export const CommunityPage: React.FC = () => {
               </div>
             )}
 
-            <div className="divide-y divide-gray-800/50">
-              {isSearchMode
-                ? searchResults.map(r => (
-                    <FeedCard key={r.update.id} update={r.update} score={r.score} onOpen={openDetail} reactions={allReactions[r.update.id] || {}} onReact={handleReact} />
-                  ))
-                : updates.map(u => (
-                    <FeedCard key={u.id} update={u} onOpen={openDetail} reactions={allReactions[u.id] || {}} onReact={handleReact} />
-                  ))
-              }
-            </div>
+            {source === 'shorts' ? (
+              <ShortsGrid />
+            ) : (
+              <div className="divide-y divide-gray-800/50">
+                {isSearchMode
+                  ? searchResults.map(r => (
+                      <FeedCard key={r.update.id} update={r.update} score={r.score} onOpen={openDetail} reactions={allReactions[r.update.id] || {}} onReact={handleReact} />
+                    ))
+                  : updates.map(u => (
+                      <FeedCard key={u.id} update={u} onOpen={openDetail} reactions={allReactions[u.id] || {}} onReact={handleReact} />
+                    ))
+                }
+              </div>
+            )}
 
             {!isSearchMode && hasMore && updates.length > 0 && (
               <button
@@ -529,20 +708,19 @@ export const CommunityPage: React.FC = () => {
 };
 
 // ─── 유틸리티 ───
-function getTimeAgo(dateStr: string): string {
+function formatPublishedDate(dateStr?: string): string {
+  if (!dateStr) return '';
   try {
-    const now = Date.now();
-    const then = new Date(dateStr).getTime();
-    const diff = now - then;
-    const mins = Math.floor(diff / 60000);
-    if (mins < 1) return '방금';
-    if (mins < 60) return `${mins}분 전`;
-    const hours = Math.floor(mins / 60);
-    if (hours < 24) return `${hours}시간 전`;
-    const days = Math.floor(hours / 24);
-    if (days < 7) return `${days}일 전`;
-    return new Date(dateStr).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
+    // "14:30" 같은 시간만 있는 경우 → 오늘 날짜 붙임
+    if (/^\d{1,2}:\d{2}$/.test(dateStr.trim())) {
+      const today = new Date();
+      return `${today.getMonth() + 1}/${today.getDate()} ${dateStr}`;
+    }
+    // "2026.03.19" 또는 ISO 포맷
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return d.toLocaleDateString('ko-KR', { year: 'numeric', month: 'numeric', day: 'numeric' });
   } catch {
-    return '';
+    return dateStr;
   }
 }
