@@ -304,6 +304,12 @@ const ShortsGrid: React.FC<{ searchQuery?: string }> = ({ searchQuery = '' }) =>
                   alt={v.title}
                   className="absolute inset-0 w-full h-full object-cover"
                   loading="lazy"
+                  onError={(e) => {
+                    const img = e.currentTarget;
+                    if (img.src.includes('oar2.jpg')) {
+                      img.src = `https://i.ytimg.com/vi/${v.id}/mqdefault.jpg`;
+                    }
+                  }}
                 />
                 {/* 크리에이터 뱃지 */}
                 <div className="absolute top-1 right-1 bg-black/70 px-1 py-0.5">
