@@ -562,7 +562,7 @@ export const CommunityPage: React.FC = () => {
   return (
     <div className="fixed inset-0 z-[200] bg-black flex flex-col">
       {/* ─── Top Bar ─── */}
-      <div className="shrink-0 bg-black border-b-2 border-acid-green">
+      <div className="shrink-0 bg-black">
         <div className="max-w-2xl mx-auto">
           <div className="flex items-center justify-between px-3 py-2">
             {/* 로고 — 클릭 시 전적검색으로 이동 */}
