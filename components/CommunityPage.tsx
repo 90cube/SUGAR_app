@@ -300,13 +300,20 @@ const ShortsGrid: React.FC<{ searchQuery?: string }> = ({ searchQuery = '' }) =>
             >
               <div className="relative w-full" style={{ paddingBottom: '177%' }}>
                 <img
-                  src={`https://i.ytimg.com/vi/${v.id}/oar2.jpg`}
+                  src={`https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`}
                   alt={v.title}
                   className="absolute inset-0 w-full h-full object-cover"
-                  loading="lazy"
-                  onError={(e) => {
+                  onLoad={(e) => {
+                    // YouTube는 없는 썸네일을 404 대신 120×90 회색 placeholder(200 OK)로 반환하는 경우가 있음
                     const img = e.currentTarget;
-                    if (img.src.includes('oar2.jpg')) {
+                    if (img.naturalWidth === 120 && img.naturalHeight === 90 && img.src.includes('hqdefault')) {
+                      img.src = `https://i.ytimg.com/vi/${v.id}/mqdefault.jpg`;
+                    }
+                  }}
+                  onError={(e) => {
+                    // 실제 404인 경우 mqdefault.jpg로 fallback
+                    const img = e.currentTarget;
+                    if (img.src.includes('hqdefault')) {
                       img.src = `https://i.ytimg.com/vi/${v.id}/mqdefault.jpg`;
                     }
                   }}
