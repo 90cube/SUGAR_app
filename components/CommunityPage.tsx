@@ -556,97 +556,103 @@ export const CommunityPage: React.FC = () => {
     <div className="fixed inset-0 z-[200] bg-black flex flex-col">
       {/* ─── Top Bar ─── */}
       <div className="shrink-0 bg-black border-b-2 border-acid-green">
-        <div className="flex items-center justify-between px-3 py-2">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 bg-acid-pink border-2 border-white flex items-center justify-center font-pixel text-white text-sm font-bold shadow-hard">
-              S
-            </div>
-            <span className="font-pixel text-acid-green text-xs tracking-wider">COMMUNITY.DAT</span>
-          </div>
-
-          <div className="flex items-center gap-3">
-            {stats && (
-              <span className="font-pixel text-gray-600 text-[9px]">
-                {stats.totalUpdates}_POSTS
-              </span>
-            )}
+        <div className="max-w-2xl mx-auto">
+          <div className="flex items-center justify-between px-3 py-2">
+            {/* 로고 — 클릭 시 전적검색으로 이동 */}
             <button
               onClick={closeCommunity}
-              className="font-pixel text-[10px] text-acid-cyan active:text-white transition-colors tracking-wider cursor-pointer border border-acid-cyan px-2 py-0.5"
+              className="flex items-center gap-2 active:opacity-70 transition-opacity"
             >
-              &lt; BACK
+              <div className="w-7 h-7 bg-acid-pink border-2 border-white flex items-center justify-center font-pixel text-white text-sm font-bold shadow-hard">
+                S
+              </div>
+              <span className="font-pixel text-acid-green text-xs tracking-wider">COMMUNITY.DAT</span>
             </button>
+
+            <div className="flex items-center gap-3">
+              {stats && (
+                <span className="font-pixel text-gray-600 text-[9px]">
+                  {stats.totalUpdates}_POSTS
+                </span>
+              )}
+              <button
+                onClick={closeCommunity}
+                className="font-pixel text-[10px] text-acid-cyan active:text-white transition-colors tracking-wider cursor-pointer border border-acid-cyan px-2 py-0.5"
+              >
+                &lt; BACK
+              </button>
+            </div>
           </div>
+
+          {/* Search Bar - 리스트 모드일 때만 */}
+          {!selectedUpdate && (
+            <>
+              <div className="px-3 pb-2.5">
+                <form onSubmit={handleSearch} className="flex gap-2">
+                  <div className="flex-1 relative">
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder={source === 'shorts' ? '제목/크리에이터 검색...' : '검색 (예: 밸런스 패치, 신규 무기...)'}
+                      className="w-full h-9 bg-black border-2 border-gray-700 text-acid-green font-code text-sm px-3 pr-8 focus:outline-none focus:border-acid-green placeholder:text-gray-600 placeholder:text-xs"
+                    />
+                    {isSearchMode && (
+                      <button
+                        type="button"
+                        onClick={clearSearch}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 active:text-white text-lg font-code"
+                      >
+                        x
+                      </button>
+                    )}
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={isSearching}
+                    className="h-9 px-4 bg-acid-green text-black font-pixel text-[10px] font-bold border-2 border-black shadow-hard active:shadow-none active:translate-x-[2px] active:translate-y-[2px] disabled:opacity-50"
+                  >
+                    {isSearching ? '...' : 'GO'}
+                  </button>
+                </form>
+              </div>
+
+              {/* Filter Tabs */}
+              <div className="flex border-t-2 border-acid-green/40">
+                {([
+                  { key: 'all', label: 'ALL' },
+                  { key: 'nexon', label: 'NEXON' },
+                  { key: 'dcinside', label: 'HOT ISSUE' },
+                  { key: 'shorts', label: 'SHORTS' },
+                ] as { key: SourceFilter; label: string }[]).map(tab => (
+                  <button
+                    key={tab.key}
+                    onClick={() => { setSource(tab.key); clearSearch(); }}
+                    className={`flex-1 py-2 font-pixel text-[10px] text-center border-b-2 transition-colors ${
+                      source === tab.key
+                        ? 'border-acid-green text-acid-green'
+                        : 'border-transparent text-gray-500 active:text-gray-300'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* 상세 모드일 때 뒤로가기 바 */}
+          {selectedUpdate && (
+            <div className="border-t-2 border-acid-green/40">
+              <button
+                onClick={() => window.history.back()}
+                className="w-full px-3 py-2 flex items-center gap-2 active:bg-gray-900"
+              >
+                <span className="text-acid-green font-pixel text-[10px]">&lt; LIST</span>
+              </button>
+            </div>
+          )}
         </div>
-
-        {/* Search Bar - 리스트 모드일 때만 */}
-        {!selectedUpdate && (
-          <>
-            <div className="px-3 pb-2.5">
-              <form onSubmit={handleSearch} className="flex gap-2">
-                <div className="flex-1 relative">
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder={source === 'shorts' ? '제목/크리에이터 검색...' : '검색 (예: 밸런스 패치, 신규 무기...)'}
-                    className="w-full h-9 bg-black border-2 border-gray-700 text-acid-green font-code text-sm px-3 pr-8 focus:outline-none focus:border-acid-green placeholder:text-gray-600 placeholder:text-xs"
-                  />
-                  {isSearchMode && (
-                    <button
-                      type="button"
-                      onClick={clearSearch}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 active:text-white text-lg font-code"
-                    >
-                      x
-                    </button>
-                  )}
-                </div>
-                <button
-                  type="submit"
-                  disabled={isSearching}
-                  className="h-9 px-4 bg-acid-green text-black font-pixel text-[10px] font-bold border-2 border-black shadow-hard active:shadow-none active:translate-x-[2px] active:translate-y-[2px] disabled:opacity-50"
-                >
-                  {isSearching ? '...' : 'GO'}
-                </button>
-              </form>
-            </div>
-
-            {/* Filter Tabs */}
-            <div className="flex border-t-2 border-acid-green/40">
-              {([
-                { key: 'all', label: 'ALL' },
-                { key: 'nexon', label: 'NEXON' },
-                { key: 'dcinside', label: 'HOT ISSUE' },
-                { key: 'shorts', label: 'SHORTS' },
-              ] as { key: SourceFilter; label: string }[]).map(tab => (
-                <button
-                  key={tab.key}
-                  onClick={() => { setSource(tab.key); clearSearch(); }}
-                  className={`flex-1 py-2 font-pixel text-[10px] text-center border-b-2 transition-colors ${
-                    source === tab.key
-                      ? 'border-acid-green text-acid-green'
-                      : 'border-transparent text-gray-500 active:text-gray-300'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-          </>
-        )}
-
-        {/* 상세 모드일 때 뒤로가기 바 */}
-        {selectedUpdate && (
-          <div className="border-t-2 border-acid-green/40">
-            <button
-              onClick={() => window.history.back()}
-              className="w-full px-3 py-2 flex items-center gap-2 active:bg-gray-900"
-            >
-              <span className="text-acid-green font-pixel text-[10px]">&lt; LIST</span>
-            </button>
-          </div>
-        )}
       </div>
 
       {/* ─── Content ─── */}
