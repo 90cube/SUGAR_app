@@ -348,7 +348,7 @@ const FeedCard: React.FC<{
   return (
     <button
       onClick={() => onOpen(update)}
-      className="w-full text-left bg-gray-950 border border-gray-800 active:border-acid-green active:bg-gray-900 transition-colors"
+      className="w-full text-left bg-black border-b border-gray-800 border-l-4 border-l-acid-green active:border-l-acid-pink active:bg-gray-900 transition-colors"
     >
       <div className="px-4 pt-3 pb-1 flex items-center gap-2">
         <SourceBadge source={update.source} />
@@ -382,9 +382,14 @@ const DetailView: React.FC<{
   const dateStr = formatPublishedDate(update.published_at);
 
   return (
-    <div className="h-full overflow-y-auto">
+    <div className="max-w-2xl mx-auto h-full overflow-y-auto">
+      {/* 터미널 헤더 */}
+      <div className="bg-acid-green text-black px-4 py-1 font-pixel font-bold text-[9px] flex justify-between items-center">
+        <span>C:\SUDDENLAB\ARTICLE.TXT</span>
+        {update.source && <span>{update.source.toUpperCase()}</span>}
+      </div>
       {/* Article Header */}
-      <div className="px-4 pt-4 pb-3 border-b border-gray-800">
+      <div className="px-4 pt-4 pb-3 border-b-2 border-acid-green/30">
         <div className="flex items-center gap-2 mb-3">
           <SourceBadge source={update.source} />
           {dateStr && <span className="text-gray-500 font-code text-[11px]">게시날짜 {dateStr}</span>}
@@ -550,27 +555,27 @@ export const CommunityPage: React.FC = () => {
   return (
     <div className="fixed inset-0 z-[200] bg-black flex flex-col">
       {/* ─── Top Bar ─── */}
-      <div className="shrink-0 bg-black border-b-2 border-gray-800">
-        <div className="flex items-center justify-between px-3 py-2.5">
+      <div className="shrink-0 bg-black border-b-2 border-acid-green">
+        <div className="flex items-center justify-between px-3 py-2">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 bg-acid-pink border border-white flex items-center justify-center font-pixel text-white text-sm font-bold">
+            <div className="w-7 h-7 bg-acid-pink border-2 border-white flex items-center justify-center font-pixel text-white text-sm font-bold shadow-hard">
               S
             </div>
-            <span className="font-pixel text-white text-xs tracking-wider">COMMUNITY</span>
+            <span className="font-pixel text-acid-green text-xs tracking-wider">COMMUNITY.DAT</span>
           </div>
 
           <div className="flex items-center gap-3">
-            <button
-              onClick={closeCommunity}
-              className="font-pixel text-[10px] text-acid-green hover:text-white transition-colors tracking-wider cursor-pointer"
-            >
-              전적검색
-            </button>
             {stats && (
-              <span className="text-gray-600 font-code text-[10px]">
-                {stats.totalUpdates} posts
+              <span className="font-pixel text-gray-600 text-[9px]">
+                {stats.totalUpdates}_POSTS
               </span>
             )}
+            <button
+              onClick={closeCommunity}
+              className="font-pixel text-[10px] text-acid-cyan active:text-white transition-colors tracking-wider cursor-pointer border border-acid-cyan px-2 py-0.5"
+            >
+              &lt; BACK
+            </button>
           </div>
         </div>
 
@@ -585,7 +590,7 @@ export const CommunityPage: React.FC = () => {
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder={source === 'shorts' ? '제목/크리에이터 검색...' : '검색 (예: 밸런스 패치, 신규 무기...)'}
-                    className="w-full h-9 bg-gray-900 border border-gray-700 text-white font-code text-sm px-3 pr-8 focus:outline-none focus:border-acid-green placeholder:text-gray-600 placeholder:text-xs"
+                    className="w-full h-9 bg-black border-2 border-gray-700 text-acid-green font-code text-sm px-3 pr-8 focus:outline-none focus:border-acid-green placeholder:text-gray-600 placeholder:text-xs"
                   />
                   {isSearchMode && (
                     <button
@@ -600,7 +605,7 @@ export const CommunityPage: React.FC = () => {
                 <button
                   type="submit"
                   disabled={isSearching}
-                  className="h-9 px-4 bg-acid-green text-black font-screen text-lg font-bold border border-black active:bg-acid-green/70 disabled:opacity-50"
+                  className="h-9 px-4 bg-acid-green text-black font-pixel text-[10px] font-bold border-2 border-black shadow-hard active:shadow-none active:translate-x-[2px] active:translate-y-[2px] disabled:opacity-50"
                 >
                   {isSearching ? '...' : 'GO'}
                 </button>
@@ -608,7 +613,7 @@ export const CommunityPage: React.FC = () => {
             </div>
 
             {/* Filter Tabs */}
-            <div className="flex border-t border-gray-800">
+            <div className="flex border-t-2 border-acid-green/40">
               {([
                 { key: 'all', label: 'ALL' },
                 { key: 'nexon', label: 'NEXON' },
@@ -633,13 +638,12 @@ export const CommunityPage: React.FC = () => {
 
         {/* 상세 모드일 때 뒤로가기 바 */}
         {selectedUpdate && (
-          <div className="border-t border-gray-800">
+          <div className="border-t-2 border-acid-green/40">
             <button
               onClick={() => window.history.back()}
               className="w-full px-3 py-2 flex items-center gap-2 active:bg-gray-900"
             >
-              <span className="text-acid-green font-screen text-lg">&lt;</span>
-              <span className="text-gray-400 font-code text-xs">목록으로</span>
+              <span className="text-acid-green font-pixel text-[10px]">&lt; LIST</span>
             </button>
           </div>
         )}
@@ -650,11 +654,19 @@ export const CommunityPage: React.FC = () => {
         {selectedUpdate ? (
           <DetailView update={selectedUpdate} reactions={allReactions[selectedUpdate.id] || {}} onReact={handleReact} />
         ) : (
-          <div className="pb-safe">
+          <div className="max-w-2xl mx-auto w-full pb-safe">
+            {/* 터미널 섹션 헤더 */}
+            {!isSearchMode && (
+              <div className="bg-acid-green text-black px-4 py-1 font-pixel font-bold text-[9px] flex justify-between items-center">
+                <span>C:\SUDDENLAB\{source === 'shorts' ? 'SHORTS' : source === 'nexon' ? 'NEXON' : source === 'dcinside' ? 'HOT_ISSUE' : 'ALL'}.LOG</span>
+                {stats && source !== 'shorts' && <span>{stats.totalAnalyzed}_ANALYZED</span>}
+              </div>
+            )}
+
             {isSearchMode && (
-              <div className="px-3 py-2 bg-gray-900/50 border-b border-gray-800">
-                <span className="font-code text-gray-500 text-[11px]">
-                  검색결과: {searchResults.length}건 "{searchQuery}"
+              <div className="px-3 py-1.5 bg-acid-green/10 border-b-2 border-acid-green">
+                <span className="font-pixel text-acid-green text-[9px]">
+                  SEARCH: {searchResults.length}건 &quot;{searchQuery}&quot;
                 </span>
               </div>
             )}
@@ -662,19 +674,19 @@ export const CommunityPage: React.FC = () => {
             {loading && updates.length === 0 && (
               <div className="space-y-px">
                 {[1, 2, 3, 4].map(i => (
-                  <div key={i} className="bg-gray-950 border-b border-gray-800 px-4 py-4 animate-pulse">
+                  <div key={i} className="bg-black border-b border-gray-800 border-l-4 border-l-gray-700 px-4 py-4 animate-pulse">
                     <div className="flex gap-2 mb-3">
-                      <div className="w-12 h-4 bg-gray-800 rounded-sm" />
-                      <div className="w-16 h-4 bg-gray-800 rounded-sm" />
+                      <div className="w-12 h-4 bg-gray-800" />
+                      <div className="w-16 h-4 bg-gray-800" />
                     </div>
-                    <div className="w-3/4 h-4 bg-gray-800 rounded-sm mb-2" />
-                    <div className="w-full h-3 bg-gray-900 rounded-sm" />
+                    <div className="w-3/4 h-4 bg-gray-800 mb-2" />
+                    <div className="w-full h-3 bg-gray-900" />
                   </div>
                 ))}
               </div>
             )}
 
-            {!isSearchMode && !loading && updates.length === 0 && (
+            {!isSearchMode && !loading && updates.length === 0 && source !== 'shorts' && (
               <div className="flex flex-col items-center justify-center py-20 px-6">
                 <span className="font-pixel text-gray-600 text-sm mb-2">NO_DATA</span>
                 <p className="font-code text-gray-700 text-xs text-center">
@@ -702,9 +714,9 @@ export const CommunityPage: React.FC = () => {
               <button
                 onClick={handleLoadMore}
                 disabled={loading}
-                className="w-full py-4 text-center font-code text-gray-500 text-xs active:text-acid-green active:bg-gray-900 disabled:opacity-50"
+                className="w-full py-3 text-center font-pixel text-gray-600 text-[9px] active:text-acid-green active:bg-gray-900 disabled:opacity-50 border-t border-gray-800"
               >
-                {loading ? '로딩중...' : '더 보기'}
+                {loading ? 'LOADING...' : 'LOAD_MORE.EXE'}
               </button>
             )}
 
