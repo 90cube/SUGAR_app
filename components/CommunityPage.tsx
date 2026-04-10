@@ -25,21 +25,21 @@ const ReactionBar: React.FC<{
   const total = Object.values(reactions).reduce((a, b) => a + b, 0);
 
   return (
-    <div className="px-4 py-3 border-t border-gray-800/50">
+    <div className="px-3 py-1.5 border-t border-gray-800/50">
       {/* 이모지 버튼 */}
-      <div className="flex gap-1 mb-2">
+      <div className="flex gap-0.5 mb-1">
         {REACTION_CONFIG.map(r => {
           const count = reactions[r.key] || 0;
           return (
             <button
               key={r.key}
               onClick={(e) => { e.stopPropagation(); onReact(updateId, r.key); }}
-              className="flex-1 flex flex-col items-center py-1.5 rounded-sm active:scale-95 transition-transform"
+              className="flex-1 flex flex-col items-center py-0.5 active:scale-95 transition-transform"
               style={{ backgroundColor: count > 0 ? `${r.color}15` : 'transparent' }}
               title={r.label}
             >
-              <span className="text-base leading-none">{r.emoji}</span>
-              <span className="font-code text-[9px] mt-1" style={{ color: count > 0 ? r.color : '#555' }}>
+              <span className="text-xs leading-none">{r.emoji}</span>
+              <span className="font-code text-[8px]" style={{ color: count > 0 ? r.color : '#555' }}>
                 {count > 0 ? count : ''}
               </span>
             </button>
@@ -49,7 +49,7 @@ const ReactionBar: React.FC<{
 
       {/* 비율 바 */}
       {total > 0 && (
-        <div className="h-[3px] flex rounded-full overflow-hidden bg-gray-800/50">
+        <div className="h-[2px] flex overflow-hidden bg-gray-800/50">
           {REACTION_CONFIG.map(r => {
             const count = reactions[r.key] || 0;
             if (count === 0) return null;
