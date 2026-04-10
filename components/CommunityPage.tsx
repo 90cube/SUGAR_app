@@ -220,14 +220,16 @@ const SHORTS_DATA: ShortVideo[] = [
 const TYPE_TAGS = ['전체', '위폭', '꿀팁', '세이브', '월샷', '무기리뷰', '하이라이트', '랭크전'] as const;
 const MAP_TAGS = ['전체', '프로방스', '데저트', '화콜', '삼박자', '이탈리아', '올드타운', '크로스파이어', '펠리스', '5보급', '시티캣', '머리', '녹위', '레드', '프로즌시티', '트리오', '마베'] as const;
 
-const ShortsGrid: React.FC = () => {
+const ShortsGrid: React.FC<{ searchQuery?: string }> = ({ searchQuery = '' }) => {
   const [typeFilter, setTypeFilter] = useState('전체');
   const [mapFilter, setMapFilter] = useState('전체');
 
+  const q = searchQuery.trim().toLowerCase();
   const filtered = SHORTS_DATA.filter(v => {
     const typeOk = typeFilter === '전체' || v.types.includes(typeFilter);
     const mapOk = mapFilter === '전체' || v.maps.includes(mapFilter);
-    return typeOk && mapOk;
+    const queryOk = !q || v.title.toLowerCase().includes(q) || v.creator.toLowerCase().includes(q);
+    return typeOk && mapOk && queryOk;
   });
 
   // 맵 탭에서 실제 영상이 있는 맵만 표시
@@ -276,7 +278,7 @@ const ShortsGrid: React.FC = () => {
       {/* 결과 카운트 */}
       <div className="px-3 pb-2">
         <span className="font-code text-gray-600 text-[10px]">
-          {filtered.length}건{typeFilter !== '전체' || mapFilter !== '전체' ? ` (필터: ${[typeFilter, mapFilter].filter(f => f !== '전체').join(' + ')})` : ''}
+          {filtered.length}건{[typeFilter !== '전체' ? typeFilter : '', mapFilter !== '전체' ? mapFilter : '', q ? `"${searchQuery}"` : ''].filter(Boolean).length > 0 ? ` (필터: ${[typeFilter !== '전체' ? typeFilter : '', mapFilter !== '전체' ? mapFilter : '', q ? `"${searchQuery}"` : ''].filter(Boolean).join(' + ')})` : ''}
         </span>
       </div>
 
@@ -287,7 +289,7 @@ const ShortsGrid: React.FC = () => {
           <p className="font-code text-gray-700 text-[10px] mt-2">필터 조합에 맞는 영상이 없습니다</p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-2 px-2 pb-4">
+        <div className="grid grid-cols-3 gap-1 px-1.5 pb-4">
           {filtered.map(v => (
             <a
               key={v.id}
@@ -304,18 +306,18 @@ const ShortsGrid: React.FC = () => {
                   loading="lazy"
                 />
                 {/* 크리에이터 뱃지 */}
-                <div className="absolute top-1 right-1 bg-black/70 px-1.5 py-0.5">
-                  <span className="font-code text-acid-green text-[9px]">{v.creator}</span>
+                <div className="absolute top-1 right-1 bg-black/70 px-1 py-0.5">
+                  <span className="font-code text-acid-green text-[7px]">{v.creator}</span>
                 </div>
               </div>
-              <div className="px-2 py-1.5">
-                <p className="font-code text-white text-[11px] line-clamp-2 leading-tight">{v.title}</p>
-                <div className="flex gap-1 mt-1 flex-wrap">
+              <div className="px-1.5 py-1">
+                <p className="font-code text-white text-[9px] line-clamp-2 leading-tight">{v.title}</p>
+                <div className="flex gap-0.5 mt-0.5 flex-wrap">
                   {v.types.map(t => (
-                    <span key={t} className="bg-acid-pink/20 text-acid-pink font-code text-[8px] px-1 py-0.5">{t}</span>
+                    <span key={t} className="bg-acid-pink/20 text-acid-pink font-code text-[7px] px-0.5">{t}</span>
                   ))}
                   {v.maps.map(m => (
-                    <span key={m} className="bg-acid-cyan/20 text-acid-cyan font-code text-[8px] px-1 py-0.5">{m}</span>
+                    <span key={m} className="bg-acid-cyan/20 text-acid-cyan font-code text-[7px] px-0.5">{m}</span>
                   ))}
                 </div>
               </div>
@@ -509,6 +511,7 @@ export const CommunityPage: React.FC = () => {
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (source === 'shorts') return; // 숏츠는 searchQuery prop으로 실시간 필터링
     if (!searchQuery.trim()) {
       setIsSearchMode(false);
       return;
@@ -575,7 +578,7 @@ export const CommunityPage: React.FC = () => {
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="검색 (예: 밸런스 패치, 신규 무기...)"
+                    placeholder={source === 'shorts' ? '제목/크리에이터 검색...' : '검색 (예: 밸런스 패치, 신규 무기...)'}
                     className="w-full h-9 bg-gray-900 border border-gray-700 text-white font-code text-sm px-3 pr-8 focus:outline-none focus:border-acid-green placeholder:text-gray-600 placeholder:text-xs"
                   />
                   {isSearchMode && (
@@ -675,7 +678,7 @@ export const CommunityPage: React.FC = () => {
             )}
 
             {source === 'shorts' ? (
-              <ShortsGrid />
+              <ShortsGrid searchQuery={searchQuery} />
             ) : (
               <div className="divide-y divide-gray-800/50">
                 {isSearchMode
