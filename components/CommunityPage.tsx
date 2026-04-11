@@ -7,14 +7,14 @@ import { marked } from 'marked';
 
 type SourceFilter = 'all' | 'dcinside' | 'nexon' | 'shorts';
 
-// ─── 감정 이모지 반응 시스템 ───
+// ─── 반응 시스템 ───
 const REACTION_CONFIG = [
-  { key: 'cheer',   token: 'HYPE', label: '환호성',    color: '#FF6B9D' },
-  { key: 'good',    token: 'GOOD', label: '좋음',      color: '#00E5A0' },
-  { key: 'meh',     token: 'MEH',  label: '그냥 그럼', color: '#88889A' },
-  { key: 'so_what', token: 'WTF',  label: '어쩌라고?', color: '#FFB800' },
-  { key: 'dislike', token: 'NAH',  label: '싫다',      color: '#FF6633' },
-  { key: 'worst',   token: 'DEAD', label: '최악이야!', color: '#FF2244' },
+  { key: 'cheer',   token: 'CHEER',   label: '환호성',    color: '#FF6B9D' },
+  { key: 'good',    token: 'GOOD',    label: '좋음',      color: '#00E5A0' },
+  { key: 'meh',     token: 'MEH',     label: '그냥 그럼', color: '#88889A' },
+  { key: 'so_what', token: 'SO WHAT', label: '어쩌라고?', color: '#FFB800' },
+  { key: 'dislike', token: 'DISLIKE', label: '싫다',      color: '#FF6633' },
+  { key: 'worst',   token: 'WORST',   label: '최악이야!', color: '#FF2244' },
 ] as const;
 
 const ReactionBar: React.FC<{
@@ -25,27 +25,27 @@ const ReactionBar: React.FC<{
   const total = Object.values(reactions).reduce((a, b) => a + b, 0);
 
   return (
-    <div className="px-3 py-1.5 border-t border-gray-800/50">
-      {/* 라벨 버튼 */}
-      <div className="flex gap-0.5 mb-1">
+    <div className="px-2 py-1 border-t border-gray-800/50">
+      {/* 라벨 버튼 - 3+3 2줄 */}
+      <div className="grid grid-cols-3 gap-0.5 mb-0.5">
         {REACTION_CONFIG.map(r => {
           const count = reactions[r.key] || 0;
           return (
             <button
               key={r.key}
               onClick={(e) => { e.stopPropagation(); onReact(updateId, r.key); }}
-              className="flex-1 flex flex-col items-center py-0.5 border transition-all active:scale-95"
+              className="flex flex-col items-center py-[3px] border transition-all active:scale-95"
               style={{
                 borderColor: count > 0 ? r.color : '#333',
                 backgroundColor: count > 0 ? `${r.color}18` : 'transparent',
               }}
               title={r.label}
             >
-              <span className="font-pixel text-[7px] leading-none" style={{ color: count > 0 ? r.color : '#555' }}>
+              <span className="font-pixel text-[6px] leading-none tracking-tight" style={{ color: count > 0 ? r.color : '#555' }}>
                 {r.token}
               </span>
               {count > 0 && (
-                <span className="font-code text-[7px] leading-none mt-0.5" style={{ color: r.color }}>
+                <span className="font-code text-[6px] leading-none mt-[2px]" style={{ color: r.color }}>
                   {count}
                 </span>
               )}
