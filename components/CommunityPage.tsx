@@ -1,11 +1,52 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useUI } from '../state/UIContext';
 import { updatesService } from '../services/updatesService';
 import { GameUpdate, UpdateSearchResult } from '../types';
 import { marked } from 'marked';
 
 type SourceFilter = 'all' | 'dcinside' | 'nexon' | 'shorts';
+
+// ─── Fade-in wrapper (IntersectionObserver + Tailwind) ───
+const FadeInWrapper: React.FC<{
+  children: React.ReactNode;
+  index?: number;
+}> = ({ children, index = 0 }) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const delay = Math.min(index, 5) * 80;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          if (delay > 0) {
+            setTimeout(() => setVisible(true), delay);
+          } else {
+            setVisible(true);
+          }
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.05 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [index]);
+
+  return (
+    <div
+      ref={ref}
+      className={`transition-all duration-500 ease-out ${
+        visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+      }`}
+    >
+      {children}
+    </div>
+  );
+};
 
 // ─── 반응 시스템 ───
 const REACTION_CONFIG = [
@@ -297,13 +338,13 @@ const ShortsGrid: React.FC<{ searchQuery?: string }> = ({ searchQuery = '' }) =>
         </div>
       ) : (
         <div className="grid grid-cols-3 gap-1 px-1.5 pb-4">
-          {filtered.map(v => (
+          {filtered.map((v, idx) => (
+            <FadeInWrapper key={v.id} index={idx}>
             <a
-              key={v.id}
               href={`https://www.youtube.com/shorts/${v.id}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="bg-gray-950 border border-gray-800 overflow-hidden active:border-acid-green transition-colors"
+              className="block bg-gray-950 border border-gray-800 overflow-hidden active:border-acid-green transition-colors"
             >
               <div className="relative w-full" style={{ paddingBottom: '177%' }}>
                 <img
@@ -342,6 +383,7 @@ const ShortsGrid: React.FC<{ searchQuery?: string }> = ({ searchQuery = '' }) =>
                 </div>
               </div>
             </a>
+            </FadeInWrapper>
           ))}
         </div>
       )}
@@ -720,11 +762,15 @@ export const CommunityPage: React.FC = () => {
             ) : (
               <div className="divide-y divide-gray-800/50">
                 {isSearchMode
-                  ? searchResults.map(r => (
-                      <FeedCard key={r.update.id} update={r.update} score={r.score} onOpen={openDetail} reactions={allReactions[r.update.id] || {}} onReact={handleReact} />
+                  ? searchResults.map((r, idx) => (
+                      <FadeInWrapper key={r.update.id} index={idx}>
+                        <FeedCard update={r.update} score={r.score} onOpen={openDetail} reactions={allReactions[r.update.id] || {}} onReact={handleReact} />
+                      </FadeInWrapper>
                     ))
-                  : updates.map(u => (
-                      <FeedCard key={u.id} update={u} onOpen={openDetail} reactions={allReactions[u.id] || {}} onReact={handleReact} />
+                  : updates.map((u, idx) => (
+                      <FadeInWrapper key={u.id} index={idx}>
+                        <FeedCard update={u} onOpen={openDetail} reactions={allReactions[u.id] || {}} onReact={handleReact} />
+                      </FadeInWrapper>
                     ))
                 }
               </div>
