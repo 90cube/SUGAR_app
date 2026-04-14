@@ -1,10 +1,12 @@
 
 import React, { useState } from 'react';
 import { useUI } from '../state/UIContext';
+import { useAudio } from '../state/AudioContext';
 import { MusicPlayer } from './MusicPlayer';
 
 export const Header: React.FC = () => {
   const { openCommunity, openUpdatesModal } = useUI();
+  const { isPlaying } = useAudio();
   const [logoError, setLogoError] = useState(false);
   const [musicOpen, setMusicOpen] = useState(false);
 
@@ -23,7 +25,7 @@ export const Header: React.FC = () => {
                 <div className="w-9 h-9 md:w-10 md:h-10 bg-acid-pink border-2 border-white flex items-center justify-center font-pixel text-white text-xl md:text-2xl font-bold shadow-hard-cyan group-hover:shadow-none transition-shadow">
                   S
                 </div>
-                <span className="font-pixel text-lg md:text-xl text-white tracking-tighter hidden sm:block">서든랩_OS</span>
+                <span className="font-pixel text-lg md:text-xl text-white tracking-tighter hidden sm:block">STAT_SEARCH</span>
               </div>
             ) : (
               <span className="font-pixel text-red-500">IMG_ERR</span>
@@ -35,7 +37,7 @@ export const Header: React.FC = () => {
             <button
               onClick={() => setMusicOpen(!musicOpen)}
               className={`w-9 h-9 md:w-10 md:h-10 flex items-center justify-center border-2 border-black shadow-hard hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition-all ${
-                musicOpen ? 'bg-acid-green' : 'bg-metal-silver'
+                musicOpen || isPlaying ? 'bg-acid-green' : 'bg-metal-silver'
               }`}
               title="RADIO.EXE"
             >
@@ -49,10 +51,8 @@ export const Header: React.FC = () => {
                 <rect x="12" y="15.5" width="6" height="1.5" rx="0.5" fill="currentColor"/>
                 <rect x="12" y="18" width="6" height="1.5" rx="0.5" fill="currentColor"/>
                 {/* 재생 중 표시 */}
-                {musicOpen && (
-                  <>
-                    <circle cx="20" cy="6" r="1.5" fill="#ccff00" className="animate-pulse"/>
-                  </>
+                {isPlaying && (
+                  <circle cx="20" cy="6" r="1.5" fill="#ccff00" className="animate-pulse"/>
                 )}
               </svg>
             </button>

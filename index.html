@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
   <!-- SEO Meta Tags -->
-  <title>서든랩_SYSTEM [SEARCH.EXE]</title>
+  <title>SUDDENLAB [STAT_SEARCH.EXE]</title>
   <meta name="description" content="서든랩: ADVANCED TACTICAL ANALYSIS. SYSTEM_READY." />
   <meta name="keywords" content="서든어택, 서든랩, SuddenLab, Y2K, CYBER, ANALYTICS" />
   <meta name="author" content="서든랩 Research" />
@@ -91,6 +91,19 @@
 
   <style>
     /* Y2K GLOBAL STYLES */
+    * {
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      user-select: none;
+      -webkit-user-drag: none;
+    }
+    input, textarea {
+      -webkit-user-select: text;
+      -moz-user-select: text;
+      -ms-user-select: text;
+      user-select: text;
+    }
     body {
       background-color: #050505;
       color: #e0e0e0;
@@ -333,6 +346,7 @@
   <div class="scanline-overlay"></div>
   <div id="root"></div>
   <script type="module" src="./index.tsx"></script>
+  <script>document.addEventListener('contextmenu',function(e){e.preventDefault()});</script>
 </body>
 
 </html>
