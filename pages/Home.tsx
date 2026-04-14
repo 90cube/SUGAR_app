@@ -45,13 +45,13 @@ export const Home: React.FC = () => {
         <section className={`transition-all duration-500 ease-out flex flex-col items-center ${searchStatus === SearchStatus.SUCCESS ? 'pt-4 pb-8' : 'pt-24 pb-12'}`}>
 
           {/* Logo with Glitch Effect */}
-          <div className="relative mb-12 group cursor-none w-full overflow-hidden">
-            <h1 className="text-3xl sm:text-5xl md:text-8xl font-pixel text-white drop-shadow-[4px_4px_0_#ff00ff] relative z-10 tracking-tighter text-center">
+          <div className="relative mb-12 w-full overflow-hidden">
+            <h1
+              className="glitch-logo text-3xl sm:text-5xl md:text-8xl font-pixel text-white drop-shadow-[4px_4px_0_#ff00ff] relative z-10 tracking-tighter text-center w-full"
+              data-text="SUDDENLAB"
+            >
               SUDDENLAB
             </h1>
-            <div className="absolute top-0 left-0 w-full h-full text-3xl sm:text-5xl md:text-8xl font-pixel text-acid-green opacity-0 group-hover:opacity-100 group-hover:translate-x-1 group-hover:-translate-y-1 transition-all duration-75 mix-blend-difference pointer-events-none text-center">
-              SUDDENLAB
-            </div>
             <div className="absolute -bottom-6 w-full text-center">
               <span className="bg-acid-pink text-white px-2 py-0.5 font-code text-xs font-bold transform -skew-x-12 inline-block border-2 border-white shadow-hard">
                 RESEARCH_SYSTEM_2000
