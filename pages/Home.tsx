@@ -47,7 +47,7 @@ export const Home: React.FC = () => {
           {/* Logo with Glitch Effect */}
           <div className="relative mb-12 w-full overflow-hidden">
             <h1
-              className="glitch-logo text-3xl sm:text-5xl md:text-8xl font-pixel text-white drop-shadow-[4px_4px_0_#ff00ff] relative z-10 tracking-tighter text-center w-full"
+              className="glitch-logo text-3xl sm:text-5xl md:text-8xl font-pixel text-white relative z-10 tracking-tighter text-center w-full"
               data-text="SUDDENLAB"
             >
               SUDDENLAB
