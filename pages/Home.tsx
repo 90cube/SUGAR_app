@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useApp } from '../state/AppContext';
 import { useUI } from '../state/UIContext';
 import { SearchStatus } from '../types';
@@ -13,9 +13,55 @@ export const Home: React.FC = () => {
   const { searchStatus, userProfile, searchUser, performAnomalyCheck, pageContent } = useApp();
   const { openCommunity } = useUI();
   const [nickname, setNickname] = useState('');
+  const [bootPhase, setBootPhase] = useState<'off' | 'logo' | 'done'>('off');
+  const bootTimers = useRef<number[]>([]);
+  const bootEls = useRef<Map<string, HTMLElement>>(new Map());
 
   // Typing effect for loading text
   const loadingText = useTypingEffect('분석 중...', 150, searchStatus === SearchStatus.LOADING);
+
+  // 부팅 요소 ref 콜백
+  const bootRef = useCallback((key: string) => (el: HTMLElement | null) => {
+    if (el) bootEls.current.set(key, el);
+  }, []);
+
+  // 부팅 시퀀스
+  useEffect(() => {
+    // Phase 1: 로고 CRT ON
+    const t1 = window.setTimeout(() => setBootPhase('logo'), 100);
+    bootTimers.current.push(t1);
+
+    // Phase 2: 나머지 요소 랜덤 깜빡임
+    const t2 = window.setTimeout(() => {
+      const keys = ['marquee', 'badge', 'input', 'btn-community', 'btn-anomaly', 'btn-execute'];
+      // 셔플
+      for (let i = keys.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [keys[i], keys[j]] = [keys[j], keys[i]];
+      }
+      keys.forEach((key) => {
+        const delay = 200 + Math.floor(Math.random() * 1200);
+        const t = window.setTimeout(() => {
+          const el = bootEls.current.get(key);
+          if (el) {
+            el.classList.remove('boot-hidden');
+            el.classList.add('boot-flicker-in');
+            el.addEventListener('animationend', () => {
+              el.classList.remove('boot-flicker-in');
+              el.style.opacity = '1';
+            }, { once: true });
+          }
+        }, delay);
+        bootTimers.current.push(t);
+      });
+      // 전부 끝난 뒤 done
+      const tDone = window.setTimeout(() => setBootPhase('done'), 1600);
+      bootTimers.current.push(tDone);
+    }, 1200);
+    bootTimers.current.push(t2);
+
+    return () => bootTimers.current.forEach(clearTimeout);
+  }, []);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,7 +77,7 @@ export const Home: React.FC = () => {
     <div className="w-full min-h-screen relative flex flex-col items-center pb-20">
 
       {/* Marquee Bar */}
-      <div className="w-full bg-acid-green border-b-4 border-black overflow-hidden py-1">
+      <div ref={bootRef('marquee')} className={`w-full bg-acid-green border-b-4 border-black overflow-hidden py-1 ${bootPhase === 'off' || bootPhase === 'logo' ? 'boot-hidden' : ''}`}>
         <div className="whitespace-nowrap animate-marquee">
           <span className="text-black font-pixel font-bold text-xs">
             SYSTEM_READY... INITIALIZING SUDDENLAB_PROTOCOL_V2.0... ANOMALY_SCAN_ACTIVE... TARGET_LOCKED... WELCOME_USER...
@@ -45,14 +91,14 @@ export const Home: React.FC = () => {
         <section className={`transition-all duration-500 ease-out flex flex-col items-center ${searchStatus === SearchStatus.SUCCESS ? 'pt-4 pb-8' : 'pt-24 pb-12'}`}>
 
           {/* Logo with Glitch Effect */}
-          <div className="relative mb-12 w-full overflow-hidden">
+          <div className={`relative mb-12 w-full overflow-hidden ${bootPhase === 'off' ? 'boot-hidden' : ''} ${bootPhase === 'logo' ? 'boot-crt-on' : ''}`}>
             <h1
               className="glitch-logo text-3xl sm:text-5xl md:text-8xl font-pixel text-white relative z-10 tracking-tighter text-center w-full"
               data-text="SUDDENLAB"
             >
               SUDDENLAB
             </h1>
-            <div className="absolute -bottom-6 w-full text-center">
+            <div ref={bootRef('badge')} className={`absolute -bottom-6 w-full text-center ${bootPhase === 'off' || bootPhase === 'logo' ? 'boot-hidden' : ''}`}>
               <span className="bg-acid-pink text-white px-2 py-0.5 font-code text-xs font-bold transform -skew-x-12 inline-block border-2 border-white shadow-hard">
                 RESEARCH_SYSTEM_2000
               </span>
@@ -60,7 +106,7 @@ export const Home: React.FC = () => {
           </div>
 
           <form onSubmit={handleSearch} className="w-full max-w-xl relative flex flex-col gap-4">
-            <div className="relative">
+            <div ref={bootRef('input')} className={`relative ${bootPhase === 'off' || bootPhase === 'logo' ? 'boot-hidden' : ''}`}>
               <div className="absolute inset-0 bg-black translate-x-2 translate-y-2"></div>
               <input
                 type="text"
@@ -74,24 +120,27 @@ export const Home: React.FC = () => {
             {/* Action Buttons: Brutalist Style */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <button
+                ref={bootRef('btn-community')}
                 type="button"
                 onClick={openCommunity}
-                className="bg-metal-silver border-t-2 border-l-2 border-white border-b-2 border-r-2 border-black text-black font-screen text-xl py-2 active:border-t-black active:border-l-black active:border-b-white active:border-r-white active:bg-gray-400"
+                className={`bg-metal-silver border-t-2 border-l-2 border-white border-b-2 border-r-2 border-black text-black font-screen text-xl py-2 active:border-t-black active:border-l-black active:border-b-white active:border-r-white active:bg-gray-400 ${bootPhase === 'off' || bootPhase === 'logo' ? 'boot-hidden' : ''}`}
               >
                 COMMUNITY
               </button>
               <button
+                ref={bootRef('btn-anomaly')}
                 type="button"
                 onClick={performAnomalyCheck}
                 disabled={!userProfile}
-                className="bg-metal-silver border-t-2 border-l-2 border-white border-b-2 border-r-2 border-black text-black font-screen text-xl py-2 active:border-t-black active:border-l-black active:border-b-white active:border-r-white active:bg-gray-400 disabled:opacity-50 disabled:grayscale"
+                className={`bg-metal-silver border-t-2 border-l-2 border-white border-b-2 border-r-2 border-black text-black font-screen text-xl py-2 active:border-t-black active:border-l-black active:border-b-white active:border-r-white active:bg-gray-400 disabled:opacity-50 disabled:grayscale ${bootPhase === 'off' || bootPhase === 'logo' ? 'boot-hidden' : ''}`}
               >
                 ANOMALY
               </button>
               <button
+                ref={bootRef('btn-execute')}
                 type="submit"
                 disabled={searchStatus === SearchStatus.LOADING}
-                className="col-span-2 bg-acid-pink text-white font-pixel text-xs md:text-sm py-3 border-4 border-black shadow-hard hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all active:bg-pink-700 disabled:bg-gray-500 disabled:shadow-none disabled:translate-x-0 disabled:translate-y-0"
+                className={`col-span-2 bg-acid-pink text-white font-pixel text-xs md:text-sm py-3 border-4 border-black shadow-hard hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all active:bg-pink-700 disabled:bg-gray-500 disabled:shadow-none disabled:translate-x-0 disabled:translate-y-0 ${bootPhase === 'off' || bootPhase === 'logo' ? 'boot-hidden' : ''}`}
               >
                 {searchStatus === SearchStatus.LOADING ? (
                   <span className="font-screen text-lg">{loadingText || '_'}<span className="animate-blink">|</span></span>
