@@ -15,6 +15,20 @@ interface Track {
 type RepeatMode = 'none' | 'one' | 'all' | 'checked';
 
 export const MusicPlayer: React.FC<{ visible: boolean; onClose: () => void }> = ({ visible, onClose }) => {
+  const [show, setShow] = useState(false);
+  const [animate, setAnimate] = useState(false);
+
+  // 열기: visible → mount → 다음 프레임에서 slide-down
+  useEffect(() => {
+    if (visible) {
+      setShow(true);
+      requestAnimationFrame(() => requestAnimationFrame(() => setAnimate(true)));
+    } else {
+      setAnimate(false);
+      const timer = setTimeout(() => setShow(false), 500);
+      return () => clearTimeout(timer);
+    }
+  }, [visible]);
   const [tracks, setTracks] = useState<Track[]>([]);
   const [current, setCurrent] = useState<number>(-1);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -165,10 +179,17 @@ export const MusicPlayer: React.FC<{ visible: boolean; onClose: () => void }> = 
     return `${m}:${sec.toString().padStart(2, '0')}`;
   };
 
-  if (!visible) return null;
+  if (!show) return null;
 
   return (
-    <div className="w-full bg-black border-b-4 border-acid-green animate-in slide-in-from-top duration-300">
+    <div
+      className="w-full bg-black border-b-4 border-acid-green overflow-hidden"
+      style={{
+        maxHeight: animate ? '500px' : '0px',
+        opacity: animate ? 1 : 0,
+        transition: 'max-height 0.6s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.4s ease',
+      }}
+    >
       <audio ref={audioRef} preload="auto" crossOrigin="anonymous" />
 
       {/* 플레이어 헤더 */}
