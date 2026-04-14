@@ -12,17 +12,21 @@ interface UnanalyzedUpdate {
 }
 
 export async function handleScheduled(env: Env): Promise<void> {
+	// 1단계: 숏츠 수집
+	await collectShorts(env);
+
+	// 2단계: 미분석 업데이트 분석
 	console.log('[Cron] Starting scheduled analysis job');
 
 	const logId = await startLog(env);
 
 	try {
-		// 1. 미분석 업데이트 조회
+		// 1. 미분석 업데이트 조회 (3회 이상 실패한 항목 제외)
 		const unanalyzed = await env.DB.prepare(`
 			SELECT u.id, u.source, u.title, u.content, u.author, u.published_at
 			FROM updates u
 			LEFT JOIN analyses a ON a.update_id = u.id
-			WHERE a.id IS NULL
+			WHERE a.id IS NULL AND (u.analysis_retries IS NULL OR u.analysis_retries < 3)
 			ORDER BY u.crawled_at ASC
 			LIMIT 20
 		`).all<UnanalyzedUpdate>();
@@ -45,8 +49,8 @@ export async function handleScheduled(env: Env): Promise<void> {
 
 			for (const update of batch) {
 				try {
-					// 2a. Gemini 분석
-					const analysis = await analyzeWithGemini(env, update);
+					// 2a. Workers AI 분석
+					const analysis = await analyzeWithWorkersAI(env, update);
 
 					// 2b. D1에 분석 결과 저장
 					await env.DB.prepare(`
@@ -84,6 +88,12 @@ export async function handleScheduled(env: Env): Promise<void> {
 					console.log(`[Cron] Processed update #${update.id}: ${update.title.slice(0, 50)}`);
 				} catch (e: any) {
 					console.error(`[Cron] Error processing update #${update.id}:`, e.message);
+					// 에러 상세를 DB에 기록
+					try {
+						await env.DB.prepare(
+							`UPDATE updates SET analysis_error = ?, analysis_retries = COALESCE(analysis_retries, 0) + 1 WHERE id = ?`
+						).bind(e.message?.slice(0, 500) || 'Unknown error', update.id).run();
+					} catch { }
 				}
 			}
 		}
@@ -96,10 +106,9 @@ export async function handleScheduled(env: Env): Promise<void> {
 	}
 }
 
-async function analyzeWithGemini(env: Env, update: UnanalyzedUpdate) {
+function buildAnalysisPrompt(update: UnanalyzedUpdate): string {
 	const sourceLabel = update.source === 'nexon' ? '넥슨 공식' : '디시인사이드';
-
-	const prompt = `당신은 FPS 게임 '서든어택'의 전문 분석가입니다.
+	return `당신은 FPS 게임 '서든어택'의 전문 분석가입니다.
 다음은 ${sourceLabel}에서 수집된 게시물입니다. 분석해주세요.
 
 [제목] ${update.title}
@@ -115,27 +124,15 @@ ${update.content.slice(0, 3000)}
   "key_changes": ["주요 변경사항1", "주요 변경사항2"],
   "community_reaction": "커뮤니티 반응 요약 (해당하는 경우)"
 }`;
+}
 
-	const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${env.GEMINI_API_KEY}`;
-
-	const response = await fetch(geminiUrl, {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({
-			contents: [{ parts: [{ text: prompt }] }],
-		}),
-	});
-
-	if (!response.ok) {
-		throw new Error(`Gemini API error: ${response.status}`);
-	}
-
-	const result = await response.json() as any;
-	const text = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
-
-	// JSON 파싱 시도
+function parseAnalysisResponse(rawText: unknown) {
+	const text = typeof rawText === 'string' ? rawText : JSON.stringify(rawText || '');
 	try {
-		const jsonMatch = text.match(/\{[\s\S]*\}/);
+		// 코드블록 안의 JSON 먼저 추출
+		const codeBlock = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+		const cleanText = codeBlock ? codeBlock[1] : text;
+		const jsonMatch = cleanText.match(/\{[\s\S]*\}/);
 		if (jsonMatch) {
 			const parsed = JSON.parse(jsonMatch[0]);
 			return {
@@ -146,14 +143,110 @@ ${update.content.slice(0, 3000)}
 			};
 		}
 	} catch { }
-
-	// 파싱 실패 시 기본값
 	return {
 		summary: text.slice(0, 500) || '분석 실패',
-		sentiment: 'neutral',
-		key_changes: [],
+		sentiment: 'neutral' as const,
+		key_changes: [] as string[],
 		community_reaction: '',
 	};
+}
+
+async function analyzeWithWorkersAI(env: Env, update: UnanalyzedUpdate) {
+	const prompt = buildAnalysisPrompt(update);
+
+	const result = await env.AI.run('@cf/meta/llama-3.3-70b-instruct-fp8-fast' as any, {
+		messages: [
+			{ role: 'system', content: '한국어 JSON으로만 응답하라. 다른 텍스트 없이 JSON만 출력하라.' },
+			{ role: 'user', content: prompt },
+		],
+		max_tokens: 1024,
+	}) as any;
+
+	let text = '';
+	try {
+		const obj = JSON.parse(JSON.stringify(result));
+		text = obj.response || obj.choices?.[0]?.message?.content || '';
+	} catch { }
+
+	return parseAnalysisResponse(text);
+}
+
+// ─── 숏츠 자동 수집 ───
+
+async function collectShorts(env: Env): Promise<void> {
+	console.log('[Shorts] Starting shorts collection');
+
+	try {
+		const channels = await env.DB.prepare(
+			'SELECT id, channel_id, channel_name FROM shorts_channels'
+		).all<{ id: number; channel_id: string; channel_name: string }>();
+
+		const rows = channels.results || [];
+		if (rows.length === 0) return;
+
+		let totalAdded = 0;
+
+		for (const channel of rows) {
+			try {
+				// YouTube RSS 피드에서 최근 영상 가져오기
+				const feedUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${channel.channel_id}`;
+				const response = await fetch(feedUrl);
+				if (!response.ok) {
+					console.error(`[Shorts] Feed fetch failed for ${channel.channel_name}: ${response.status}`);
+					continue;
+				}
+
+				const xml = await response.text();
+
+				// XML에서 videoId 추출
+				const videoIds = [...xml.matchAll(/<yt:videoId>([^<]+)<\/yt:videoId>/g)].map(m => m[1]);
+				const titles = [...xml.matchAll(/<media:title>([^<]+)<\/media:title>/g)].map(m => m[1]);
+
+				for (let i = 0; i < videoIds.length; i++) {
+					const videoId = videoIds[i];
+					const title = titles[i] || '';
+					const youtubeUrl = `https://www.youtube.com/shorts/${videoId}`;
+
+					// 숏츠인지 확인 (oEmbed로 체크 — shorts URL이 리다이렉트 안 되면 숏츠)
+					try {
+						const checkRes = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/shorts/${videoId}&format=json`, {
+							redirect: 'follow',
+						});
+						if (!checkRes.ok) continue; // 숏츠가 아님
+					} catch {
+						continue;
+					}
+
+					// 중복 체크
+					const existing = await env.DB.prepare(
+						'SELECT id FROM shorts WHERE youtube_url LIKE ? OR youtube_url LIKE ?'
+					).bind(`%${videoId}%`, `%${videoId}%`).first();
+
+					if (existing) continue;
+
+					// 저장
+					const thumbnail = `https://img.youtube.com/vi/${videoId}/0.jpg`;
+					await env.DB.prepare(
+						'INSERT INTO shorts (title, youtube_url, thumbnail, added_by) VALUES (?, ?, ?, ?)'
+					).bind(title, youtubeUrl, thumbnail, channel.channel_name).run();
+
+					totalAdded++;
+					console.log(`[Shorts] Added: ${title} from ${channel.channel_name}`);
+				}
+
+				// last_checked_at 갱신
+				await env.DB.prepare(
+					'UPDATE shorts_channels SET last_checked_at = datetime("now") WHERE id = ?'
+				).bind(channel.id).run();
+			} catch (e: any) {
+				console.error(`[Shorts] Error for ${channel.channel_name}:`, e.message);
+			}
+		}
+
+		console.log(`[Shorts] Completed: ${totalAdded} new shorts added`);
+	} catch (e: any) {
+		console.error('[Shorts] Fatal error:', e.message);
+	}
 }
 
 async function startLog(env: Env): Promise<number> {

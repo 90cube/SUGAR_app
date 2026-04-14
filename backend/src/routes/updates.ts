@@ -42,13 +42,14 @@ export async function handleIngest(request: Request, env: Env): Promise<Response
 	let errors = 0;
 
 	for (const post of body.posts) {
-		if (!post.external_id || !post.title || !post.content) {
+		if (!post.external_id || !post.title) {
+			console.error(`[Ingest] Skip: missing external_id or title`, JSON.stringify({ external_id: post.external_id?.slice(0, 50), title: post.title?.slice(0, 30) }));
 			errors++;
 			continue;
 		}
 
 		try {
-			await env.DB.prepare(
+			const result = await env.DB.prepare(
 				`INSERT INTO updates (source, external_id, title, content, author, url, published_at)
 				 VALUES (?, ?, ?, ?, ?, ?, ?)
 				 ON CONFLICT(source, external_id) DO NOTHING`
@@ -64,12 +65,10 @@ export async function handleIngest(request: Request, env: Env): Promise<Response
 				)
 				.run();
 
-			// Check if row was actually inserted (changes > 0) or was a duplicate
-			const check = await env.DB.prepare(
-				`SELECT id FROM updates WHERE source = ? AND external_id = ? AND crawled_at >= datetime('now', '-5 seconds')`
-			).bind(body.source, post.external_id).first();
+			// D1 meta.changes로 실제 삽입 여부 판별 (기존 5초 시간창 체크 대체)
+			const wasInserted = result.meta?.changes > 0;
 
-			if (check) {
+			if (wasInserted) {
 				inserted++;
 				// 넥슨 공식글은 디스코드로 알림
 				if (body.source === 'nexon') {
@@ -117,7 +116,7 @@ export async function handleList(request: Request, env: Env): Promise<Response> 
 		params.push(source);
 	}
 
-	query += ' ORDER BY u.published_at DESC, u.crawled_at DESC LIMIT ? OFFSET ?';
+	query += ' ORDER BY u.crawled_at DESC, u.id DESC LIMIT ? OFFSET ?';
 	params.push(limit, offset);
 
 	const results = await env.DB.prepare(query).bind(...params).all();
@@ -295,23 +294,21 @@ ${titleList}
 complaint 필드: 서든어택/넥슨에 대한 불만, 비판, 항의, 버그 신고 등이면 true (KEEP이면서 complaint일 수 있음)`;
 
 	try {
-		// Gemini로 필터링 (Workers AI보다 한국어 이해도가 높음)
-		const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${env.GEMINI_API_KEY}`;
-		const geminiResponse = await fetch(geminiUrl, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({
-				contents: [{ parts: [{ text: prompt }] }],
-			}),
+		// Workers AI로 필터링 (GLM-4.7-Flash)
+		const aiResult = await env.AI.run('@cf/zai-org/glm-4.7-flash' as any, {
+			messages: [
+				{ role: 'system', content: '당신은 JSON만 출력하는 분류 AI입니다. 지시에 따라 JSON 배열만 응답하세요.' },
+				{ role: 'user', content: prompt },
+			],
+			max_tokens: 4000,
+			temperature: 0,
 		});
-
-		const result = await geminiResponse.json() as any;
-		const text = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
+		const text = (aiResult as any).response || '';
 
 		// JSON 파싱
 		const jsonMatch = text.match(/\[[\s\S]*\]/);
 		if (!jsonMatch) {
-			return jsonResponse({ filtered: body.titles, error: 'AI parse failed, returning all' });
+			return jsonResponse({ original: body.titles.length, filtered: body.titles.length, removed: 0, complaints: 0, posts: body.titles, error: 'AI parse failed, returning all' });
 		}
 
 		const decisions: { index: number; keep: boolean; complaint?: boolean }[] = JSON.parse(jsonMatch[0]);
@@ -344,8 +341,51 @@ complaint 필드: 서든어택/넥슨에 대한 불만, 비판, 항의, 버그 �
 	} catch (e: any) {
 		console.error('[Filter] AI error:', e.message);
 		// AI 실패 시 전부 반환
-		return jsonResponse({ filtered: body.titles.length, posts: body.titles, error: e.message });
+		return jsonResponse({ original: body.titles.length, filtered: body.titles.length, removed: 0, complaints: 0, posts: body.titles, error: e.message });
 	}
+}
+
+// POST /api/updates/admin/cleanup - 테스트/오류 데이터 삭제 (인증 필요)
+export async function handleAdminCleanup(request: Request, env: Env): Promise<Response> {
+	if (!validateIngestAuth(request, env)) {
+		return errorResponse('Unauthorized', 401);
+	}
+
+	let body: { pattern?: string; ids?: number[] };
+	try {
+		body = await request.json() as any;
+	} catch {
+		return errorResponse('Invalid JSON body', 400);
+	}
+
+	let deleted = 0;
+
+	// external_id 패턴으로 삭제 (LIKE)
+	if (body.pattern) {
+		// 관련 analyses, reactions 먼저 삭제 (FK)
+		await env.DB.prepare(
+			`DELETE FROM analyses WHERE update_id IN (SELECT id FROM updates WHERE external_id LIKE ?)`
+		).bind(body.pattern).run();
+		await env.DB.prepare(
+			`DELETE FROM reactions WHERE update_id IN (SELECT id FROM updates WHERE external_id LIKE ?)`
+		).bind(body.pattern).run();
+		const result = await env.DB.prepare(
+			`DELETE FROM updates WHERE external_id LIKE ?`
+		).bind(body.pattern).run();
+		deleted += result.meta?.changes || 0;
+	}
+
+	// ID 배열로 삭제
+	if (body.ids && body.ids.length > 0) {
+		for (const id of body.ids) {
+			await env.DB.prepare('DELETE FROM analyses WHERE update_id = ?').bind(id).run();
+			await env.DB.prepare('DELETE FROM reactions WHERE update_id = ?').bind(id).run();
+			const r = await env.DB.prepare('DELETE FROM updates WHERE id = ?').bind(id).run();
+			deleted += r.meta?.changes || 0;
+		}
+	}
+
+	return jsonResponse({ deleted });
 }
 
 function formatUpdateRow(row: any) {

@@ -1,12 +1,13 @@
 import { corsHeaders, corsPreflightResponse, jsonResponse, errorResponse } from './utils/cors';
-import { handleIngest, handleList, handleGetOne, handleSearch, handleStats, handleFilter } from './routes/updates';
+import { handleIngest, handleList, handleGetOne, handleSearch, handleStats, handleFilter, handleAdminCleanup } from './routes/updates';
 import { handleReact, handleGetReactions, handleBatchReactions } from './routes/reactions';
 import { handleDiscordInteraction, registerDiscordCommands, handleClassify, handleChatAPI } from './routes/discord';
 import { handleScheduled } from './scheduled';
 
+
 export interface Env {
 	NEXON_API_KEY: string;
-	GEMINI_API_KEY: string;
+
 	INGEST_API_KEY: string;
 	DISCORD_BOT_TOKEN: string;
 	DISCORD_CH_COMPLAINTS: string;
@@ -46,28 +47,53 @@ export default {
 				return response;
 			}
 
-			// 2. Gemini API Proxy (기존)
+			// 2. AI Proxy (Workers AI GLM)
 			if (url.pathname.startsWith('/gemini/')) {
 				if (request.method !== 'POST') {
 					return errorResponse('Method Not Allowed', 405);
 				}
 
 				const body = await request.json() as any;
-				const pathMatch = url.pathname.match(/models\/([^:\/]+)/);
-				const model = pathMatch ? pathMatch[1] : 'gemini-2.5-flash';
-				const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`;
+				const contents = body.contents || [];
+				const userText = contents.map((c: any) => c.parts?.map((p: any) => p.text).join('\n')).join('\n') || '';
+				const systemText = body.systemInstruction?.parts?.[0]?.text || '';
 
-				const geminiResponse = await fetch(geminiUrl, {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify(body),
-				});
+				try {
+					const messages: any[] = [];
+					if (systemText) {
+						messages.push({ role: 'system', content: systemText });
+					} else {
+						messages.push({ role: 'system', content: '당신은 도움이 되는 AI 어시스턴트입니다. 한국어로 응답하세요.' });
+					}
+					messages.push({ role: 'user', content: userText });
 
-				const responseData = await geminiResponse.text();
-				return new Response(responseData, {
-					status: geminiResponse.status,
-					headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-				});
+					const result: any = await env.AI.run('@cf/zai-org/glm-4.7-flash' as any, {
+						messages,
+						max_tokens: body.generationConfig?.maxOutputTokens || 2048,
+					});
+
+					// Workers AI: response 또는 OpenAI choices 형식 둘 다 대응
+					const aiText = result.response
+						|| result.choices?.[0]?.message?.content
+						|| '';
+
+					// Gemini 호환 응답 포맷
+					const responseData = JSON.stringify({
+						candidates: [{
+							content: {
+								parts: [{ text: aiText }],
+								role: 'model',
+							},
+						}],
+					});
+
+					return new Response(responseData, {
+						status: 200,
+						headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+					});
+				} catch (e: any) {
+					return errorResponse(e.message, 500);
+				}
 			}
 
 			// 3. Updates API (신규)
@@ -94,6 +120,11 @@ export default {
 					return handleStats(env);
 				}
 
+				// POST /api/updates/admin/cleanup
+				if (path === '/admin/cleanup' && request.method === 'POST') {
+					return handleAdminCleanup(request, env);
+				}
+
 				// POST /api/updates/:id/react - 감정 반응
 				const reactMatch = path.match(/^\/(\d+)\/react$/);
 				if (reactMatch && request.method === 'POST') {
@@ -103,7 +134,7 @@ export default {
 				// GET /api/updates/:id/reactions
 				const reactionsMatch = path.match(/^\/(\d+)\/reactions$/);
 				if (reactionsMatch && request.method === 'GET') {
-					return handleGetReactions(env, reactionsMatch[1]);
+					return handleGetReactions(env, reactionsMatch[1], request);
 				}
 
 				// GET /api/updates/:id
@@ -120,7 +151,55 @@ export default {
 				return errorResponse('Not Found', 404);
 			}
 
-			// 4. Reactions batch API
+			// 4. Shorts API
+			if (url.pathname === '/api/shorts' && request.method === 'GET') {
+				const limit = parseInt(url.searchParams.get('limit') || '200');
+				const rows = await env.DB.prepare(
+					'SELECT video_id, title, creator, channel_id, types, maps, thumbnail, published_at FROM shorts ORDER BY crawled_at DESC LIMIT ?'
+				).bind(limit).all();
+				// types, maps는 JSON 문자열 → 파싱
+				const shorts = (rows.results || []).map((r: any) => ({
+					...r,
+					types: JSON.parse(r.types || '[]'),
+					maps: JSON.parse(r.maps || '[]'),
+				}));
+				return jsonResponse({ shorts, total: shorts.length });
+			}
+
+			// Shorts bulk ingest (크롤러용)
+			if (url.pathname === '/api/shorts/ingest' && request.method === 'POST') {
+				const { validateIngestAuth } = await import('./utils/auth');
+				if (!validateIngestAuth(request, env)) return errorResponse('Unauthorized', 401);
+				const body = await request.json() as any;
+				const videos = body.videos || [];
+				if (!Array.isArray(videos) || videos.length === 0) return errorResponse('videos array required', 400);
+
+				let inserted = 0, duplicates = 0;
+				for (const v of videos) {
+					if (!v.video_id || !v.title || !v.creator) continue;
+					try {
+						const result = await env.DB.prepare(
+							`INSERT OR IGNORE INTO shorts (video_id, title, creator, channel_id, types, maps, thumbnail, published_at)
+							 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+						).bind(
+							v.video_id,
+							v.title,
+							v.creator,
+							v.channel_id || '',
+							JSON.stringify(v.types || []),
+							JSON.stringify(v.maps || []),
+							v.thumbnail || `https://i.ytimg.com/vi/${v.video_id}/hqdefault.jpg`,
+							v.published_at || ''
+						).run();
+						if (result.meta?.changes > 0) inserted++; else duplicates++;
+					} catch (e) {
+						duplicates++;
+					}
+				}
+				return jsonResponse({ ok: true, inserted, duplicates, total: videos.length });
+			}
+
+			// 5. Reactions batch API
 			if (url.pathname === '/api/reactions/batch' && request.method === 'GET') {
 				return handleBatchReactions(request, env);
 			}
@@ -135,7 +214,33 @@ export default {
 				return registerDiscordCommands(env);
 			}
 
-			// 7. 메시지 분류 (N8N → Worker)
+			// 7. Vision API (스크린샷 분석 - Workers AI)
+			if (url.pathname === '/api/vision' && request.method === 'POST') {
+				const body = await request.json() as any;
+				if (!body.image || !body.prompt) return errorResponse('image (base64) and prompt required', 400);
+
+				try {
+					const result = await env.AI.run('@cf/google/gemma-3-12b-it' as any, {
+						messages: [
+							{
+								role: 'user',
+								content: [
+									{ type: 'text', text: body.prompt },
+									{ type: 'image_url', image_url: { url: `data:image/png;base64,${body.image}` } },
+								],
+							},
+						],
+						max_tokens: body.max_tokens || 4000,
+						temperature: 0,
+					});
+					return jsonResponse({ text: (result as any).response || '' });
+				} catch (e: any) {
+					console.error('[Vision] Error:', e.message);
+					return errorResponse(e.message, 500);
+				}
+			}
+
+			// 8. 메시지 분류 (N8N → Worker)
 			if (url.pathname === '/api/discord/classify' && request.method === 'POST') {
 				return handleClassify(request, env);
 			}
@@ -143,6 +248,23 @@ export default {
 			// 8. 채팅 응답 생성 (N8N → Worker)
 			if (url.pathname === '/api/discord/chat' && request.method === 'POST') {
 				return handleChatAPI(request, env);
+			}
+
+			// 9. Anomaly 커맨드 폴링 (로컬 봇 → Worker KV)
+			if (url.pathname === '/api/anomaly/poll' && request.method === 'GET') {
+				const cmd = await env.CHAT_HISTORY.get('anomaly:command', 'text');
+				if (cmd) {
+					await env.CHAT_HISTORY.delete('anomaly:command');
+					return jsonResponse(JSON.parse(cmd));
+				}
+				return jsonResponse(null);
+			}
+
+			// 9b. Anomaly 상태 업데이트 (로컬 봇 → Worker KV)
+			if (url.pathname === '/api/anomaly/status' && request.method === 'POST') {
+				const body = await request.json() as any;
+				await env.CHAT_HISTORY.put('anomaly:status', body.status || '', { expirationTtl: 3600 });
+				return jsonResponse({ ok: true });
 			}
 
 			return errorResponse('Not Found', 404);
