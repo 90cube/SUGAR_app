@@ -2,6 +2,7 @@ import { corsHeaders, corsPreflightResponse, jsonResponse, errorResponse } from 
 import { handleIngest, handleList, handleGetOne, handleSearch, handleStats, handleFilter, handleAdminCleanup } from './routes/updates';
 import { handleReact, handleGetReactions, handleBatchReactions } from './routes/reactions';
 import { handleDiscordInteraction, registerDiscordCommands, handleClassify, handleChatAPI } from './routes/discord';
+import { handleMusicUpload, handleMusicList, handleMusicStream, handleMusicDelete } from './routes/music';
 import { handleScheduled } from './scheduled';
 
 
@@ -19,6 +20,7 @@ export interface Env {
 	VECTOR_INDEX: VectorizeIndex;
 	AI: Ai;
 	CHAT_HISTORY: KVNamespace;
+	MUSIC_BUCKET: R2Bucket;
 }
 
 export default {
@@ -199,7 +201,34 @@ export default {
 				return jsonResponse({ ok: true, inserted, duplicates, total: videos.length });
 			}
 
-			// 5. Reactions batch API
+			// 5. Music API (뮤직 플레이어)
+			if (url.pathname.startsWith('/api/music')) {
+				const musicPath = url.pathname.replace('/api/music', '');
+
+				// POST /api/music/upload
+				if (musicPath === '/upload' && request.method === 'POST') {
+					return handleMusicUpload(request, env);
+				}
+
+				// GET /api/music/:id/stream
+				const streamMatch = musicPath.match(/^\/(\d+)\/stream$/);
+				if (streamMatch && request.method === 'GET') {
+					return handleMusicStream(request, env, streamMatch[1]);
+				}
+
+				// DELETE /api/music/:id
+				const deleteMatch = musicPath.match(/^\/(\d+)$/);
+				if (deleteMatch && request.method === 'DELETE') {
+					return handleMusicDelete(request, env, deleteMatch[1]);
+				}
+
+				// GET /api/music
+				if ((musicPath === '' || musicPath === '/') && request.method === 'GET') {
+					return handleMusicList(env);
+				}
+			}
+
+			// 6. Reactions batch API
 			if (url.pathname === '/api/reactions/batch' && request.method === 'GET') {
 				return handleBatchReactions(request, env);
 			}

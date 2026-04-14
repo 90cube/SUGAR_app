@@ -25,6 +25,11 @@ index_name = "sugar-updates-index"
 binding = "CHAT_HISTORY"
 id = "6a5584a31a814f5ab76a913e0cf65ab8"
 
+# R2: 뮤직 파일 저장
+[[r2_buckets]]
+binding = "MUSIC_BUCKET"
+bucket_name = "suddenlab-music"
+
 # Workers AI
 [ai]
 binding = "AI"
