@@ -103,8 +103,9 @@ async function reportSummary(stats) {
 	report += `  ├ AI 통과: ${stats.dcKept}건\n`;
 	report += `  ├ 불만글: ${stats.dcComplaints}건\n`;
 	report += `  └ 제거: ${stats.dcRemoved}건\n`;
+	if (stats.shorts > 0) report += `숏츠 신규: ${stats.shorts}건\n`;
 	report += `총 게시: ${stats.nexon + stats.dcKept}건`;
-	if (stats.dcTotal === 0 && stats.nexon === 0) report += `\n💤 새로운 게시물 없음`;
+	if (stats.dcTotal === 0 && stats.nexon === 0 && !stats.shorts) report += `\n💤 새로운 게시물 없음`;
 	await sendToDiscord(CHANNELS.summary, report);
 }
 
@@ -444,6 +445,141 @@ async function processpipeline(nexonItems, dcItems, browser) {
 	return stats;
 }
 
+// ── 숏츠 크롤링 (yt-dlp) ────────────────────────────────
+const { execSync } = require('child_process');
+
+const SHORTS_CHANNELS = [
+	{ id: 'UCJ4j-kR_vfgxuOr-rQhgx0g', name: '위폭연구소장' },
+	{ id: 'UCd1W-g8G53iTxnSRcpLuS5A', name: '강혜준' },
+	{ id: 'UCFxR5xSOr7cSF5hNdcWBxuA', name: '텐시' },
+	{ id: 'UCFmNjbm64D1qN_cWbOMMYHQ', name: '샷오바장인' },
+	{ id: 'UCBZbRpnxJaRFCfyMnNZt4cg', name: 'victor' },
+	{ id: 'UC9v5RS1PZVWuILrGRVxPYCQ', name: 'lafo' },
+	{ id: 'UC9A2D9UVZD5vVfxFYCTMXWQ', name: '라포' },
+];
+
+// 제목 키워드 → 유형/맵 자동 분류
+const TYPE_KEYWORDS = {
+	'위폭': ['위폭', '폭탄', '수류탄', 'nade', '그레네이드', '폭딜'],
+	'꿀팁': ['꿀팁', '팁', '방법', '하는법', '배워', '알려', '공략', '강좌', '노하우', '비법'],
+	'세이브': ['세이브', 'save', '클러치', 'clutch', '역전'],
+	'월샷': ['월샷', 'wallshot', '관통', '벽관'],
+	'무기리뷰': ['무기', '리뷰', '총기', '스킨', '신무기', '성능'],
+	'하이라이트': ['하이라이트', '올킬', '에이스', 'ace', '킬모음', '매드무비', '탑플레이'],
+	'랭크전': ['랭크', 'rank', '경쟁전', '솔랭', '구간'],
+};
+const MAP_KEYWORDS = {
+	'프로방스': ['프로방스', 'provence'],
+	'데저트': ['데저트', 'desert'],
+	'화콜': ['화콜', '화물열차', '화물콜'],
+	'삼박자': ['삼박자', '3박자'],
+	'이탈리아': ['이탈리아', 'italy'],
+	'올드타운': ['올드타운', 'oldtown'],
+	'크로스파이어': ['크로스파이어', 'crossfire', '크파'],
+	'펠리스': ['펠리스', 'felice'],
+	'5보급': ['5보급', '오보급'],
+	'시티캣': ['시티캣', 'citycat'],
+	'머리': ['머리'],
+	'녹위': ['녹위', '녹색위장'],
+	'레드': ['레드', 'red'],
+	'프로즌시티': ['프로즌시티', '프시', 'frozen'],
+	'트리오': ['트리오', 'trio'],
+	'마베': ['마베', '마법사의베일'],
+};
+
+function classifyShort(title) {
+	const t = title.toLowerCase();
+	const types = [];
+	const maps = [];
+	for (const [type, keywords] of Object.entries(TYPE_KEYWORDS)) {
+		if (keywords.some(kw => t.includes(kw))) types.push(type);
+	}
+	for (const [map, keywords] of Object.entries(MAP_KEYWORDS)) {
+		if (keywords.some(kw => t.includes(kw))) maps.push(map);
+	}
+	// 기본 유형이 없으면 '꿀팁' 부여
+	if (types.length === 0) types.push('꿀팁');
+	return { types, maps };
+}
+
+async function crawlShorts() {
+	console.log('\n[Shorts] 유튜브 숏츠 크롤링 시작...');
+	const allVideos = [];
+
+	for (const channel of SHORTS_CHANNELS) {
+		try {
+			// yt-dlp로 최근 숏츠 20개 메타데이터만 가져오기 (다운로드 X)
+			const cmd = `yt-dlp --flat-playlist --no-download -j --playlist-end 20 "https://www.youtube.com/@${channel.name}/shorts" 2>/dev/null || yt-dlp --flat-playlist --no-download -j --playlist-end 20 "https://www.youtube.com/channel/${channel.id}/shorts" 2>/dev/null`;
+
+			let output = '';
+			try {
+				output = execSync(cmd, { timeout: 60000, encoding: 'utf8', maxBuffer: 5 * 1024 * 1024 });
+			} catch (e) {
+				// yt-dlp 부분 실패 시에도 stdout 활용
+				output = e.stdout || '';
+			}
+
+			if (!output.trim()) {
+				console.log(`[Shorts] ${channel.name}: 영상 없음 또는 채널 접근 실패`);
+				continue;
+			}
+
+			const lines = output.trim().split('\n').filter(l => l.startsWith('{'));
+			let count = 0;
+			for (const line of lines) {
+				try {
+					const data = JSON.parse(line);
+					const videoId = data.id || data.url;
+					if (!videoId || videoId.length !== 11) continue;
+
+					const title = data.title || '서든어택 숏츠';
+					const { types, maps } = classifyShort(title);
+
+					allVideos.push({
+						video_id: videoId,
+						title,
+						creator: channel.name,
+						channel_id: channel.id,
+						types,
+						maps,
+						thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+						published_at: data.upload_date || '',
+					});
+					count++;
+				} catch {}
+			}
+			console.log(`[Shorts] ${channel.name}: ${count}건 수집`);
+		} catch (err) {
+			console.error(`[Shorts] ${channel.name} 실패:`, err.message);
+		}
+	}
+
+	// Worker로 일괄 인제스트
+	if (allVideos.length > 0) {
+		try {
+			const res = await fetch(`${WORKER_URL}/api/shorts/ingest`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${INGEST_KEY}` },
+				body: JSON.stringify({ videos: allVideos }),
+			});
+			const result = await res.json();
+			console.log(`[Shorts] 인제스트 완료: 신규 ${result.inserted}건, 중복 ${result.duplicates}건 (총 ${allVideos.length}건)`);
+
+			// 신규가 있으면 디스코드 알림
+			if (result.inserted > 0) {
+				await sendToDiscord(CHANNELS.summary, `🎬 **새 숏츠 ${result.inserted}건** 추가됨\n${allVideos.filter((_, i) => i < 3).map(v => `  • ${v.creator}: ${v.title}`).join('\n')}${result.inserted > 3 ? `\n  ... 외 ${result.inserted - 3}건` : ''}`);
+			}
+			return result.inserted;
+		} catch (err) {
+			console.error(`[Shorts] 인제스트 실패:`, err.message);
+			return 0;
+		}
+	}
+
+	console.log('[Shorts] 수집된 영상 없음');
+	return 0;
+}
+
 // ── 메인 ────────────────────────────────────────────────
 async function runCrawl() {
 	const lastCrawl = getLastCrawlTime();
@@ -466,6 +602,11 @@ async function runCrawl() {
 		console.log(`[Crawl] 총 수집: ${nexonItems.length + dcItems.length}건 (넥슨 ${nexonItems.length}, 디씨 ${dcItems.length})`);
 
 		const stats = await processpipeline(nexonItems, dcItems, browser);
+
+		// 숏츠 크롤링 (yt-dlp, 브라우저 불필요)
+		const newShorts = await crawlShorts();
+		stats.shorts = newShorts;
+
 		await reportSummary(stats);
 		saveLastCrawlTime();
 		console.log('[Crawl] 완료!');

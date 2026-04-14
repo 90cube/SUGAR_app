@@ -7,26 +7,24 @@ import { marked } from 'marked';
 
 type SourceFilter = 'all' | 'dcinside' | 'nexon' | 'shorts';
 
-// ─── Fade-in wrapper (IntersectionObserver + Tailwind) ───
+// ─── CRT Boot Reveal (레트로 모니터 켜지는 효과) ───
 const FadeInWrapper: React.FC<{
   children: React.ReactNode;
   index?: number;
-}> = ({ children, index = 0 }) => {
+  mode?: 'crt' | 'fade';
+}> = ({ children, index = 0, mode = 'fade' }) => {
   const ref = useRef<HTMLDivElement>(null);
-  const [visible, setVisible] = useState(false);
+  const [phase, setPhase] = useState<'hidden' | 'booting' | 'visible'>('hidden');
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const delay = Math.min(index, 5) * 80;
+    // CRT 모드: 한 줄씩 착착 나오는 효과 (간격 넉넉하게)
+    const delay = mode === 'crt' ? index * 120 : Math.min(index, 5) * 80;
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
-          if (delay > 0) {
-            setTimeout(() => setVisible(true), delay);
-          } else {
-            setVisible(true);
-          }
+          setTimeout(() => setPhase('booting'), delay);
           observer.disconnect();
         }
       },
@@ -34,13 +32,37 @@ const FadeInWrapper: React.FC<{
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [index]);
+  }, [index, mode]);
 
+  // booting → visible 전환 (CRT 애니메이션 완료 후 glow)
+  useEffect(() => {
+    if (phase === 'booting') {
+      const t = setTimeout(() => setPhase('visible'), 700);
+      return () => clearTimeout(t);
+    }
+  }, [phase]);
+
+  if (mode === 'crt') {
+    return (
+      <div
+        ref={ref}
+        className={`crt-card relative overflow-hidden ${
+          phase === 'hidden' ? 'crt-hidden' :
+          phase === 'booting' ? 'crt-visible' :
+          'crt-glow'
+        }`}
+      >
+        {children}
+      </div>
+    );
+  }
+
+  // 기본 fade 모드 (기존 게시글용)
   return (
     <div
       ref={ref}
       className={`transition-all duration-500 ease-out ${
-        visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+        phase !== 'hidden' ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
       }`}
     >
       {children}
@@ -271,9 +293,37 @@ const MAP_TAGS = ['전체', '프로방스', '데저트', '화콜', '삼박자', 
 const ShortsGrid: React.FC<{ searchQuery?: string }> = ({ searchQuery = '' }) => {
   const [typeFilter, setTypeFilter] = useState('전체');
   const [mapFilter, setMapFilter] = useState('전체');
+  const [shorts, setShorts] = useState<ShortVideo[]>(SHORTS_DATA);
+  const [loading, setLoading] = useState(true);
+
+  // API에서 숏츠 불러오기 (실패 시 정적 데이터 유지)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${(import.meta as any).env?.VITE_WORKER_URL || 'https://sugarbackend.dudgh4141.workers.dev'}/api/shorts?limit=300`);
+        if (!res.ok) throw new Error('API error');
+        const data = await res.json();
+        if (!cancelled && data.shorts?.length > 0) {
+          setShorts(data.shorts.map((s: any) => ({
+            id: s.video_id,
+            title: s.title,
+            creator: s.creator,
+            types: Array.isArray(s.types) ? s.types : JSON.parse(s.types || '[]'),
+            maps: Array.isArray(s.maps) ? s.maps : JSON.parse(s.maps || '[]'),
+          })));
+        }
+      } catch {
+        // API 실패 시 정적 데이터 유지
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const q = searchQuery.trim().toLowerCase();
-  const filtered = SHORTS_DATA.filter(v => {
+  const filtered = shorts.filter(v => {
     const typeOk = typeFilter === '전체' || v.types.includes(typeFilter);
     const mapOk = mapFilter === '전체' || v.maps.includes(mapFilter);
     const queryOk = !q || v.title.toLowerCase().includes(q) || v.creator.toLowerCase().includes(q);
@@ -281,7 +331,7 @@ const ShortsGrid: React.FC<{ searchQuery?: string }> = ({ searchQuery = '' }) =>
   });
 
   // 맵 탭에서 실제 영상이 있는 맵만 표시
-  const activeMaps = MAP_TAGS.filter(m => m === '전체' || SHORTS_DATA.some(v => v.maps.includes(m)));
+  const activeMaps = MAP_TAGS.filter(m => m === '전체' || shorts.some(v => v.maps.includes(m)));
 
   return (
     <div>
@@ -323,11 +373,17 @@ const ShortsGrid: React.FC<{ searchQuery?: string }> = ({ searchQuery = '' }) =>
         </div>
       </div>
 
-      {/* 결과 카운트 */}
-      <div className="px-3 pb-2">
-        <span className="font-code text-gray-600 text-[10px]">
-          {filtered.length}건{[typeFilter !== '전체' ? typeFilter : '', mapFilter !== '전체' ? mapFilter : '', q ? `"${searchQuery}"` : ''].filter(Boolean).length > 0 ? ` (필터: ${[typeFilter !== '전체' ? typeFilter : '', mapFilter !== '전체' ? mapFilter : '', q ? `"${searchQuery}"` : ''].filter(Boolean).join(' + ')})` : ''}
+      {/* 결과 카운트 – 터미널 스타일 */}
+      <div className="px-3 pb-2 flex items-center gap-2">
+        <span className="font-screen text-acid-green text-sm tracking-wider">
+          {`> LOADED ${filtered.length} CLIPS`}
         </span>
+        {[typeFilter !== '전체' ? typeFilter : '', mapFilter !== '전체' ? mapFilter : '', q ? `"${searchQuery}"` : ''].filter(Boolean).length > 0 && (
+          <span className="font-code text-gray-600 text-[10px]">
+            [{[typeFilter !== '전체' ? typeFilter : '', mapFilter !== '전체' ? mapFilter : '', q ? `"${searchQuery}"` : ''].filter(Boolean).join(' + ')}]
+          </span>
+        )}
+        <span className="animate-blink font-screen text-acid-green text-sm">_</span>
       </div>
 
       {/* 그리드 */}
@@ -339,7 +395,7 @@ const ShortsGrid: React.FC<{ searchQuery?: string }> = ({ searchQuery = '' }) =>
       ) : (
         <div className="grid grid-cols-3 gap-1 px-1.5 pb-4">
           {filtered.map((v, idx) => (
-            <FadeInWrapper key={v.id} index={idx}>
+            <FadeInWrapper key={`${typeFilter}-${mapFilter}-${v.id}`} index={idx} mode="crt">
             <a
               href={`https://www.youtube.com/shorts/${v.id}`}
               target="_blank"

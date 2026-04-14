@@ -50,6 +50,9 @@
           animation: {
             'marquee': 'marquee 20s linear infinite',
             'blink': 'blink 1s step-end infinite',
+            'crt-on': 'crt-on 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards',
+            'scanline-sweep': 'scanline-sweep 0.5s ease-out forwards',
+            'glitch-flash': 'glitch-flash 0.3s step-end forwards',
           },
           keyframes: {
             marquee: {
@@ -59,6 +62,26 @@
             blink: {
               '0%, 100%': { opacity: '1' },
               '50%': { opacity: '0' },
+            },
+            'crt-on': {
+              '0%': { opacity: '0', transform: 'scaleY(0.005) scaleX(0.8)', filter: 'brightness(3) saturate(0)' },
+              '20%': { opacity: '1', transform: 'scaleY(0.005) scaleX(1)', filter: 'brightness(3) saturate(0)' },
+              '40%': { transform: 'scaleY(0.5) scaleX(1)', filter: 'brightness(1.5) saturate(0.5)' },
+              '60%': { transform: 'scaleY(1.02) scaleX(1)', filter: 'brightness(1.2) saturate(0.8)' },
+              '80%': { transform: 'scaleY(0.98) scaleX(1)', filter: 'brightness(1) saturate(1)' },
+              '100%': { opacity: '1', transform: 'scaleY(1) scaleX(1)', filter: 'brightness(1) saturate(1)' },
+            },
+            'scanline-sweep': {
+              '0%': { backgroundPosition: '0% -100%' },
+              '100%': { backgroundPosition: '0% 200%' },
+            },
+            'glitch-flash': {
+              '0%': { clipPath: 'inset(0 0 95% 0)', transform: 'translateX(-2px)' },
+              '20%': { clipPath: 'inset(40% 0 30% 0)', transform: 'translateX(2px)' },
+              '40%': { clipPath: 'inset(0 0 60% 0)', transform: 'translateX(-1px)' },
+              '60%': { clipPath: 'inset(20% 0 0 0)', transform: 'translateX(1px)' },
+              '80%': { clipPath: 'inset(0)', transform: 'translateX(0)' },
+              '100%': { clipPath: 'inset(0)', transform: 'translateX(0)' },
             }
           }
         }
@@ -143,6 +166,51 @@
     .window-content {
       box-shadow: inset 2px 2px 0px #000, inset -2px -2px 0px #fff;
       background: #000;
+    }
+
+    /* ─── Retro CRT Card Reveal ─── */
+    .crt-card {
+      transform-origin: center center;
+      will-change: transform, opacity, filter;
+    }
+    .crt-card.crt-hidden {
+      opacity: 0;
+      transform: scaleY(0.005) scaleX(0.8);
+      filter: brightness(3) saturate(0);
+    }
+    .crt-card.crt-visible {
+      animation: crt-on 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+    /* Green phosphor sweep overlay */
+    .crt-card.crt-visible::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        180deg,
+        transparent 0%,
+        rgba(204, 255, 0, 0.15) 45%,
+        rgba(204, 255, 0, 0.3) 50%,
+        rgba(204, 255, 0, 0.15) 55%,
+        transparent 100%
+      );
+      background-size: 100% 300%;
+      animation: scanline-sweep 0.5s 0.3s ease-out forwards;
+      background-position: 0% -100%;
+      pointer-events: none;
+      z-index: 2;
+    }
+    /* Brief green glow on border */
+    .crt-card.crt-visible {
+      box-shadow: 0 0 0px rgba(204, 255, 0, 0);
+    }
+    @keyframes crt-glow {
+      0%   { box-shadow: 0 0 8px rgba(204, 255, 0, 0.6), inset 0 0 8px rgba(204, 255, 0, 0.1); }
+      100% { box-shadow: 0 0 0px rgba(204, 255, 0, 0), inset 0 0 0px rgba(204, 255, 0, 0); }
+    }
+    .crt-card.crt-glow {
+      animation: crt-on 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards,
+                 crt-glow 0.8s 0.4s ease-out forwards;
     }
   </style>
 

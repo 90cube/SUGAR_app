@@ -38,6 +38,23 @@ CREATE TABLE IF NOT EXISTS reactions (
 
 CREATE INDEX IF NOT EXISTS idx_reactions_update ON reactions(update_id);
 
+-- shorts: 유튜브 숏츠 (자동 크롤링)
+CREATE TABLE IF NOT EXISTS shorts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  video_id TEXT NOT NULL UNIQUE,
+  title TEXT NOT NULL,
+  creator TEXT NOT NULL,
+  channel_id TEXT NOT NULL,
+  types TEXT NOT NULL DEFAULT '[]',
+  maps TEXT NOT NULL DEFAULT '[]',
+  thumbnail TEXT,
+  published_at TEXT,
+  crawled_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_shorts_channel ON shorts(channel_id);
+CREATE INDEX IF NOT EXISTS idx_shorts_crawled ON shorts(crawled_at DESC);
+
 -- crawl_logs: 작업 로그
 CREATE TABLE IF NOT EXISTS crawl_logs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
