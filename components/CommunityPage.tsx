@@ -149,7 +149,7 @@ const SentimentBadge: React.FC<{ sentiment: string }> = ({ sentiment }) => {
   };
   const s = map[sentiment] || map.neutral;
   return (
-    <span className={`${s.bg} ${s.text} px-2 py-0.5 rounded-sm font-code text-[10px] font-bold`}>
+    <span className={`${s.bg} ${s.text} px-2 py-0.5 font-code text-[10px] font-bold`}>
       {s.label}
     </span>
   );
@@ -342,7 +342,7 @@ const ShortsGrid: React.FC<{ searchQuery?: string }> = ({ searchQuery = '' }) =>
             <button
               key={tag}
               onClick={() => setTypeFilter(tag)}
-              className={`shrink-0 px-2.5 py-1 font-code text-[11px] border transition-colors ${
+              className={`shrink-0 px-2.5 py-1 font-code text-[11px] border-2 transition-colors ${
                 typeFilter === tag
                   ? 'bg-acid-pink text-white border-acid-pink'
                   : 'bg-transparent text-gray-500 border-gray-700 active:border-gray-500'
@@ -361,7 +361,7 @@ const ShortsGrid: React.FC<{ searchQuery?: string }> = ({ searchQuery = '' }) =>
             <button
               key={tag}
               onClick={() => setMapFilter(tag)}
-              className={`shrink-0 px-2.5 py-1 font-code text-[11px] border transition-colors ${
+              className={`shrink-0 px-2.5 py-1 font-code text-[11px] border-2 transition-colors ${
                 mapFilter === tag
                   ? 'bg-acid-cyan text-black border-acid-cyan'
                   : 'bg-transparent text-gray-500 border-gray-700 active:border-gray-500'
@@ -689,7 +689,7 @@ export const CommunityPage: React.FC = () => {
               )}
               <button
                 onClick={closeCommunity}
-                className="font-pixel text-[10px] text-acid-cyan active:text-white transition-colors tracking-wider cursor-pointer border border-acid-cyan px-2 py-0.5"
+                className="font-pixel text-[10px] text-acid-cyan active:text-white transition-colors tracking-wider cursor-pointer border-2 border-acid-cyan px-2 py-0.5"
               >
                 &lt; BACK
               </button>
@@ -707,7 +707,7 @@ export const CommunityPage: React.FC = () => {
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       placeholder={source === 'shorts' ? '제목/크리에이터 검색...' : '검색 (예: 밸런스 패치, 신규 무기...)'}
-                      className="w-full h-9 bg-black border-2 border-gray-700 text-acid-green font-code text-sm px-3 pr-8 focus:outline-none focus:border-acid-green placeholder:text-gray-600 placeholder:text-xs"
+                      className="w-full h-9 bg-black border-2 border-acid-green text-acid-green font-code text-sm px-3 pr-8 focus:outline-none placeholder:text-gray-600 placeholder:text-xs"
                     />
                     {isSearchMode && (
                       <button
@@ -730,7 +730,7 @@ export const CommunityPage: React.FC = () => {
               </div>
 
               {/* Filter Tabs */}
-              <div className="flex border-t-2 border-acid-green/40">
+              <div className="flex border-t-2 border-acid-green">
                 {([
                   { key: 'all', label: 'ALL' },
                   { key: 'nexon', label: 'NEXON' },

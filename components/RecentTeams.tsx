@@ -7,17 +7,18 @@ interface RecentTeamsProps {
 }
 
 export const RecentTeams: React.FC<RecentTeamsProps> = ({ data }) => {
-  const { allies, enemies, mapName, matchMode } = data;
+  const { allies, enemies, mapName, matchMode, selfNickname } = data;
 
   const PlayerRow: React.FC<{ player: typeof allies[0]; idx: number }> = ({ player, idx }) => {
     const kd = player.death === 0
       ? (player.kill > 0 ? player.kill.toFixed(1) : '0.0')
       : (player.kill / player.death).toFixed(2);
+    const isSelf = player.user_name === selfNickname;
 
     return (
-      <tr className="border-b border-white/10 hover:bg-white/5 transition-colors">
-        <td className="py-1 px-2 text-left font-screen text-sm truncate max-w-[120px]">
-          {player.user_name}
+      <tr className={`border-b border-white/10 transition-colors ${isSelf ? 'bg-acid-green/10' : 'hover:bg-white/5'}`}>
+        <td className={`py-1 px-2 text-left font-code text-xs truncate max-w-[120px] ${isSelf ? 'text-acid-green font-bold' : ''}`}>
+          {isSelf ? '▶ ' : ''}{player.user_name}
         </td>
         <td className="py-1 px-1 text-center text-xs font-code opacity-70">
           {player.season_grade || '-'}

@@ -11,6 +11,7 @@ export interface RecentTeamData {
   mapName: string;
   matchDate: string;
   matchMode: string;
+  selfNickname: string;
 }
 
 // Default page content (previously from cloudStorageService)
@@ -100,11 +101,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               const myTeamId = me?.team_id || '0';
               const enemyTeamId = myTeamId === '0' ? '1' : '0';
               setRecentTeams({
-                allies: detail.match_detail.filter((p: PlayerMatchDetail) => p.team_id === myTeamId && p.user_name !== profile.nickname),
+                allies: detail.match_detail.filter((p: PlayerMatchDetail) => p.team_id === myTeamId),
                 enemies: detail.match_detail.filter((p: PlayerMatchDetail) => p.team_id === enemyTeamId),
                 mapName: detail.match_map || '알 수 없는 맵',
                 matchDate: detail.date_match || latestMatch.date,
                 matchMode: latestMatch.matchMode,
+                selfNickname: profile.nickname,
               });
             }
           } catch (e) {
