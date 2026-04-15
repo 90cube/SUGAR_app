@@ -37,7 +37,7 @@ export const MusicPlayer: React.FC<{ visible: boolean; onClose: () => void }> = 
 
   if (!show) return null;
 
-  const { tracks, current, isPlaying, repeatMode, checkedIds, progress, duration, volume, loading } = audio;
+  const { tracks, current, isPlaying, repeatMode, checkedIds, shuffle, progress, duration, volume, loading } = audio;
 
   return (
     <div
@@ -104,6 +104,13 @@ export const MusicPlayer: React.FC<{ visible: boolean; onClose: () => void }> = 
                 : 'border-acid-green text-acid-green bg-black'
             }`}>
               {repeatLabel[repeatMode]}
+            </button>
+            <button onClick={audio.toggleShuffle} className={`font-pixel text-[9px] md:text-[10px] px-2 md:px-3 py-1.5 md:py-2 border-2 transition-colors ${
+              shuffle
+                ? 'border-acid-green text-acid-green bg-black'
+                : 'border-gray-600 text-gray-500 bg-black'
+            }`}>
+              {shuffle ? 'SHF:ON' : 'SHF:OFF'}
             </button>
           </div>
 
