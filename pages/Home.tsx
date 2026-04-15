@@ -7,6 +7,7 @@ import { ProfileCard } from '../components/ProfileCard';
 import { TierCard } from '../components/TierCard';
 import { RecentTrend } from '../components/RecentTrend';
 import { RecentMatches } from '../components/RecentMatches';
+import { LastMatch } from '../components/LastMatch';
 import { useTypingEffect } from '../hooks/useTypingEffect';
 
 export const Home: React.FC = () => {
@@ -188,6 +189,16 @@ export const Home: React.FC = () => {
                   <h3 className="font-pixel text-white mb-4 border-b border-white border-dashed pb-2">TREND ANALYSIS</h3>
                   <RecentTrend stats={userProfile.recentStats} />
                 </div>
+
+                {/* Last Match — 아군 / 적군 */}
+                {userProfile.recentMatches.length > 0 && (
+                  <LastMatch
+                    key={userProfile.ouid}
+                    matchId={userProfile.recentMatches[0].id}
+                    userNickname={userProfile.nickname}
+                    onSearchPlayer={(name) => { setNickname(name); searchUser(name); }}
+                  />
+                )}
               </div>
 
               {/* Right Column */}
