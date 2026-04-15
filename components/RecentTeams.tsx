@@ -9,71 +9,61 @@ interface RecentTeamsProps {
 export const RecentTeams: React.FC<RecentTeamsProps> = ({ data }) => {
   const { allies, enemies, mapName, matchMode, selfNickname } = data;
 
-  const PlayerRow: React.FC<{ player: typeof allies[0]; idx: number }> = ({ player, idx }) => {
+  const PlayerCell: React.FC<{ player: typeof allies[0] }> = ({ player }) => {
     const kd = player.death === 0
       ? (player.kill > 0 ? player.kill.toFixed(1) : '0.0')
       : (player.kill / player.death).toFixed(2);
     const isSelf = player.user_name === selfNickname;
 
     return (
-      <tr className={`border-b border-white/10 transition-colors ${isSelf ? 'bg-acid-green/10' : 'hover:bg-white/5'}`}>
-        <td className={`py-1 px-2 text-left font-code text-xs truncate max-w-[120px] ${isSelf ? 'text-acid-green font-bold' : ''}`}>
+      <div className={`px-1.5 py-1 ${isSelf ? 'bg-acid-green/15' : ''}`}>
+        <div className={`font-code text-[11px] truncate leading-tight ${isSelf ? 'text-acid-green font-bold' : 'text-white'}`}>
           {isSelf ? '▶ ' : ''}{player.user_name}
-        </td>
-        <td className="py-1 px-1 text-center text-xs font-code opacity-70">
-          {player.season_grade || '-'}
-        </td>
-        <td className="py-1 px-1 text-center font-code text-xs">
+        </div>
+        <div className="font-code text-[10px] leading-tight mt-0.5">
           <span className="text-acid-green">{player.kill}</span>
-          <span className="text-white/40">/</span>
+          <span className="text-white/30">/</span>
           <span className="text-acid-pink">{player.death}</span>
-        </td>
-        <td className="py-1 px-1 text-center font-code text-xs">
-          {kd}
-        </td>
-      </tr>
+          <span className="text-white/30 ml-0.5">·{kd}</span>
+        </div>
+      </div>
     );
   };
 
-  const TeamTable: React.FC<{ players: typeof allies; label: string; color: string }> = ({ players, label, color }) => (
-    <div className="flex-1 min-w-0">
-      <div className={`text-center font-pixel text-[10px] ${color} mb-1 tracking-wider`}>
-        {label} ({players.length})
-      </div>
-      <table className="w-full text-white">
-        <thead>
-          <tr className="border-b border-white/20 text-[9px] font-code text-white/50 uppercase">
-            <th className="py-1 px-2 text-left">NAME</th>
-            <th className="py-1 px-1 text-center">RANK</th>
-            <th className="py-1 px-1 text-center">K/D</th>
-            <th className="py-1 px-1 text-center">RATIO</th>
-          </tr>
-        </thead>
-        <tbody>
-          {players.length > 0 ? (
-            players.map((p, i) => <PlayerRow key={p.user_name + i} player={p} idx={i} />)
-          ) : (
-            <tr><td colSpan={4} className="py-2 text-center text-white/30 text-xs font-code">NO DATA</td></tr>
-          )}
-        </tbody>
-      </table>
-    </div>
-  );
-
   return (
     <div>
-      {/* Header bar */}
-      <div className="flex items-center justify-between mb-2">
-        <span className="font-code text-[10px] text-white/40">
-          MAP: {mapName} / {matchMode}
-        </span>
+      {/* Terminal Header Strip */}
+      <div className="bg-acid-green text-black px-3 py-1 font-pixel font-bold text-[9px] flex justify-between items-center">
+        <span>C:\SUDDENLAB\LAST_MATCH.LOG</span>
+        {matchMode && <span className="font-code text-[8px]">{matchMode}</span>}
       </div>
 
-      {/* Two-column team table */}
-      <div className="flex gap-3">
-        <TeamTable players={allies} label="ALLIES" color="text-acid-cyan" />
-        <div className="w-px bg-white/20 flex-shrink-0" />
-        <TeamTable players={enemies} label="ENEMIES" color="text-acid-pink" />
+      {/* Map info */}
+      <div className="px-2 py-1 border-b border-white/10">
+        <span className="font-code text-[9px] text-white/30">MAP: {mapName}</span>
+      </div>
+
+      {/* Two-column player grid */}
+      <div className="grid grid-cols-2">
+        {/* Column headers */}
+        <div className="border-b border-r border-white/15 px-1.5 py-0.5 bg-acid-cyan/10">
+          <span className="font-pixel text-[9px] text-acid-cyan">◀ ALLIES [{allies.length}]</span>
+        </div>
+        <div className="border-b border-white/15 px-1.5 py-0.5 bg-acid-pink/10 text-right">
+          <span className="font-pixel text-[9px] text-acid-pink">ENEMIES [{enemies.length}] ▶</span>
+        </div>
+
+        {/* Paired player rows */}
+        {Array.from({ length: Math.max(allies.length, enemies.length) }).map((_, i) => (
+          <React.Fragment key={i}>
+            <div className="border-b border-r border-white/10 overflow-hidden">
+              {allies[i] ? <PlayerCell player={allies[i]} /> : <div className="py-2" />}
+            </div>
+            <div className="border-b border-white/10 overflow-hidden">
+              {enemies[i] ? <PlayerCell player={enemies[i]} /> : <div className="py-2" />}
+            </div>
+          </React.Fragment>
+        ))}
       </div>
     </div>
   );
