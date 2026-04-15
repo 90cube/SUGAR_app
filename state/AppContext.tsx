@@ -1,9 +1,17 @@
 
 import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { SearchStatus, UserProfile, MatchDetail, Match, RecapStats, MatchResult, AnomalyReport, PageContent, ModeStat } from '../types';
+import { SearchStatus, UserProfile, MatchDetail, Match, RecapStats, MatchResult, AnomalyReport, PageContent, ModeStat, PlayerMatchDetail } from '../types';
 import { nexonService } from '../services/nexonService';
 import { geminiService, ComparativeStats } from '../services/geminiService';
 import { useUI } from './UIContext';
+
+export interface RecentTeamData {
+  allies: PlayerMatchDetail[];
+  enemies: PlayerMatchDetail[];
+  mapName: string;
+  matchDate: string;
+  matchMode: string;
+}
 
 // Default page content (previously from cloudStorageService)
 const DEFAULT_PAGE_CONTENT: PageContent = {
@@ -33,6 +41,7 @@ interface AppContextType {
   anomalyReport: AnomalyReport | null;
   isAnomalyLoading: boolean;
   openKeySelector: () => Promise<void>;
+  recentTeams: RecentTeamData | null;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -52,6 +61,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [isRecapLoading, setIsRecapLoading] = useState(false);
   const [anomalyReport, setAnomalyReport] = useState<AnomalyReport | null>(null);
   const [isAnomalyLoading, setIsAnomalyLoading] = useState(false);
+  const [recentTeams, setRecentTeams] = useState<RecentTeamData | null>(null);
 
   const openMatchDetail = async (match: Match) => {
     setActiveMatch(match);
@@ -73,11 +83,34 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setSearchStatus(SearchStatus.LOADING);
     setVisibleMatchCount(10);
     setAnomalyReport(null);
+    setRecentTeams(null);
     try {
       const profile = await nexonService.fetchFullProfile(nickname);
       if (profile) {
         setUserProfile(profile);
         setSearchStatus(SearchStatus.SUCCESS);
+
+        // 최근 매치 팀원/적군 자동 로드
+        if (profile.recentMatches.length > 0) {
+          try {
+            const latestMatch = profile.recentMatches[0];
+            const detail = await nexonService.getMatchDetail(latestMatch.id);
+            if (detail?.match_detail) {
+              const me = detail.match_detail.find((p: PlayerMatchDetail) => p.user_name === profile.nickname);
+              const myTeamId = me?.team_id || '0';
+              const enemyTeamId = myTeamId === '0' ? '1' : '0';
+              setRecentTeams({
+                allies: detail.match_detail.filter((p: PlayerMatchDetail) => p.team_id === myTeamId && p.user_name !== profile.nickname),
+                enemies: detail.match_detail.filter((p: PlayerMatchDetail) => p.team_id === enemyTeamId),
+                mapName: detail.match_map || '알 수 없는 맵',
+                matchDate: detail.date_match || latestMatch.date,
+                matchMode: latestMatch.matchMode,
+              });
+            }
+          } catch (e) {
+            console.error('[AppContext] Failed to load recent teams', e);
+          }
+        }
       } else {
         setUserProfile(null);
         setSearchStatus(SearchStatus.ERROR);
@@ -237,7 +270,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       recapStats, calculateRecap, isRecapLoading,
       performAnomalyCheck, anomalyReport, isAnomalyLoading,
       pageContent,
-      openKeySelector
+      openKeySelector,
+      recentTeams
     }}>
       {children}
     </AppContext.Provider>

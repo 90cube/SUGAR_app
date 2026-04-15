@@ -49,7 +49,7 @@ export default {
 				return response;
 			}
 
-			// 2. AI Proxy (Workers AI GLM)
+			// 2. AI Proxy (Workers AI — Gemma)
 			if (url.pathname.startsWith('/gemini/')) {
 				if (request.method !== 'POST') {
 					return errorResponse('Method Not Allowed', 405);
@@ -61,25 +61,30 @@ export default {
 				const systemText = body.systemInstruction?.parts?.[0]?.text || '';
 
 				try {
+					// Gemma 4 think 모드 비활성화: thinking 토큰이 응답을 비우는 문제 방지
+					const noThinkPrefix = 'Do not use <think> tags or internal reasoning. Respond directly.\n\n';
 					const messages: any[] = [];
 					if (systemText) {
-						messages.push({ role: 'system', content: systemText });
+						messages.push({ role: 'system', content: noThinkPrefix + systemText });
 					} else {
-						messages.push({ role: 'system', content: '당신은 도움이 되는 AI 어시스턴트입니다. 한국어로 응답하세요.' });
+						messages.push({ role: 'system', content: noThinkPrefix + '당신은 도움이 되는 AI 어시스턴트입니다. 한국어로 응답하세요.' });
 					}
 					messages.push({ role: 'user', content: userText });
 
-					const result: any = await env.AI.run('@cf/zai-org/glm-4.7-flash' as any, {
+					const result: any = await env.AI.run('@cf/google/gemma-4-26b-a4b-it' as any, {
 						messages,
-						max_tokens: body.generationConfig?.maxOutputTokens || 2048,
+						max_tokens: body.generationConfig?.maxOutputTokens || 4096,
 					});
 
 					// Workers AI: response 또는 OpenAI choices 형식 둘 다 대응
-					const aiText = result.response
+					let aiText = result.response
 						|| result.choices?.[0]?.message?.content
 						|| '';
 
-					// Gemini 호환 응답 포맷
+					// think 태그가 포함된 경우 제거
+					aiText = aiText.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+
+					// Gemma 호환 응답 포맷 (프론트 Gemini 형식 유지)
 					const responseData = JSON.stringify({
 						candidates: [{
 							content: {
@@ -249,8 +254,9 @@ export default {
 				if (!body.image || !body.prompt) return errorResponse('image (base64) and prompt required', 400);
 
 				try {
-					const result = await env.AI.run('@cf/google/gemma-3-12b-it' as any, {
+					const result = await env.AI.run('@cf/google/gemma-4-26b-a4b-it' as any, {
 						messages: [
+							{ role: 'system', content: 'Do not use <think> tags or internal reasoning. Respond directly.' },
 							{
 								role: 'user',
 								content: [
@@ -262,7 +268,9 @@ export default {
 						max_tokens: body.max_tokens || 4000,
 						temperature: 0,
 					});
-					return jsonResponse({ text: (result as any).response || '' });
+					let visionText = (result as any).response || '';
+					visionText = visionText.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+					return jsonResponse({ text: visionText });
 				} catch (e: any) {
 					console.error('[Vision] Error:', e.message);
 					return errorResponse(e.message, 500);

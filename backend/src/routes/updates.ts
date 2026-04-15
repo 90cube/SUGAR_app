@@ -294,16 +294,17 @@ ${titleList}
 complaint 필드: 서든어택/넥슨에 대한 불만, 비판, 항의, 버그 신고 등이면 true (KEEP이면서 complaint일 수 있음)`;
 
 	try {
-		// Workers AI로 필터링 (GLM-4.7-Flash)
-		const aiResult = await env.AI.run('@cf/zai-org/glm-4.7-flash' as any, {
+		// Workers AI로 필터링 (Gemma 4 — think 모드 비활성화)
+		const aiResult = await env.AI.run('@cf/google/gemma-4-26b-a4b-it' as any, {
 			messages: [
-				{ role: 'system', content: '당신은 JSON만 출력하는 분류 AI입니다. 지시에 따라 JSON 배열만 응답하세요.' },
+				{ role: 'system', content: 'Do not use <think> tags or internal reasoning. Respond directly.\n\n당신은 JSON만 출력하는 분류 AI입니다. 지시에 따라 JSON 배열만 응답하세요.' },
 				{ role: 'user', content: prompt },
 			],
 			max_tokens: 4000,
 			temperature: 0,
 		});
-		const text = (aiResult as any).response || '';
+		let text = (aiResult as any).response || '';
+		text = text.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
 
 		// JSON 파싱
 		const jsonMatch = text.match(/\[[\s\S]*\]/);

@@ -60,21 +60,47 @@ async function fetchPostDetail(page, url) {
 	}
 }
 
-// ── 단건 AI 필터링 ─────────────────────────────────────
-async function filterSinglePost(title) {
+// ── 배치 AI 필터링 (1회 AI 호출로 전체 필터) ─────────────
+async function filterBatch(items) {
+	if (items.length === 0) return new Map();
+
+	const titles = items.map(item => ({
+		external_id: item.url || '',
+		title: item.title,
+		author: '',
+		url: item.url || '',
+		published_at: item.published_at || '',
+	}));
+
 	try {
 		const res = await fetch(`${WORKER_URL}/api/updates/filter`, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${INGEST_KEY}` },
-			body: JSON.stringify({ titles: [{ title, source: 'dcinside' }] }),
+			body: JSON.stringify({ titles }),
 		});
 		const result = await res.json();
-		const kept = (result.posts || []).some(p => p.title === title);
-		const isComplaint = Number(result.complaints) > 0;
-		return { kept, isComplaint };
+
+		// 결과를 title → {kept, isComplaint} 맵으로 변환
+		const keptTitles = new Set((result.posts || []).map(p => p.title));
+		const resultMap = new Map();
+
+		for (const item of items) {
+			const kept = keptTitles.has(item.title);
+			// complaints 수만 알 수 있으므로, Worker 응답의 posts에 포함된 것만 kept
+			resultMap.set(item.title, { kept, isComplaint: false });
+		}
+
+		// 불만글 여부는 Worker가 이미 디스코드로 보내줌
+		console.log(`[Filter] 배치 결과: ${items.length}건 중 ${keptTitles.size}건 통과, ${result.complaints || 0}건 불만글`);
+		return resultMap;
 	} catch (err) {
-		console.warn(`[Filter] AI 실패, 통과 처리: ${err.message}`);
-		return { kept: true, isComplaint: false };
+		console.warn(`[Filter] AI 배치 실패, 전부 통과 처리: ${err.message}`);
+		// 실패 시 전부 통과
+		const resultMap = new Map();
+		for (const item of items) {
+			resultMap.set(item.title, { kept: true, isComplaint: false });
+		}
+		return resultMap;
 	}
 }
 
@@ -381,7 +407,7 @@ async function ingestToWorker(source, posts) {
 	}
 }
 
-// ── 새 파이프라인: 1건씩 상세 → 필터 → 게시 ────────────
+// ── 파이프라인: 배치 필터 → 통과분만 상세 크롤링 ────────
 async function processpipeline(nexonItems, dcItems, browser) {
 	const stats = { nexon: 0, dcTotal: dcItems.length, dcKept: 0, dcComplaints: 0, dcRemoved: 0 };
 
@@ -396,49 +422,59 @@ async function processpipeline(nexonItems, dcItems, browser) {
 		}
 	}
 
-	// ── 디씨: 1건씩 순차 처리 ──
+	// ── 디씨: 배치 필터 (1회 AI 호출) → 통과분만 상세 처리 ──
 	if (dcItems.length > 0) {
-		// 상세 페이지 방문용 모바일 컨텍스트
-		const detailCtx = await browser.newContext({
-			userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
-			locale: 'ko-KR',
-			viewport: { width: 390, height: 844 },
-		});
-		const detailPage = await detailCtx.newPage();
+		// 1) 전체 제목을 한 번에 AI 필터링 (Workers AI 1회 호출)
+		const filterMap = await filterBatch(dcItems);
 
-		for (let i = 0; i < dcItems.length; i++) {
-			const item = dcItems[i];
-			console.log(`[Pipeline] (${i + 1}/${dcItems.length}) "${item.title}"`);
-
-			// 1) AI 필터
-			const { kept, isComplaint } = await filterSinglePost(item.title);
-			if (!kept) {
-				console.log(`  [SKIP] AI 제거`);
+		const keptItems = dcItems.filter(item => {
+			const result = filterMap.get(item.title);
+			if (!result || !result.kept) {
 				stats.dcRemoved++;
-				continue;
+				return false;
+			}
+			return true;
+		});
+
+		console.log(`[Pipeline] AI 필터: ${dcItems.length}건 → ${keptItems.length}건 통과 (${stats.dcRemoved}건 제거)`);
+
+		// 2) 통과한 글만 상세 페이지 방문 + 저장 + 디코 전송
+		if (keptItems.length > 0) {
+			const detailCtx = await browser.newContext({
+				userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
+				locale: 'ko-KR',
+				viewport: { width: 390, height: 844 },
+			});
+			const detailPage = await detailCtx.newPage();
+
+			for (let i = 0; i < keptItems.length; i++) {
+				const item = keptItems[i];
+				console.log(`[Pipeline] (${i + 1}/${keptItems.length}) "${item.title}"`);
+
+				// 상세 페이지에서 댓글/조회/추천 추출
+				const detail = await fetchPostDetail(detailPage, item.url);
+				const filterResult = filterMap.get(item.title);
+				const isComplaint = filterResult?.isComplaint || false;
+				console.log(`  [OK] 💬${detail.comments} 👁${detail.views} 👍${detail.likes}${isComplaint ? ' ⚠불만' : ''}`);
+
+				if (isComplaint) stats.dcComplaints++;
+
+				// 상세 content 보강
+				item.content = detail.content || item.content;
+
+				// DB 저장
+				await ingestToWorker('dcinside', [item]);
+
+				// 디스코드 게시
+				await postToDiscord(item, detail, isComplaint);
+				stats.dcKept++;
+
+				// 디씨 레이트리밋 방지
+				await new Promise(r => setTimeout(r, 1500));
 			}
 
-			// 2) 상세 페이지에서 댓글/조회/추천 추출
-			const detail = await fetchPostDetail(detailPage, item.url);
-			console.log(`  [OK] 💬${detail.comments} 👁${detail.views} 👍${detail.likes}${isComplaint ? ' ⚠불만' : ''}`);
-
-			if (isComplaint) stats.dcComplaints++;
-
-			// 3) 상세 content 보강
-			item.content = detail.content || item.content;
-
-			// 4) DB 저장
-			await ingestToWorker('dcinside', [item]);
-
-			// 5) 디스코드 게시
-			await postToDiscord(item, detail, isComplaint);
-			stats.dcKept++;
-
-			// 디씨 레이트리밋 방지 (1~2초 간격)
-			await new Promise(r => setTimeout(r, 1500));
+			await detailCtx.close();
 		}
-
-		await detailCtx.close();
 	}
 
 	console.log(`[Pipeline] 완료 — 넥슨: ${stats.nexon}, 디씨: ${stats.dcKept}/${stats.dcTotal} (제거: ${stats.dcRemoved}, 불만: ${stats.dcComplaints})`);

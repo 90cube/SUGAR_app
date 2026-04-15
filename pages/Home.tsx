@@ -7,13 +7,17 @@ import { ProfileCard } from '../components/ProfileCard';
 import { TierCard } from '../components/TierCard';
 import { RecentTrend } from '../components/RecentTrend';
 import { RecentMatches } from '../components/RecentMatches';
-import { LastMatch } from '../components/LastMatch';
+import { RecentTeams } from '../components/RecentTeams';
 import { useTypingEffect } from '../hooks/useTypingEffect';
 
+const STORAGE_KEY = 'suddenlab_last_nickname';
+
 export const Home: React.FC = () => {
-  const { searchStatus, userProfile, searchUser, performAnomalyCheck, pageContent } = useApp();
+  const { searchStatus, userProfile, searchUser, performAnomalyCheck, pageContent, recentTeams } = useApp();
   const { openCommunity } = useUI();
-  const [nickname, setNickname] = useState('');
+  const [nickname, setNickname] = useState(() => {
+    try { return localStorage.getItem(STORAGE_KEY) || ''; } catch { return ''; }
+  });
   const [bootPhase, setBootPhase] = useState<'off' | 'logo' | 'done'>('off');
   const bootTimers = useRef<number[]>([]);
   const bootEls = useRef<Map<string, HTMLElement>>(new Map());
@@ -67,6 +71,7 @@ export const Home: React.FC = () => {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (!nickname.trim()) return;
+    try { localStorage.setItem(STORAGE_KEY, nickname.trim()); } catch {}
     searchUser(nickname);
   };
 
@@ -190,14 +195,12 @@ export const Home: React.FC = () => {
                   <RecentTrend stats={userProfile.recentStats} />
                 </div>
 
-                {/* Last Match — 아군 / 적군 */}
-                {userProfile.recentMatches.length > 0 && (
-                  <LastMatch
-                    key={userProfile.ouid}
-                    matchId={userProfile.recentMatches[0].id}
-                    userNickname={userProfile.nickname}
-                    onSearchPlayer={(name) => { setNickname(name); searchUser(name); }}
-                  />
+                {/* Recent Match Teams — TREND ANALYSIS 아래 */}
+                {recentTeams && (
+                  <div className="bg-black border-2 border-white/60 p-3 shadow-hard relative">
+                    <div className="absolute -top-3 left-2 bg-black px-1 text-white/60 font-pixel text-[10px]">LAST_MATCH</div>
+                    <RecentTeams data={recentTeams} />
+                  </div>
                 )}
               </div>
 

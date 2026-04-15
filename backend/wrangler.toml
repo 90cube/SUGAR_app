@@ -4,10 +4,9 @@ compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
 
 [vars]
-# 사용자가 Cloudflare Dashboard에서 등록해야 하는 Secret 변수들:
-# NEXON_API_KEY = "your-nexon-api-key"
-# GEMINI_API_KEY = "your-gemini-api-key"
-# INGEST_API_KEY = "your-n8n-ingest-api-key"
+# Secret 변수 (Cloudflare Dashboard):
+# NEXON_API_KEY, INGEST_API_KEY
+# AI는 Workers AI 바인딩 (Gemma 4 26B A4B) — 외부 API 키 불필요
 
 # D1 Database
 [[d1_databases]]

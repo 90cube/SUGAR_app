@@ -328,10 +328,12 @@ export async function handleDiscordInteraction(request: Request, env: Env, ctx: 
 
 			ctx.waitUntil((async () => {
 				try {
-					// AI로 여론조사 게시글 가공
-					const result: any = await env.AI.run('@cf/zai-org/glm-4.7-flash' as any, {
+					// AI로 여론조사 게시글 가공 (think 모드 비활성화)
+					const result: any = await env.AI.run('@cf/google/gemma-4-26b-a4b-it' as any, {
 						messages: [
-							{ role: 'system', content: `서든어택 커뮤니티 "서든랩"의 밸런스 여론조사 에디터입니다.
+							{ role: 'system', content: `Do not use <think> tags or internal reasoning. Respond directly.
+
+서든어택 커뮤니티 "서든랩"의 밸런스 여론조사 에디터입니다.
 유저가 대충 적은 패치 방향성을 깔끔한 여론조사 게시글로 가공하세요.
 
 규칙:
