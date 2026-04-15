@@ -197,8 +197,7 @@ export const Home: React.FC = () => {
 
                 {/* Recent Match Teams — TREND ANALYSIS 아래 */}
                 {recentTeams && (
-                  <div className="bg-black border-2 border-white/60 p-3 shadow-hard relative">
-                    <div className="absolute -top-3 left-2 bg-black px-1 text-white/60 font-pixel text-[10px]">LAST_MATCH</div>
+                  <div className="bg-black border-2 border-acid-green shadow-hard overflow-hidden">
                     <RecentTeams data={recentTeams} />
                   </div>
                 )}
