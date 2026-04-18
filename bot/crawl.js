@@ -492,6 +492,7 @@ const SHORTS_CHANNELS = [
 	{ id: 'UCBZbRpnxJaRFCfyMnNZt4cg', name: 'victor' },
 	{ id: 'UC9v5RS1PZVWuILrGRVxPYCQ', name: 'lafo' },
 	{ id: 'UC9A2D9UVZD5vVfxFYCTMXWQ', name: '라포' },
+	{ id: 'UCzszFt54IQlI48Qg2_BIkuA', name: 'dotobuild' },
 ];
 
 // 제목 키워드 → 유형/맵 자동 분류
