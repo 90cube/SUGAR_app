@@ -437,6 +437,9 @@ async function processpipeline(nexonItems, dcItems, browser) {
 			return true;
 		});
 
+		// 오름차순 정렬 (오래된→최신): 최신글이 Discord 맨 아래(채널 열면 바로 보임)에 위치
+		keptItems.sort((a, b) => (a.published_at || '').localeCompare(b.published_at || ''));
+
 		console.log(`[Pipeline] AI 필터: ${dcItems.length}건 → ${keptItems.length}건 통과 (${stats.dcRemoved}건 제거)`);
 
 		// 2) 통과한 글만 상세 페이지 방문 + 저장 + 디코 전송
