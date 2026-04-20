@@ -116,7 +116,7 @@ export async function handleList(request: Request, env: Env): Promise<Response> 
 		params.push(source);
 	}
 
-	query += ' ORDER BY u.crawled_at DESC, u.published_at DESC, u.id DESC LIMIT ? OFFSET ?';
+	query += ' ORDER BY DATE(u.crawled_at) DESC, u.published_at DESC, u.id ASC LIMIT ? OFFSET ?';
 	params.push(limit, offset);
 
 	const results = await env.DB.prepare(query).bind(...params).all();
