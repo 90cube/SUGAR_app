@@ -81,17 +81,18 @@ async function filterBatch(items) {
 		const result = await res.json();
 
 		// 결과를 title → {kept, isComplaint} 맵으로 변환
-		const keptTitles = new Set((result.posts || []).map(p => p.title));
+		const posts = result.posts || [];
+		const keptTitles = new Set(posts.map(p => p.title));
+		const complaintTitles = new Set(posts.filter(p => p.isComplaint).map(p => p.title));
 		const resultMap = new Map();
 
 		for (const item of items) {
 			const kept = keptTitles.has(item.title);
-			// complaints 수만 알 수 있으므로, Worker 응답의 posts에 포함된 것만 kept
-			resultMap.set(item.title, { kept, isComplaint: false });
+			const isComplaint = complaintTitles.has(item.title);
+			resultMap.set(item.title, { kept, isComplaint });
 		}
 
-		// 불만글 여부는 Worker가 이미 디스코드로 보내줌
-		console.log(`[Filter] 배치 결과: ${items.length}건 중 ${keptTitles.size}건 통과, ${result.complaints || 0}건 불만글`);
+		console.log(`[Filter] 배치 결과: ${items.length}건 중 ${keptTitles.size}건 통과, ${complaintTitles.size}건 불만글`);
 		return resultMap;
 	} catch (err) {
 		console.warn(`[Filter] AI 배치 실패, 전부 통과 처리: ${err.message}`);

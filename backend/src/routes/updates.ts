@@ -314,8 +314,11 @@ complaint 필드: 서든어택/넥슨에 대한 불만, 비판, 항의, 버그 �
 
 		const decisions: { index: number; keep: boolean; complaint?: boolean }[] = JSON.parse(jsonMatch[0]);
 		const keepIndices = new Set(decisions.filter(d => d.keep).map(d => d.index));
+		const complaintIndices = new Set(decisions.filter(d => d.complaint).map(d => d.index));
 
-		const filtered = body.titles.filter((_, i) => keepIndices.has(i + 1));
+		const filtered = body.titles
+			.map((t, i) => ({ ...t, isComplaint: complaintIndices.has(i + 1) }))
+			.filter((_, i) => keepIndices.has(i + 1));
 
 		// 불만글 디스코드 전송
 		const complaints = decisions.filter(d => d.complaint);
